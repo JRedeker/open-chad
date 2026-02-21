@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# open-chad: Retro tmux launcher for OpenCode
+# Provides muted 80s Apple/Amiga theme, context bar, and crash isolation
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LIB_DIR="$SCRIPT_DIR/lib"
+NO_ANIM=0
+
+usage() {
+    cat <<EOF
+Usage: open-chad [OPTIONS] <project-dir|args...>
+
+Options:
+  --no-anim    Skip the boot animation
+  -h, --help   Show this help
+
+Features:
+  - Retro muted 80s Apple/Amiga theme
+  - Smart tab context (ADV parsing, git branch)
+  - Shared system metrics (CPU/RAM/load)
+  - Tmux crash isolation
+EOF
+}
+
+# Parse options
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-anim)
+            NO_ANIM=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Determine target directory for context
+target_dir="$PWD"
+if [ ${#args[@]} -gt 0 ]; then
+    # If the first arg is a valid directory, it's our target
+    if [ -d "${args[0]}" ]; then
+        target_dir="$(cd "${args[0]}" && pwd)"
+    fi
+fi
+
+# 1. Boot Animation
+if [ "$NO_ANIM" -eq 0 ] && [ -t 1 ]; then
+    "$LIB_DIR/animation.sh" "$target_dir" || true # Ignore interrupts
+fi
+
+# 2. Ensure metrics collector is running (singleton)
+if ! pgrep -f "collect_metrics.sh" >/dev/null; then
+    nohup "$LIB_DIR/collect_metrics.sh" >/dev/null 2>&1 &
+fi
+
+# 3. Check for tmux dependency
+if ! command -v tmux &>/dev/null; then
+    echo "tmux not installed - running opencode directly (no isolation or theme)"
+    exec opencode "${args[@]}"
+fi
+
+# 4. Create and attach isolated session
+# Unique session per invocation for crash isolation
+session_name="oc-$(date +%s)-$$"
+
+# Create detached session running opencode
+# If args are provided, pass them along. Otherwise just run opencode.
+if [ ${#args[@]} -gt 0 ]; then
+    tmux new-session -d -s "$session_name" "opencode ${args[*]}"
+else
+    tmux new-session -d -s "$session_name" "opencode"
+fi
+
+# Attach to session (replaces current process)
+exec tmux attach-session -t "$session_name"
