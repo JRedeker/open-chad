@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anomalyco/oc-plugins/main/advance/plugin/schemas/change.schema.json",
+  "id": "openChadUpdateAddOpencodeAgent",
+  "title": "open-chad-update: add OpenCode agent/sub-agent setup, ADV plugin install from GitHub, omp install from GitHub, and global instruction file sync to installer",
+  "status": "draft",
+  "created_at": "2026-02-23T19:22:11.492Z",
+  "tasks": [
+    {
+      "id": "tk-iwVhXzTm",
+      "title": "Write bats test suite covering idempotency, flags, file creation, and missing-dep graceful skip",
+      "section": "Testing",
+      "status": "pending",
+      "priority": 0,
+      "created_at": "2026-02-23T19:24:38.638Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-K-YBi9t1",
+      "title": "Create config/opencode/agents/ directory with scout, refine, librarian, explore agent markdown files",
+      "section": "Assets",
+      "status": "pending",
+      "priority": 1,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-iwVhXzTm"
+        }
+      ],
+      "created_at": "2026-02-23T19:24:43.485Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-Nd4o2GtT",
+      "title": "Create config/opencode/instructions/ directory with shell_strategy, mcp-tools, worktree-guide, lbp instruction files",
+      "section": "Assets",
+      "status": "pending",
+      "priority": 2,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-iwVhXzTm"
+        }
+      ],
+      "created_at": "2026-02-23T19:24:47.166Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-t55tmTbe",
+      "title": "Implement lib/json_merge.sh — safe additive JSON merge (jq primary, node -e fallback)",
+      "section": "Implementation",
+      "status": "pending",
+      "priority": 3,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-iwVhXzTm"
+        }
+      ],
+      "created_at": "2026-02-23T19:24:50.665Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-yPQeeBIn",
+      "title": "Implement lib/setup_adv.sh — clone/pull Advance from GitHub, pnpm install+build, wire plugin path into opencode.json",
+      "section": "Implementation",
+      "status": "pending",
+      "priority": 4,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-t55tmTbe"
+        }
+      ],
+      "created_at": "2026-02-23T19:24:54.064Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-qHJDWw0G",
+      "title": "Implement lib/setup_omp.sh — clone/pull opencode-model-preferences from GitHub, make install to ~/.local/bin/",
+      "section": "Implementation",
+      "status": "pending",
+      "priority": 5,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-t55tmTbe"
+        }
+      ],
+      "created_at": "2026-02-23T19:24:56.850Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-DTd2GEKs",
+      "title": "Implement lib/setup_opencode.sh — sync agents, sync ADV commands from checkout, sync instructions, merge opencode.json entries",
+      "section": "Implementation",
+      "status": "pending",
+      "priority": 6,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-K-YBi9t1"
+        },
+        {
+          "type": "blocked_by",
+          "target": "tk-Nd4o2GtT"
+        },
+        {
+          "type": "blocked_by",
+          "target": "tk-t55tmTbe"
+        }
+      ],
+      "created_at": "2026-02-23T19:25:00.063Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-qhUhv_NE",
+      "title": "Update install.sh — add flag parsing (--no-adv, --no-omp, --no-opencode-setup) and invoke setup_adv, setup_omp, setup_opencode",
+      "section": "Implementation",
+      "status": "pending",
+      "priority": 7,
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-yPQeeBIn"
+        },
+        {
+          "type": "blocked_by",
+          "target": "tk-qHJDWw0G"
+        },
+        {
+          "type": "blocked_by",
+          "target": "tk-DTd2GEKs"
+        }
+      ],
+      "created_at": "2026-02-23T19:25:03.337Z",
+      "tdd_phase": "none"
+    },
+    {
+      "id": "tk-OLSPXyrW",
+      "title": "Update README.md — document new OpenCode setup behavior, opt-out flags, prerequisites, and what gets installed",
+      "section": "Documentation",
+      "status": "pending",
+      "priority": 8,
+      "created_at": "2026-02-23T19:25:06.255Z",
+      "deps": [
+        {
+          "type": "blocked_by",
+          "target": "tk-qhUhv_NE"
+        }
+      ],
+      "tdd_phase": "none"
+    }
+  ],
+  "deltas": {}
+}

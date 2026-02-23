@@ -1,0 +1,8 @@
+# ADV cache (derived, not committed)
+.adv/db/
+*.db
+*.db-wal
+*.db-shm
+
+# Temporary brainstorm files
+temp/
