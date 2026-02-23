@@ -53,8 +53,12 @@ fi
 # ─── Git clone or pull ────────────────────────────────────────────────────────
 if [ -d "$ADV_CHECKOUT_DIR/.git" ]; then
     step "Updating ADV checkout at $ADV_CHECKOUT_DIR"
-    git -C "$ADV_CHECKOUT_DIR" pull --no-edit --quiet || \
-        warn "git pull failed (local changes?). Using existing checkout."
+    if ! git -C "$ADV_CHECKOUT_DIR" pull --no-edit --quiet; then
+        error "git pull failed — checkout may have local changes or be diverged."
+        error "Resolve manually: cd $ADV_CHECKOUT_DIR && git status"
+        error "Aborting ADV build to avoid using stale code."
+        exit 1
+    fi
 else
     step "Cloning ADV from $ADVANCE_REPO -> $ADV_CHECKOUT_DIR"
     mkdir -p "$(dirname "$ADV_CHECKOUT_DIR")"

@@ -85,15 +85,9 @@ fi
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
 step "Syncing instruction files -> $DEST_INSTRUCTIONS_DIR"
 mkdir -p "$DEST_INSTRUCTIONS_DIR"
-declare -A INSTRUCTION_FILES=(
-    ["shell_strategy.md"]="$DEST_INSTRUCTIONS_DIR/shell_strategy.md"
-    ["mcp-tools.md"]="$DEST_INSTRUCTIONS_DIR/mcp-tools.md"
-    ["worktree-guide.md"]="$DEST_INSTRUCTIONS_DIR/worktree-guide.md"
-    ["lbp.md"]="$DEST_INSTRUCTIONS_DIR/lbp.md"
-)
-for filename in "${!INSTRUCTION_FILES[@]}"; do
+for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
     src="$BUNDLE_INSTRUCTIONS_DIR/$filename"
-    dest="${INSTRUCTION_FILES[$filename]}"
+    dest="$DEST_INSTRUCTIONS_DIR/$filename"
     if [ -f "$src" ]; then
         cp "$src" "$dest"
         ok "instruction: $filename"
@@ -103,27 +97,19 @@ for filename in "${!INSTRUCTION_FILES[@]}"; do
 done
 
 # ─── 4. Merge instruction paths into opencode.json ────────────────────────────
-if command -v node &>/dev/null; then
-    step "Wiring instructions into $OPENCODE_JSON"
+step "Wiring instructions into $OPENCODE_JSON"
 
-    INSTRUCTIONS_JSON="[$(
-        for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
-            dest="$DEST_INSTRUCTIONS_DIR/$filename"
-            # Use ~ expansion-safe path
-            dest_display="${dest/#$HOME/\~}"
-            echo -n "\"$dest_display\","
-        done | sed 's/,$//'
-    )]"
-
-    bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-        "{\"instructions\":$INSTRUCTIONS_JSON}"
-    ok "Instructions merged into $OPENCODE_JSON"
-else
-    warn "node not found — skipping opencode.json instructions merge."
-    warn "Manually add these to the 'instructions' array in $OPENCODE_JSON:"
+INSTRUCTIONS_JSON="[$(
     for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
-        echo "    \"~/.config/opencode/instructions/$filename\""
-    done
-fi
+        dest="$DEST_INSTRUCTIONS_DIR/$filename"
+        # Use ~ expansion-safe path
+        dest_display="${dest/#$HOME/\~}"
+        echo -n "\"$dest_display\","
+    done | sed 's/,$//'
+)]"
+
+bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+    "{\"instructions\":$INSTRUCTIONS_JSON}"
+ok "Instructions merged into $OPENCODE_JSON"
 
 ok "OpenCode setup complete."

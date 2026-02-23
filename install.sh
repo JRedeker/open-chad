@@ -41,7 +41,13 @@ echo -e "${C_SAGE}Starting open-chad installation...${C_RESET}"
 
 BIN_PATH="$SCRIPT_DIR/bin/open-chad"
 
-# ─── 1. Verify dependencies ───────────────────────────────────────────────────
+# ─── 1. Verify hard dependencies ──────────────────────────────────────────────
+if ! command -v node &>/dev/null; then
+    echo -e "${C_CORAL}ERROR: node is required but was not found in PATH.${C_RESET}" >&2
+    echo -e "${C_CORAL}       Install Node.js: https://nodejs.org/${C_RESET}" >&2
+    exit 1
+fi
+
 echo -n "Checking dependencies... "
 if ! command -v tmux &>/dev/null; then
     echo -e "${C_CORAL}WARNING: tmux not found. open-chad will fallback to direct execution.${C_RESET}"
