@@ -26,7 +26,60 @@ cd open-chad
 This will:
 1. Symlink `bin/open-chad` to `~/.local/bin/`.
 2. Update your `~/.tmux.conf` to source the retro theme.
-3. Suggest adding `alias oc='open-chad'` to your `.zshrc`.
+3. Install ADV (Advance) spec-driven development plugin.
+4. Install `omp` (opencode-model-preferences) model-routing TUI.
+5. Sync OpenCode agent files, slash commands, and global instruction files.
+6. Suggest adding `alias oc='open-chad'` to your `.zshrc`.
+
+### Prerequisites
+
+| Tool | Required | Notes |
+|------|----------|-------|
+| `bash` | Yes | 4.0+ |
+| `git` | Yes | For cloning ADV and tmux config |
+| `tmux` | Yes | 3.2+ recommended |
+| `node` / `npm` | Yes | For JSON config merging |
+| `pnpm` | Yes (ADV) | `npm install -g pnpm` to install |
+| `go` | Yes (omp) | 1.16+ — `go install` used for omp |
+| `opencode` | Yes | Install from https://opencode.ai |
+| `jq` | No | Not required — Node.js handles JSON |
+
+### What gets installed
+
+- `~/.local/bin/open-chad` — symlink to the launcher
+- `~/.local/bin/omp` — opencode-model-preferences binary
+- `~/dev/oc-plugins/advance/` — ADV spec-driven dev plugin (cloned from GitHub)
+- `~/.config/opencode/agents/` — agent markdown files (scout, refine, librarian, explore)
+- `~/.config/opencode/command/adv-*.md` — ADV slash commands (synced from checkout)
+- `~/.config/opencode/instructions/` — global instruction files (shell_strategy, mcp-tools, worktree-guide, lbp)
+- `~/.config/opencode/opencode.json` — ADV plugin path + instruction paths merged in (additive only)
+
+### Opt-out flags
+
+```bash
+# Skip ADV plugin install (keep existing ADV setup)
+./install.sh --no-adv
+
+# Skip omp install
+./install.sh --no-omp
+
+# Skip all OpenCode config changes (agents, commands, instructions, opencode.json)
+./install.sh --no-opencode-setup
+
+# Skip everything new (tmux + symlink only)
+./install.sh --no-adv --no-omp --no-opencode-setup
+```
+
+### Re-running install (idempotent)
+
+`install.sh` is safe to re-run. It will:
+- Re-create the `open-chad` symlink (replacing any stale one)
+- Skip the tmux theme if already present
+- `git pull` the ADV checkout instead of re-cloning
+- Re-run `pnpm install + build` in the ADV plugin directory
+- Skip `omp` re-install if the same version is current (`go install` is idempotent)
+- Re-sync agent, command, and instruction files (overwrites with latest bundle)
+- Re-merge opencode.json without duplicating existing entries
 
 ## Usage
 
