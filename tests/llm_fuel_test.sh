@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/llm_fuel_test.sh — Unit tests for LLM fuel gauge
-# Tests: percentage formula, color thresholds, status_left.sh rendering, edge cases,
+# Tests: percentage formula, color thresholds, status_right.sh rendering, edge cases,
 #        per-provider multi-gauge, API response parsing, partial failure scenarios
 #
 # Usage: bash tests/llm_fuel_test.sh
@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 STATUS_LEFT="$REPO_DIR/lib/status_left.sh"
+STATUS_RIGHT="$REPO_DIR/lib/status_right.sh"
 COLLECT_METRICS="$REPO_DIR/lib/collect_metrics.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 
@@ -148,9 +149,9 @@ test_color_yellow_49
 test_color_red_19
 test_color_red_0
 
-# ─── Section 3: status_left.sh rendering (multi-provider) ────────────────────
+# ─── Section 3: status_right.sh rendering (multi-provider) ────────────────────
 
-section "status_left.sh rendering"
+section "status_right.sh rendering"
 
 # Check script exists and is executable
 test_script_exists() {
@@ -159,6 +160,14 @@ test_script_exists() {
 
 test_script_syntax() {
     bash -n "$STATUS_LEFT" 2>/dev/null && pass "status_left.sh syntax OK" || fail "status_left.sh syntax error"
+}
+
+test_right_script_exists() {
+    [ -f "$STATUS_RIGHT" ] && pass "status_right.sh exists" || fail "status_right.sh missing: $STATUS_RIGHT"
+}
+
+test_right_script_syntax() {
+    bash -n "$STATUS_RIGHT" 2>/dev/null && pass "status_right.sh syntax OK" || fail "status_right.sh syntax error"
 }
 
 # Set up isolated tmp dir for cache files
@@ -170,20 +179,20 @@ COPILOT_CACHE="$TMP_DIR/open-chad-copilot"
 CLAUDE_CACHE="$TMP_DIR/open-chad-claude"
 CODEX_CACHE="$TMP_DIR/open-chad-codex"
 
-# Helper: run status_left.sh with overridden cache paths
-run_status_left() {
-    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" "$@" 2>/dev/null || true
+# Helper: run status_right.sh with overridden cache paths
+run_status_right() {
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" "$@" 2>/dev/null || true
 }
 
 # Helper: force-enable gauge regardless of cache state
-run_status_left_force() {
-    OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_LEFT" "$@" 2>/dev/null || true
+run_status_right_force() {
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" "$@" 2>/dev/null || true
 }
 
 test_renders_all_dash_when_no_caches_forced() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
-    result=$(run_status_left_force)
+    result=$(run_status_right_force)
     assert_contains "$result" "Z.ai" "force-on: Z.ai label shown even with no caches"
     assert_contains "$result" "Copilot" "force-on: Copilot label shown even with no caches"
     assert_contains "$result" "Claude" "force-on: Claude label shown even with no caches"
@@ -193,20 +202,20 @@ test_renders_all_dash_when_no_caches_forced() {
 test_auto_hides_when_no_caches() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_eq "$result" "" "auto mode: empty output when no cache files exist"
 }
 
 test_exits_zero_with_no_caches() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
-    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" >/dev/null 2>&1
-    assert_eq "$?" "0" "status_left.sh exits 0 with no caches"
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
+    assert_eq "$?" "0" "status_right.sh exits 0 with no caches"
 }
 
 test_renders_green_for_75() {
     printf '75' > "$ZAI_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "#AAD94C" "Z.ai 75% → green color"
     assert_contains "$result" "75%" "Z.ai 75% shown"
 }
@@ -214,7 +223,7 @@ test_renders_green_for_75() {
 test_renders_yellow_for_35() {
     printf '35' > "$COPILOT_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "#E6B450" "Copilot 35% → yellow color"
     assert_contains "$result" "35%" "Copilot 35% shown"
 }
@@ -222,7 +231,7 @@ test_renders_yellow_for_35() {
 test_renders_red_for_10() {
     printf '10' > "$CLAUDE_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "#FF8F40" "Claude 10% → red color"
     assert_contains "$result" "10%" "Claude 10% shown"
 }
@@ -232,7 +241,7 @@ test_renders_dash_for_empty_cache() {
     printf '80' > "$ZAI_CACHE"
     printf '' > "$CODEX_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     # Gauge is shown (ZAI has data), Codex should show -- not a percentage
     assert_contains "$result" "Codex" "Codex label present for empty cache"
 }
@@ -242,7 +251,7 @@ test_renders_dash_for_non_integer_cache() {
     printf '80' > "$COPILOT_CACHE"
     printf 'error' > "$ZAI_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "Z.ai" "Z.ai label present for non-integer cache"
     assert_not_contains "$result" "error%" "non-integer cache does not render as percent"
 }
@@ -253,7 +262,7 @@ test_four_segments_separated_by_pipe() {
     printf '47' > "$CLAUDE_CACHE"
     printf '94' > "$CODEX_CACHE"
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "Z.ai" "output contains Z.ai segment"
     assert_contains "$result" "Copilot" "output contains Copilot segment"
     assert_contains "$result" "Claude" "output contains Claude segment"
@@ -261,15 +270,10 @@ test_four_segments_separated_by_pipe() {
     assert_contains "$result" "|" "output contains segment separator"
 }
 
-test_output_contains_title_when_provided() {
-    printf '80' > "$ZAI_CACHE"
-    local result
-    result=$(run_status_left "🚀 open-chad testChange" 2>/dev/null || true)
-    assert_contains "$result" "open-chad" "output includes repo name"
-}
-
 test_script_exists
 test_script_syntax
+test_right_script_exists
+test_right_script_syntax
 test_renders_all_dash_when_no_caches_forced
 test_auto_hides_when_no_caches
 test_exits_zero_with_no_caches
@@ -279,7 +283,6 @@ test_renders_red_for_10
 test_renders_dash_for_empty_cache
 test_renders_dash_for_non_integer_cache
 test_four_segments_separated_by_pipe
-test_output_contains_title_when_provided
 
 # ─── Section 4: API response parsing helpers ──────────────────────────────────
 
@@ -447,7 +450,7 @@ test_partial_failure_renders_all_four_segments() {
     printf '' > "$CODEX_CACHE"   # simulated failure
 
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "Z.ai" "partial failure: Z.ai segment present"
     assert_contains "$result" "Copilot" "partial failure: Copilot segment present"
     assert_contains "$result" "Claude" "partial failure: Claude segment present"
@@ -462,8 +465,8 @@ test_exits_zero_on_partial_failure() {
     printf '81' > "$COPILOT_CACHE"
     printf '47' > "$CLAUDE_CACHE"
     printf '' > "$CODEX_CACHE"
-    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" >/dev/null 2>&1
-    assert_eq "$?" "0" "status_left.sh exits 0 on partial failure"
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
+    assert_eq "$?" "0" "status_right.sh exits 0 on partial failure"
 }
 
 test_partial_failure_renders_all_four_segments
@@ -536,16 +539,16 @@ test_toggle_off_hides_gauge() {
     printf '80' > "$CLAUDE_CACHE"
     printf '80' > "$CODEX_CACHE"
     local result
-    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=0 bash "$STATUS_LEFT" 2>/dev/null || true)
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=0 bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_eq "$result" "" "MULTI_GAUGE=0: gauge hidden even when all caches have data"
 }
 
 test_toggle_off_variants() {
     printf '80' > "$ZAI_CACHE"
     local r_false r_no r_off
-    r_false=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=false bash "$STATUS_LEFT" 2>/dev/null || true)
-    r_no=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"    OPEN_CHAD_MULTI_GAUGE=no    bash "$STATUS_LEFT" 2>/dev/null || true)
-    r_off=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"   OPEN_CHAD_MULTI_GAUGE=off   bash "$STATUS_LEFT" 2>/dev/null || true)
+    r_false=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=false bash "$STATUS_RIGHT" 2>/dev/null || true)
+    r_no=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"    OPEN_CHAD_MULTI_GAUGE=no    bash "$STATUS_RIGHT" 2>/dev/null || true)
+    r_off=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"   OPEN_CHAD_MULTI_GAUGE=off   bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_eq "$r_false" "" "MULTI_GAUGE=false: gauge hidden"
     assert_eq "$r_no"    "" "MULTI_GAUGE=no: gauge hidden"
     assert_eq "$r_off"   "" "MULTI_GAUGE=off: gauge hidden"
@@ -554,7 +557,7 @@ test_toggle_off_variants() {
 test_toggle_on_shows_dashes_with_no_caches() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
-    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_LEFT" 2>/dev/null || true)
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_contains "$result" "Z.ai"    "MULTI_GAUGE=1: Z.ai shown even with no caches"
     assert_contains "$result" "Copilot" "MULTI_GAUGE=1: Copilot shown even with no caches"
     assert_contains "$result" "Claude"  "MULTI_GAUGE=1: Claude shown even with no caches"
@@ -565,7 +568,7 @@ test_auto_shows_when_one_cache_has_data() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     printf '55' > "$CLAUDE_CACHE"   # only Claude has data
     local result
-    result=$(run_status_left)
+    result=$(run_status_right)
     assert_contains "$result" "Claude" "auto mode: gauge visible when at least one cache has data"
     assert_contains "$result" "Z.ai"   "auto mode: all 4 segments shown once any cache has data"
 }
@@ -576,10 +579,10 @@ test_collect_has_multi_gauge_toggle() {
         || fail "collect_metrics.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
 }
 
-test_status_left_has_multi_gauge_toggle() {
-    grep -q "_multi_gauge_enabled\|OPEN_CHAD_MULTI_GAUGE" "$STATUS_LEFT" \
-        && pass "status_left.sh has OPEN_CHAD_MULTI_GAUGE support" \
-        || fail "status_left.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
+test_status_right_has_multi_gauge_toggle() {
+    grep -q "_multi_gauge_enabled\|OPEN_CHAD_MULTI_GAUGE" "$STATUS_RIGHT" \
+        && pass "status_right.sh has OPEN_CHAD_MULTI_GAUGE support" \
+        || fail "status_right.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
 }
 
 test_toggle_off_hides_gauge
@@ -587,7 +590,7 @@ test_toggle_off_variants
 test_toggle_on_shows_dashes_with_no_caches
 test_auto_shows_when_one_cache_has_data
 test_collect_has_multi_gauge_toggle
-test_status_left_has_multi_gauge_toggle
+test_status_right_has_multi_gauge_toggle
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 
