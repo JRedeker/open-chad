@@ -175,14 +175,26 @@ run_status_left() {
     OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" "$@" 2>/dev/null || true
 }
 
-test_renders_all_dash_when_no_caches() {
+# Helper: force-enable gauge regardless of cache state
+run_status_left_force() {
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_LEFT" "$@" 2>/dev/null || true
+}
+
+test_renders_all_dash_when_no_caches_forced() {
+    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
+    local result
+    result=$(run_status_left_force)
+    assert_contains "$result" "Z.ai" "force-on: Z.ai label shown even with no caches"
+    assert_contains "$result" "Copilot" "force-on: Copilot label shown even with no caches"
+    assert_contains "$result" "Claude" "force-on: Claude label shown even with no caches"
+    assert_contains "$result" "Codex" "force-on: Codex label shown even with no caches"
+}
+
+test_auto_hides_when_no_caches() {
     rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
     result=$(run_status_left)
-    assert_contains "$result" "Z.ai" "output contains Z.ai label when all caches missing"
-    assert_contains "$result" "Copilot" "output contains Copilot label when all caches missing"
-    assert_contains "$result" "Claude" "output contains Claude label when all caches missing"
-    assert_contains "$result" "Codex" "output contains Codex label when all caches missing"
+    assert_eq "$result" "" "auto mode: empty output when no cache files exist"
 }
 
 test_exits_zero_with_no_caches() {
@@ -216,14 +228,18 @@ test_renders_red_for_10() {
 }
 
 test_renders_dash_for_empty_cache() {
+    # Need at least one valid peer cache to trigger auto-enable
+    printf '80' > "$ZAI_CACHE"
     printf '' > "$CODEX_CACHE"
     local result
     result=$(run_status_left)
-    # Should render Codex with gray -- not a percentage
+    # Gauge is shown (ZAI has data), Codex should show -- not a percentage
     assert_contains "$result" "Codex" "Codex label present for empty cache"
 }
 
 test_renders_dash_for_non_integer_cache() {
+    # Need at least one valid peer cache to trigger auto-enable
+    printf '80' > "$COPILOT_CACHE"
     printf 'error' > "$ZAI_CACHE"
     local result
     result=$(run_status_left)
@@ -254,7 +270,8 @@ test_output_contains_title_when_provided() {
 
 test_script_exists
 test_script_syntax
-test_renders_all_dash_when_no_caches
+test_renders_all_dash_when_no_caches_forced
+test_auto_hides_when_no_caches
 test_exits_zero_with_no_caches
 test_renders_green_for_75
 test_renders_yellow_for_35
@@ -508,6 +525,69 @@ test_collect_uses_auth_json
 test_collect_atomic_writes
 test_collect_max_time
 test_collect_no_old_llm_fuel
+
+# ─── Section 8: OPEN_CHAD_MULTI_GAUGE toggle ─────────────────────────────────
+
+section "OPEN_CHAD_MULTI_GAUGE toggle"
+
+test_toggle_off_hides_gauge() {
+    printf '80' > "$ZAI_CACHE"
+    printf '80' > "$COPILOT_CACHE"
+    printf '80' > "$CLAUDE_CACHE"
+    printf '80' > "$CODEX_CACHE"
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=0 bash "$STATUS_LEFT" 2>/dev/null || true)
+    assert_eq "$result" "" "MULTI_GAUGE=0: gauge hidden even when all caches have data"
+}
+
+test_toggle_off_variants() {
+    printf '80' > "$ZAI_CACHE"
+    local r_false r_no r_off
+    r_false=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=false bash "$STATUS_LEFT" 2>/dev/null || true)
+    r_no=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"    OPEN_CHAD_MULTI_GAUGE=no    bash "$STATUS_LEFT" 2>/dev/null || true)
+    r_off=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"   OPEN_CHAD_MULTI_GAUGE=off   bash "$STATUS_LEFT" 2>/dev/null || true)
+    assert_eq "$r_false" "" "MULTI_GAUGE=false: gauge hidden"
+    assert_eq "$r_no"    "" "MULTI_GAUGE=no: gauge hidden"
+    assert_eq "$r_off"   "" "MULTI_GAUGE=off: gauge hidden"
+}
+
+test_toggle_on_shows_dashes_with_no_caches() {
+    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_LEFT" 2>/dev/null || true)
+    assert_contains "$result" "Z.ai"    "MULTI_GAUGE=1: Z.ai shown even with no caches"
+    assert_contains "$result" "Copilot" "MULTI_GAUGE=1: Copilot shown even with no caches"
+    assert_contains "$result" "Claude"  "MULTI_GAUGE=1: Claude shown even with no caches"
+    assert_contains "$result" "Codex"   "MULTI_GAUGE=1: Codex shown even with no caches"
+}
+
+test_auto_shows_when_one_cache_has_data() {
+    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
+    printf '55' > "$CLAUDE_CACHE"   # only Claude has data
+    local result
+    result=$(run_status_left)
+    assert_contains "$result" "Claude" "auto mode: gauge visible when at least one cache has data"
+    assert_contains "$result" "Z.ai"   "auto mode: all 4 segments shown once any cache has data"
+}
+
+test_collect_has_multi_gauge_toggle() {
+    grep -q "_multi_gauge_enabled\|OPEN_CHAD_MULTI_GAUGE" "$COLLECT_METRICS" \
+        && pass "collect_metrics.sh has OPEN_CHAD_MULTI_GAUGE support" \
+        || fail "collect_metrics.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
+}
+
+test_status_left_has_multi_gauge_toggle() {
+    grep -q "_multi_gauge_enabled\|OPEN_CHAD_MULTI_GAUGE" "$STATUS_LEFT" \
+        && pass "status_left.sh has OPEN_CHAD_MULTI_GAUGE support" \
+        || fail "status_left.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
+}
+
+test_toggle_off_hides_gauge
+test_toggle_off_variants
+test_toggle_on_shows_dashes_with_no_caches
+test_auto_shows_when_one_cache_has_data
+test_collect_has_multi_gauge_toggle
+test_status_left_has_multi_gauge_toggle
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

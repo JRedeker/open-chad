@@ -128,6 +128,28 @@ The metrics collector reads auth tokens from `~/.local/share/opencode/auth.json`
 
 If a token is missing or the API call fails, that provider's segment shows `--` — no crash, no effect on other providers.
 
+## Toggle: `OPEN_CHAD_MULTI_GAUGE`
+
+Controls whether the per-provider fuel gauge is shown in the status bar.
+
+| Value | Behavior |
+|-------|----------|
+| unset / `auto` | Show gauge only if at least one provider cache file has valid data (default) |
+| `1` / `true` / `yes` / `on` | Always show gauge (all 4 segments, unknown providers show `--`) |
+| `0` / `false` / `no` / `off` | Never show gauge |
+
+Set in your shell profile or `~/.tmux.conf`:
+
+```bash
+# Always show (even on a fresh install with no tokens):
+export OPEN_CHAD_MULTI_GAUGE=1
+
+# Never show:
+export OPEN_CHAD_MULTI_GAUGE=0
+```
+
+The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and `status_left.sh` (hides the segment when disabled).
+
 ## License
 
 MIT

@@ -4,6 +4,11 @@
 # Format: Z.ai 62% | Copilot 81% | Claude 47% | Codex --
 # Reads from cache only — no disk or DB work (fast, safe for tmux callbacks)
 # No external tool dependencies in render path (no jq, no curl)
+#
+# Multi-provider gauge respects OPEN_CHAD_MULTI_GAUGE:
+#   1 / true   → always show (all -- when no data)
+#   0 / false  → never show
+#   unset/auto → show only if at least one cache file has a valid value
 
 set -euo pipefail
 
@@ -42,18 +47,51 @@ _render_provider() {
     printf '#[fg=%s]%s %s' "$color" "$label" "$display"
 }
 
+# Returns 0 if at least one provider cache file has a valid integer
+_has_any_gauge_data() {
+    local f
+    for f in \
+        "${_cache_dir}/open-chad-zai" \
+        "${_cache_dir}/open-chad-copilot" \
+        "${_cache_dir}/open-chad-claude" \
+        "${_cache_dir}/open-chad-codex"
+    do
+        if [ -f "$f" ]; then
+            local v
+            v=$(cat "$f" 2>/dev/null || true)
+            [[ "${v:-}" =~ ^[0-9]+$ ]] && return 0
+        fi
+    done
+    return 1
+}
+
+# Determine whether to render the multi-provider gauge
+_multi_gauge_enabled() {
+    local setting="${OPEN_CHAD_MULTI_GAUGE:-auto}"
+    case "$setting" in
+        1|true|yes|on)   return 0 ;;
+        0|false|no|off)  return 1 ;;
+        *)  # auto: only show if at least one cache has real data
+            _has_any_gauge_data
+            ;;
+    esac
+}
+
 # --- Multi-provider gauge ---
 sep='#[fg=#1B1F29] | '
 
-gauge=$(
-    _render_provider "Z.ai"    "${_cache_dir}/open-chad-zai"
-    printf '%s' "$sep"
-    _render_provider "Copilot" "${_cache_dir}/open-chad-copilot"
-    printf '%s' "$sep"
-    _render_provider "Claude"  "${_cache_dir}/open-chad-claude"
-    printf '%s' "$sep"
-    _render_provider "Codex"   "${_cache_dir}/open-chad-codex"
-)
+gauge=""
+if _multi_gauge_enabled; then
+    gauge=$(
+        _render_provider "Z.ai"    "${_cache_dir}/open-chad-zai"
+        printf '%s' "$sep"
+        _render_provider "Copilot" "${_cache_dir}/open-chad-copilot"
+        printf '%s' "$sep"
+        _render_provider "Claude"  "${_cache_dir}/open-chad-claude"
+        printf '%s' "$sep"
+        _render_provider "Codex"   "${_cache_dir}/open-chad-codex"
+    )
+fi
 
 # --- ADV title parser ---
 title="${1:-}"
@@ -63,8 +101,10 @@ if [ -n "$title" ]; then
 fi
 
 # --- Compose output ---
-printf '#[bg=#0D1017]%s' "$gauge"
-
-if [ -n "$title_output" ]; then
-    printf ' #[nobold,fg=#1B1F29]│ #[nobold]%s' "$title_output"
+if [ -n "$gauge" ] && [ -n "$title_output" ]; then
+    printf '#[bg=#0D1017]%s #[nobold,fg=#1B1F29]│ #[nobold]%s' "$gauge" "$title_output"
+elif [ -n "$gauge" ]; then
+    printf '#[bg=#0D1017]%s' "$gauge"
+elif [ -n "$title_output" ]; then
+    printf '#[bg=#0D1017,nobold]%s' "$title_output"
 fi

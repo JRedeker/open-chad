@@ -4,6 +4,12 @@
 # Writes per-provider LLM quota % to 4 separate cache files every 30s:
 #   /tmp/open-chad-zai, /tmp/open-chad-copilot,
 #   /tmp/open-chad-claude, /tmp/open-chad-codex
+#
+# Multi-provider gauge is opt-in via OPEN_CHAD_MULTI_GAUGE=1 (default: auto)
+#   OPEN_CHAD_MULTI_GAUGE=1   → always collect
+#   OPEN_CHAD_MULTI_GAUGE=0   → never collect (hides gauge)
+#   unset / "auto"            → collect only if ≥1 provider token found in auth.json
+#
 # Designed for 10+ concurrent tmux sessions reading the same cache
 
 set -euo pipefail
@@ -87,6 +93,36 @@ _write_cache() {
     local tmp="${cache_file}.$$"
     printf '%s' "$value" > "$tmp"
     mv -f "$tmp" "$cache_file"
+}
+
+# Returns 0 (true) if at least one provider token exists in auth.json
+# Used for auto-detection when OPEN_CHAD_MULTI_GAUGE is unset
+_has_any_provider_token() {
+    [ -f "$AUTH_JSON" ] || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+    local count
+    count=$(jq -r '
+        [
+          .["zai-coding-plan"].key,
+          .["github-copilot"].access,
+          .["anthropic"].access,
+          .["openai"].access
+        ] | map(select(. != null and . != "")) | length
+    ' "$AUTH_JSON" 2>/dev/null) || return 1
+    [ "${count:-0}" -gt 0 ]
+}
+
+# Determine whether to run the multi-provider gauge
+# Returns 0 (enabled) or 1 (disabled)
+_multi_gauge_enabled() {
+    local setting="${OPEN_CHAD_MULTI_GAUGE:-auto}"
+    case "$setting" in
+        1|true|yes|on)   return 0 ;;
+        0|false|no|off)  return 1 ;;
+        *)  # auto: enable only if at least one token is present
+            _has_any_provider_token
+            ;;
+    esac
 }
 
 # Z.ai: GET /api/monitor/usage/quota/limit
@@ -216,6 +252,11 @@ collect_codex() {
 }
 
 collect_llm_providers() {
+    # Skip entirely if multi-gauge is disabled or no tokens configured
+    if ! _multi_gauge_enabled; then
+        return 0
+    fi
+
     # Run all 4 adapters in parallel with safe wait pattern
     # (bare `wait` under set -euo pipefail propagates failures — use wait $pid || rc=$?)
     local pid_zai pid_copilot pid_claude pid_codex
