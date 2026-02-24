@@ -14,7 +14,7 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
   - Left: repo name + branch.
   - Row 2 left: LLM fuel gauge + ADV window title parser (extracts `EMOJI REPO CHANGE_ID` into structured zones).
   - Row 2 right: live CPU%, RAM%, and load average.
-- **LLM Fuel Gauge**: Displays `⛽ N%` in the tmux status bar showing remaining token budget in the 5-hour rolling window. Color-coded: green ≥50%, yellow 20–49%, red <20%. Configurable plan limit (`PLAN_LIMIT` in `lib/collect_metrics.sh`; defaults to 44k tokens for Pro plan).
+- **LLM Fuel Gauge**: Displays per-provider quota remaining as `Z.ai 62% | Copilot 81% | Claude 47% | Codex 94%` in the tmux status bar. Each provider segment is color-coded: green ≥50%, yellow 20–49%, red <20%. Unknown or failed providers show `--` in gray. Updated live every 30s via background collector.
 - **Shared System Metrics**: Background singleton collector tracks CPU%, RAM%, Load Avg, and LLM fuel across all sessions with near-zero overhead.
 - **Crash Isolation**: Wraps every OpenCode instance in an isolated tmux session (`oc-<timestamp>-<pid>`) to prevent WSL/terminal cascade failures.
 
@@ -46,7 +46,7 @@ This will:
 | `pnpm` | Yes (ADV) | `npm install -g pnpm` to install |
 | `go` | Yes (omp) | 1.16+ — `go install` used for omp |
 | `opencode` | Yes | Install from https://opencode.ai |
-| `jq` | No | Not required — Node.js handles JSON |
+| `jq` | Yes | Used by metrics collector for JSON parsing — not required by render path |
 
 ### What gets installed
 
@@ -109,11 +109,24 @@ oc-killall
 
 - `bin/open-chad`: Main entrypoint. Handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
 - `lib/animation.sh`: Pure bash boot animation using ayu-dark true-color ANSI sequences.
-- `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` (CPU/RAM/load) and `/tmp/open-chad-llm-metrics` (fuel %) every 30s. Uses PID locks.
-- `lib/status_left.sh`: Fast tmux `#()` renderer. Reads LLM fuel cache, applies color thresholds, composes with `title_parser.sh` output.
+- `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `/tmp/open-chad-zai`, `/tmp/open-chad-copilot`, `/tmp/open-chad-claude`, `/tmp/open-chad-codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
+- `lib/status_left.sh`: Fast tmux `#()` renderer. Reads 4 per-provider cache files (no jq, no curl — plain bash), applies per-segment color thresholds, composes 4-segment gauge with `title_parser.sh` output.
 - `lib/status_right.sh`: Fast tmux `#()` renderer. Reads system metrics cache.
 - `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV string structures.
 - `lib/theme.conf`: Sourced by `~/.tmux.conf`.
+
+## LLM Provider Auth
+
+The metrics collector reads auth tokens from `~/.local/share/opencode/auth.json` at runtime. Each provider uses a specific key path:
+
+| Provider | auth.json key | API endpoint |
+|----------|--------------|--------------|
+| Z.ai | `zai-coding-plan.key` | `api.z.ai/api/monitor/usage/quota/limit` |
+| GitHub Copilot | `github-copilot.access` | `api.github.com/copilot_internal/user` |
+| Claude (Anthropic) | `anthropic.access` | `api.anthropic.com/api/oauth/usage` |
+| OpenAI Codex | `openai.access` | `chatgpt.com/backend-api/wham/usage` |
+
+If a token is missing or the API call fails, that provider's segment shows `--` — no crash, no effect on other providers.
 
 ## License
 

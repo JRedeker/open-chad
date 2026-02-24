@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 # open-chad: Shared system metrics collector (singleton)
 # Writes CPU%, RAM%, load to /tmp/open-chad-metrics every 30s
-# Writes LLM fuel% to /tmp/open-chad-llm-metrics every 30s
+# Writes per-provider LLM quota % to 4 separate cache files every 30s:
+#   /tmp/open-chad-zai, /tmp/open-chad-copilot,
+#   /tmp/open-chad-claude, /tmp/open-chad-codex
 # Designed for 10+ concurrent tmux sessions reading the same cache
 
 set -euo pipefail
 
-# --- LLM Fuel Gauge configuration ---
-# Token limit for the 5-hour rolling window (community-derived, approximate).
-# Anthropic's actual enforcement unit is messages, not tokens.
-# Pro plan:   ~44,000 tokens per 5-hour window
-# Max5 plan:  ~88,000 tokens per 5-hour window
-# Max20 plan: ~220,000 tokens per 5-hour window
-PLAN_LIMIT=44000
-
-OPENCODE_DB="${HOME}/.local/share/opencode/opencode.db"
-OPENCODE_MSG_DIR="${HOME}/.local/share/opencode/storage/message"
-LLM_CACHE="/tmp/open-chad-llm-metrics"
+AUTH_JSON="${HOME}/.local/share/opencode/auth.json"
 CACHE="/tmp/open-chad-metrics"
 LOCKFILE="/tmp/open-chad-metrics.lock"
 INTERVAL=30
+
+# Per-provider cache files (plain integer 0-100, or empty = unknown)
+ZAI_CACHE="/tmp/open-chad-zai"
+COPILOT_CACHE="/tmp/open-chad-copilot"
+CLAUDE_CACHE="/tmp/open-chad-claude"
+CODEX_CACHE="/tmp/open-chad-codex"
 
 # Singleton guard: exit if another collector is running
 if [ -f "$LOCKFILE" ]; then
@@ -68,74 +66,179 @@ collect() {
     mv -f "$tmp" "$CACHE"
 }
 
-# Returns token usage for last 5 hours via SQLite (fastest path)
-# Outputs integer token count, or empty string on failure
-_query_tokens_sqlite() {
-    local cutoff_ms now_ms
-    now_ms=$(date +%s%3N)
-    cutoff_ms=$(( now_ms - 5 * 60 * 60 * 1000 ))
-    sqlite3 "$OPENCODE_DB" \
-        "SELECT COALESCE(SUM(json_extract(data, '$.tokens.total')), 0)
-         FROM message
-         WHERE json_extract(data, '$.role') = 'assistant'
-           AND time_created > ${cutoff_ms}
-           AND json_extract(data, '$.tokens.total') > 0;" \
-        2>/dev/null
+# Read a key path (e.g. "zai-coding-plan.key") from auth.json
+# Outputs the value, or empty string if not found or jq unavailable
+_read_auth() {
+    local keypath="$1"
+    [ -f "$AUTH_JSON" ] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    # keypath like "zai-coding-plan.key" → .["zai-coding-plan"].key
+    local obj key
+    obj="${keypath%.*}"
+    key="${keypath##*.}"
+    jq -r --arg obj "$obj" --arg key "$key" \
+        '.[$obj][$key] // empty' "$AUTH_JSON" 2>/dev/null || true
 }
 
-# Returns token usage for last 5 hours via jq + JSON files (fallback)
-# Uses time.created field (ms epoch) inside each JSON — NOT file mtime
-# Outputs integer token count, or empty string on failure
-_query_tokens_jq() {
-    [ -d "$OPENCODE_MSG_DIR" ] || return 0
-    local cutoff_ms now_ms
-    now_ms=$(date +%s%3N)
-    cutoff_ms=$(( now_ms - 5 * 60 * 60 * 1000 ))
-    find "$OPENCODE_MSG_DIR" -type f -name "msg_*.json" \
-        | xargs cat 2>/dev/null \
-        | jq -s "[.[] \
-              | select(.role == \"assistant\" and .time.created > ${cutoff_ms}) \
-              | .tokens \
-              | select(. != null) \
-              | (.input // 0) + (.output // 0) + (.reasoning // 0) \
-                + (.cache.read // 0) + (.cache.write // 0)] \
-              | add // 0" \
-        2>/dev/null
+# Atomic write of integer to a cache file, or empty string on failure
+_write_cache() {
+    local cache_file="$1"
+    local value="$2"
+    local tmp="${cache_file}.$$"
+    printf '%s' "$value" > "$tmp"
+    mv -f "$tmp" "$cache_file"
 }
 
-collect_llm_fuel() {
-    local fuel_pct=100
-    local used_tokens=0
-
-    # Try SQLite first (fast: single DB query), fall back to jq+JSON (slower: file scan)
-    if command -v sqlite3 >/dev/null 2>&1 && [ -f "$OPENCODE_DB" ]; then
-        used_tokens=$(_query_tokens_sqlite) || used_tokens=0
-    elif command -v jq >/dev/null 2>&1 && [ -d "$OPENCODE_MSG_DIR" ]; then
-        used_tokens=$(_query_tokens_jq) || used_tokens=0
+# Z.ai: GET /api/monitor/usage/quota/limit
+# Response: data.limits[type=TOKENS_LIMIT].percentage = used%
+# Remaining = 100 - percentage
+collect_zai() {
+    local api_key
+    api_key=$(_read_auth "zai-coding-plan.key")
+    if [ -z "$api_key" ]; then
+        _write_cache "$ZAI_CACHE" ""
+        return 0
     fi
 
-    # Sanitize: must be a non-negative integer
-    if ! [[ "${used_tokens:-0}" =~ ^[0-9]+$ ]]; then
-        used_tokens=0
+    local response
+    response=$(curl -sf --max-time 4 \
+        -H "Authorization: Bearer ${api_key}" \
+        'https://api.z.ai/api/monitor/usage/quota/limit' 2>/dev/null) || true
+
+    local pct
+    pct=$(printf '%s' "$response" | jq -r '
+        .data.limits[]
+        | select(.type == "TOKENS_LIMIT")
+        | .percentage
+        | if . == null then empty else (100 - .) | floor end
+    ' 2>/dev/null | head -1) || true
+
+    if [[ "${pct:-}" =~ ^[0-9]+$ ]]; then
+        _write_cache "$ZAI_CACHE" "$pct"
+    else
+        _write_cache "$ZAI_CACHE" ""
+    fi
+}
+
+# GitHub Copilot: GET /copilot_internal/user
+# Response: quota_snapshots.premium_interactions.percent_remaining = remaining%
+# Value CAN be negative when over quota — clamp to 0
+collect_copilot() {
+    local token
+    token=$(_read_auth "github-copilot.access")
+    if [ -z "$token" ]; then
+        _write_cache "$COPILOT_CACHE" ""
+        return 0
     fi
 
-    # Compute remaining fuel percentage, clamped to [0, 100]
-    if [ "${used_tokens:-0}" -ge "$PLAN_LIMIT" ]; then
-        fuel_pct=0
-    elif [ "$PLAN_LIMIT" -gt 0 ]; then
-        fuel_pct=$(( 100 - (used_tokens * 100 / PLAN_LIMIT) ))
-        [ "$fuel_pct" -lt 0 ] && fuel_pct=0
-        [ "$fuel_pct" -gt 100 ] && fuel_pct=100
+    local response
+    response=$(curl -sf --max-time 4 \
+        -H "Authorization: token ${token}" \
+        -H "Editor-Version: vscode/1.96.2" \
+        -H "Editor-Plugin-Version: copilot-chat/0.26.7" \
+        -H "User-Agent: GitHubCopilotChat/0.26.7" \
+        'https://api.github.com/copilot_internal/user' 2>/dev/null) || true
+
+    local raw
+    raw=$(printf '%s' "$response" | jq -r '
+        .quota_snapshots.premium_interactions.percent_remaining
+        | if . == null then empty else . end
+    ' 2>/dev/null) || true
+
+    if [ -n "$raw" ]; then
+        # Clamp to [0, 100] — can be negative when over quota
+        local pct
+        pct=$(printf '%s' "$raw" | awk '{v=int($1); if(v<0) v=0; if(v>100) v=100; print v}')
+        _write_cache "$COPILOT_CACHE" "$pct"
+    else
+        _write_cache "$COPILOT_CACHE" ""
+    fi
+}
+
+# Anthropic Claude: GET /api/oauth/usage
+# Response: five_hour.utilization = used%
+# Remaining = 100 - utilization
+collect_claude() {
+    local token
+    token=$(_read_auth "anthropic.access")
+    if [ -z "$token" ]; then
+        _write_cache "$CLAUDE_CACHE" ""
+        return 0
     fi
 
-    # Atomic write
-    local tmp="${LLM_CACHE}.$$"
-    printf '%d' "$fuel_pct" > "$tmp"
-    mv -f "$tmp" "$LLM_CACHE"
+    local response
+    response=$(curl -sf --max-time 4 \
+        -H "Authorization: Bearer ${token}" \
+        -H "anthropic-beta: oauth-2025-04-20" \
+        'https://api.anthropic.com/api/oauth/usage' 2>/dev/null) || true
+
+    local pct
+    pct=$(printf '%s' "$response" | jq -r '
+        .five_hour.utilization
+        | if . == null then empty else (100 - .) | floor end
+    ' 2>/dev/null) || true
+
+    if [[ "${pct:-}" =~ ^[0-9]+$ ]]; then
+        _write_cache "$CLAUDE_CACHE" "$pct"
+    else
+        _write_cache "$CLAUDE_CACHE" ""
+    fi
+}
+
+# OpenAI Codex: GET chatgpt.com/backend-api/wham/usage
+# Response: rate_limit.primary_window.used_percent = used% (5h window)
+# Remaining = 100 - used_percent
+# Note: use openai.access token (codex.access expires)
+collect_codex() {
+    local token
+    token=$(_read_auth "openai.access")
+    if [ -z "$token" ]; then
+        _write_cache "$CODEX_CACHE" ""
+        return 0
+    fi
+
+    local response
+    response=$(curl -sf --max-time 4 \
+        -H "Authorization: Bearer ${token}" \
+        'https://chatgpt.com/backend-api/wham/usage' 2>/dev/null) || true
+
+    local pct
+    pct=$(printf '%s' "$response" | jq -r '
+        .rate_limit.primary_window.used_percent
+        | if . == null then empty else (100 - .) end
+    ' 2>/dev/null) || true
+
+    if [[ "${pct:-}" =~ ^[0-9]+$ ]]; then
+        _write_cache "$CODEX_CACHE" "$pct"
+    else
+        _write_cache "$CODEX_CACHE" ""
+    fi
+}
+
+collect_llm_providers() {
+    # Run all 4 adapters in parallel with safe wait pattern
+    # (bare `wait` under set -euo pipefail propagates failures — use wait $pid || rc=$?)
+    local pid_zai pid_copilot pid_claude pid_codex
+    collect_zai     & pid_zai=$!
+    collect_copilot & pid_copilot=$!
+    collect_claude  & pid_claude=$!
+    collect_codex   & pid_codex=$!
+
+    local rc_zai=0 rc_copilot=0 rc_claude=0 rc_codex=0
+    wait "$pid_zai"     || rc_zai=$?
+    wait "$pid_copilot" || rc_copilot=$?
+    wait "$pid_claude"  || rc_claude=$?
+    wait "$pid_codex"   || rc_codex=$?
+
+    # Log failures to stderr (debug only — not printed in normal operation)
+    [ "$rc_zai"     -ne 0 ] && printf 'open-chad: collect_zai failed (rc=%s)\n'     "$rc_zai"     >&2 || true
+    [ "$rc_copilot" -ne 0 ] && printf 'open-chad: collect_copilot failed (rc=%s)\n' "$rc_copilot" >&2 || true
+    [ "$rc_claude"  -ne 0 ] && printf 'open-chad: collect_claude failed (rc=%s)\n'  "$rc_claude"  >&2 || true
+    [ "$rc_codex"   -ne 0 ] && printf 'open-chad: collect_codex failed (rc=%s)\n'   "$rc_codex"   >&2 || true
 }
 
 while true; do
     collect
-    collect_llm_fuel
+    collect_llm_providers
     sleep "$INTERVAL"
 done

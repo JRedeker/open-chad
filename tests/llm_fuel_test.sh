@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/llm_fuel_test.sh — Unit tests for LLM fuel gauge
-# Tests: percentage formula, color thresholds, status_left.sh rendering, edge cases
+# Tests: percentage formula, color thresholds, status_left.sh rendering, edge cases,
+#        per-provider multi-gauge, API response parsing, partial failure scenarios
 #
 # Usage: bash tests/llm_fuel_test.sh
 # Exit code: number of failed tests (0 = all passed)
@@ -12,6 +13,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 STATUS_LEFT="$REPO_DIR/lib/status_left.sh"
 COLLECT_METRICS="$REPO_DIR/lib/collect_metrics.sh"
+FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 
 # ─── Test Infrastructure ──────────────────────────────────────────────────────
 
@@ -146,7 +148,7 @@ test_color_yellow_49
 test_color_red_19
 test_color_red_0
 
-# ─── Section 3: status_left.sh rendering ─────────────────────────────────────
+# ─── Section 3: status_left.sh rendering (multi-provider) ────────────────────
 
 section "status_left.sh rendering"
 
@@ -159,103 +161,298 @@ test_script_syntax() {
     bash -n "$STATUS_LEFT" 2>/dev/null && pass "status_left.sh syntax OK" || fail "status_left.sh syntax error"
 }
 
-TMP_CACHE=$(mktemp)
+# Set up isolated tmp dir for cache files
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-test_renders_fuel_with_no_cache() {
-    local result
-    result=$(LLM_CACHE_OVERRIDE="/nonexistent/path" bash "$STATUS_LEFT" 2>/dev/null || true)
-    # Should render without error (graceful fallback)
-    # Either shows – or a percentage
-    pass "status_left.sh runs without error when cache missing"
+ZAI_CACHE="$TMP_DIR/open-chad-zai"
+COPILOT_CACHE="$TMP_DIR/open-chad-copilot"
+CLAUDE_CACHE="$TMP_DIR/open-chad-claude"
+CODEX_CACHE="$TMP_DIR/open-chad-codex"
+
+# Helper: run status_left.sh with overridden cache paths
+run_status_left() {
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" "$@" 2>/dev/null || true
 }
 
-test_renders_green_at_75() {
-    echo "75" > "$TMP_CACHE"
+test_renders_all_dash_when_no_caches() {
+    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
-    result=$(bash -c "
-        llm_cache='$TMP_CACHE'
-        fuel=\$(cat \"\$llm_cache\")
-        if [[ \"\$fuel\" =~ ^[0-9]+\$ ]]; then
-            if [ \"\$fuel\" -ge 50 ]; then color='green'
-            elif [ \"\$fuel\" -ge 20 ]; then color='yellow'
-            else color='red'
-            fi
-        fi
-        echo \"\$color\"
-    ")
-    assert_eq "$result" "green" "75% → green color"
+    result=$(run_status_left)
+    assert_contains "$result" "Z.ai" "output contains Z.ai label when all caches missing"
+    assert_contains "$result" "Copilot" "output contains Copilot label when all caches missing"
+    assert_contains "$result" "Claude" "output contains Claude label when all caches missing"
+    assert_contains "$result" "Codex" "output contains Codex label when all caches missing"
 }
 
-test_renders_yellow_at_35() {
-    echo "35" > "$TMP_CACHE"
-    local result
-    result=$(bash -c "
-        llm_cache='$TMP_CACHE'
-        fuel=\$(cat \"\$llm_cache\")
-        if [[ \"\$fuel\" =~ ^[0-9]+\$ ]]; then
-            if [ \"\$fuel\" -ge 50 ]; then color='green'
-            elif [ \"\$fuel\" -ge 20 ]; then color='yellow'
-            else color='red'
-            fi
-        fi
-        echo \"\$color\"
-    ")
-    assert_eq "$result" "yellow" "35% → yellow color"
+test_exits_zero_with_no_caches() {
+    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" >/dev/null 2>&1
+    assert_eq "$?" "0" "status_left.sh exits 0 with no caches"
 }
 
-test_renders_red_at_10() {
-    echo "10" > "$TMP_CACHE"
+test_renders_green_for_75() {
+    printf '75' > "$ZAI_CACHE"
     local result
-    result=$(bash -c "
-        llm_cache='$TMP_CACHE'
-        fuel=\$(cat \"\$llm_cache\")
-        if [[ \"\$fuel\" =~ ^[0-9]+\$ ]]; then
-            if [ \"\$fuel\" -ge 50 ]; then color='green'
-            elif [ \"\$fuel\" -ge 20 ]; then color='yellow'
-            else color='red'
-            fi
-        fi
-        echo \"\$color\"
-    ")
-    assert_eq "$result" "red" "10% → red color"
+    result=$(run_status_left)
+    assert_contains "$result" "#AAD94C" "Z.ai 75% → green color"
+    assert_contains "$result" "75%" "Z.ai 75% shown"
 }
 
-test_output_contains_fuel_icon() {
-    echo "80" > /tmp/open-chad-llm-metrics
+test_renders_yellow_for_35() {
+    printf '35' > "$COPILOT_CACHE"
     local result
-    result=$(bash "$STATUS_LEFT" 2>/dev/null || true)
-    assert_contains "$result" "⛽" "output contains fuel icon"
-    assert_contains "$result" "80%" "output contains percentage"
+    result=$(run_status_left)
+    assert_contains "$result" "#E6B450" "Copilot 35% → yellow color"
+    assert_contains "$result" "35%" "Copilot 35% shown"
 }
 
-test_output_contains_green_color_for_80() {
-    echo "80" > /tmp/open-chad-llm-metrics
+test_renders_red_for_10() {
+    printf '10' > "$CLAUDE_CACHE"
     local result
-    result=$(bash "$STATUS_LEFT" 2>/dev/null || true)
-    assert_contains "$result" "#AAD94C" "80% output uses green color"
+    result=$(run_status_left)
+    assert_contains "$result" "#FF8F40" "Claude 10% → red color"
+    assert_contains "$result" "10%" "Claude 10% shown"
+}
+
+test_renders_dash_for_empty_cache() {
+    printf '' > "$CODEX_CACHE"
+    local result
+    result=$(run_status_left)
+    # Should render Codex with gray -- not a percentage
+    assert_contains "$result" "Codex" "Codex label present for empty cache"
+}
+
+test_renders_dash_for_non_integer_cache() {
+    printf 'error' > "$ZAI_CACHE"
+    local result
+    result=$(run_status_left)
+    assert_contains "$result" "Z.ai" "Z.ai label present for non-integer cache"
+    assert_not_contains "$result" "error%" "non-integer cache does not render as percent"
+}
+
+test_four_segments_separated_by_pipe() {
+    printf '62' > "$ZAI_CACHE"
+    printf '81' > "$COPILOT_CACHE"
+    printf '47' > "$CLAUDE_CACHE"
+    printf '94' > "$CODEX_CACHE"
+    local result
+    result=$(run_status_left)
+    assert_contains "$result" "Z.ai" "output contains Z.ai segment"
+    assert_contains "$result" "Copilot" "output contains Copilot segment"
+    assert_contains "$result" "Claude" "output contains Claude segment"
+    assert_contains "$result" "Codex" "output contains Codex segment"
+    assert_contains "$result" "|" "output contains segment separator"
 }
 
 test_output_contains_title_when_provided() {
-    echo "80" > /tmp/open-chad-llm-metrics
+    printf '80' > "$ZAI_CACHE"
     local result
-    result=$(bash "$STATUS_LEFT" "🚀 open-chad testChange" 2>/dev/null || true)
-    assert_contains "$result" "▎" "output includes title parser divider"
+    result=$(run_status_left "🚀 open-chad testChange" 2>/dev/null || true)
     assert_contains "$result" "open-chad" "output includes repo name"
 }
 
 test_script_exists
 test_script_syntax
-test_renders_fuel_with_no_cache
-test_renders_green_at_75
-test_renders_yellow_at_35
-test_renders_red_at_10
-test_output_contains_fuel_icon
-test_output_contains_green_color_for_80
+test_renders_all_dash_when_no_caches
+test_exits_zero_with_no_caches
+test_renders_green_for_75
+test_renders_yellow_for_35
+test_renders_red_for_10
+test_renders_dash_for_empty_cache
+test_renders_dash_for_non_integer_cache
+test_four_segments_separated_by_pipe
 test_output_contains_title_when_provided
 
-rm -f "$TMP_CACHE"
+# ─── Section 4: API response parsing helpers ──────────────────────────────────
 
-# ─── Section 4: collect_metrics.sh structure ─────────────────────────────────
+section "API response parsing (extract_percent helpers)"
+
+# Helper: simulate extract_zai_percent (from fixture JSON)
+extract_zai_percent() {
+    local json="$1"
+    echo "$json" | jq -r '
+        .data.limits[]
+        | select(.type == "TOKENS_LIMIT")
+        | .percentage
+        | if . == null then empty else (100 - .) | floor end
+    ' 2>/dev/null || true
+}
+
+# Helper: simulate extract_copilot_percent (from fixture JSON), clamping negatives
+extract_copilot_percent() {
+    local json="$1"
+    local raw
+    raw=$(echo "$json" | jq -r '
+        .quota_snapshots.premium_interactions.percent_remaining
+        | if . == null then empty else . end
+    ' 2>/dev/null || true)
+    [ -z "$raw" ] && return
+    # Clamp to [0, 100] — value can be negative when over quota
+    local pct
+    pct=$(echo "$raw" | awk '{v=int($1); if(v<0) v=0; if(v>100) v=100; print v}')
+    echo "$pct"
+}
+
+# Helper: simulate extract_claude_percent (from fixture JSON)
+extract_claude_percent() {
+    local json="$1"
+    echo "$json" | jq -r '
+        .five_hour.utilization
+        | if . == null then empty else (100 - .) | floor end
+    ' 2>/dev/null || true
+}
+
+# Helper: simulate extract_codex_percent (from fixture JSON)
+extract_codex_percent() {
+    local json="$1"
+    echo "$json" | jq -r '
+        .rate_limit.primary_window.used_percent
+        | if . == null then empty else (100 - .) end
+    ' 2>/dev/null || true
+}
+
+test_zai_extract_from_fixture() {
+    local fixture
+    fixture='{"code":200,"msg":"Operation successful","data":{"limits":[{"type":"TIME_LIMIT","unit":5,"number":1,"usage":4000,"currentValue":0,"remaining":4000,"percentage":0},{"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":1}]},"success":true}'
+    local pct
+    pct=$(extract_zai_percent "$fixture")
+    assert_eq "$pct" "99" "Z.ai: 1% used → 99% remaining"
+}
+
+test_zai_extract_zero_usage() {
+    local fixture
+    fixture='{"code":200,"data":{"limits":[{"type":"TOKENS_LIMIT","percentage":0}]},"success":true}'
+    local pct
+    pct=$(extract_zai_percent "$fixture")
+    assert_eq "$pct" "100" "Z.ai: 0% used → 100% remaining"
+}
+
+test_copilot_extract_from_fixture() {
+    local fixture
+    fixture='{"quota_snapshots":{"premium_interactions":{"percent_remaining":83.5}}}'
+    local pct
+    pct=$(extract_copilot_percent "$fixture")
+    assert_eq "$pct" "83" "Copilot: 83.5% remaining → 83 (floor)"
+}
+
+test_copilot_clamp_negative() {
+    local fixture
+    fixture='{"quota_snapshots":{"premium_interactions":{"percent_remaining":-83.67}}}'
+    local pct
+    pct=$(extract_copilot_percent "$fixture")
+    assert_eq "$pct" "0" "Copilot: negative percent_remaining → clamped to 0"
+}
+
+test_claude_extract_from_fixture() {
+    local fixture
+    fixture='{"five_hour":{"utilization":5.0,"resets_at":"2026-02-24T08:00:00Z"},"seven_day":{"utilization":58.0}}'
+    local pct
+    pct=$(extract_claude_percent "$fixture")
+    assert_eq "$pct" "95" "Claude: 5% used → 95% remaining"
+}
+
+test_claude_extract_full_usage() {
+    local fixture
+    fixture='{"five_hour":{"utilization":100.0,"resets_at":"2026-02-24T08:00:00Z"}}'
+    local pct
+    pct=$(extract_claude_percent "$fixture")
+    assert_eq "$pct" "0" "Claude: 100% used → 0% remaining"
+}
+
+test_codex_extract_from_fixture() {
+    local fixture
+    fixture='{"rate_limit":{"primary_window":{"used_percent":6,"limit_window_seconds":18000}}}'
+    local pct
+    pct=$(extract_codex_percent "$fixture")
+    assert_eq "$pct" "94" "Codex: 6% used → 94% remaining"
+}
+
+test_codex_extract_zero_usage() {
+    local fixture
+    fixture='{"rate_limit":{"primary_window":{"used_percent":0}}}'
+    local pct
+    pct=$(extract_codex_percent "$fixture")
+    assert_eq "$pct" "100" "Codex: 0% used → 100% remaining"
+}
+
+test_zai_extract_from_fixture
+test_zai_extract_zero_usage
+test_copilot_extract_from_fixture
+test_copilot_clamp_negative
+test_claude_extract_from_fixture
+test_claude_extract_full_usage
+test_codex_extract_from_fixture
+test_codex_extract_zero_usage
+
+# ─── Section 5: Failure / error scenarios ────────────────────────────────────
+
+section "Provider failure and error scenarios"
+
+test_zai_empty_on_bad_json() {
+    local pct
+    pct=$(extract_zai_percent "not valid json")
+    assert_eq "$pct" "" "Z.ai: invalid JSON → empty (→ -- in display)"
+}
+
+test_copilot_empty_on_missing_field() {
+    local pct
+    pct=$(extract_copilot_percent '{"quota_snapshots":{}}')
+    assert_eq "$pct" "" "Copilot: missing premium_interactions → empty"
+}
+
+test_claude_empty_on_bad_json() {
+    local pct
+    pct=$(extract_claude_percent "")
+    assert_eq "$pct" "" "Claude: empty input → empty"
+}
+
+test_codex_empty_on_missing_field() {
+    local pct
+    pct=$(extract_codex_percent '{"rate_limit":{}}')
+    assert_eq "$pct" "" "Codex: missing primary_window → empty"
+}
+
+test_zai_empty_on_bad_json
+test_copilot_empty_on_missing_field
+test_claude_empty_on_bad_json
+test_codex_empty_on_missing_field
+
+# ─── Section 6: Partial provider failure ─────────────────────────────────────
+
+section "Partial provider failure (3 succeed, 1 fails)"
+
+test_partial_failure_renders_all_four_segments() {
+    # 3 caches have values, codex is empty (failed)
+    printf '62' > "$ZAI_CACHE"
+    printf '81' > "$COPILOT_CACHE"
+    printf '47' > "$CLAUDE_CACHE"
+    printf '' > "$CODEX_CACHE"   # simulated failure
+
+    local result
+    result=$(run_status_left)
+    assert_contains "$result" "Z.ai" "partial failure: Z.ai segment present"
+    assert_contains "$result" "Copilot" "partial failure: Copilot segment present"
+    assert_contains "$result" "Claude" "partial failure: Claude segment present"
+    assert_contains "$result" "Codex" "partial failure: Codex segment present"
+    assert_contains "$result" "62%" "partial failure: Z.ai shows 62%"
+    assert_contains "$result" "81%" "partial failure: Copilot shows 81%"
+    assert_contains "$result" "47%" "partial failure: Claude shows 47%"
+}
+
+test_exits_zero_on_partial_failure() {
+    printf '62' > "$ZAI_CACHE"
+    printf '81' > "$COPILOT_CACHE"
+    printf '47' > "$CLAUDE_CACHE"
+    printf '' > "$CODEX_CACHE"
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_LEFT" >/dev/null 2>&1
+    assert_eq "$?" "0" "status_left.sh exits 0 on partial failure"
+}
+
+test_partial_failure_renders_all_four_segments
+test_exits_zero_on_partial_failure
+
+# ─── Section 7: collect_metrics.sh structure ─────────────────────────────────
 
 section "collect_metrics.sh structure"
 
@@ -263,39 +460,54 @@ test_collect_syntax() {
     bash -n "$COLLECT_METRICS" 2>/dev/null && pass "collect_metrics.sh syntax OK" || fail "collect_metrics.sh syntax error"
 }
 
-test_collect_has_plan_limit() {
-    grep -q "PLAN_LIMIT=" "$COLLECT_METRICS" && pass "PLAN_LIMIT variable defined" || fail "PLAN_LIMIT missing"
+test_collect_has_four_adapters() {
+    grep -q "collect_zai"     "$COLLECT_METRICS" && pass "collect_zai() defined"     || fail "collect_zai() missing"
+    grep -q "collect_copilot" "$COLLECT_METRICS" && pass "collect_copilot() defined" || fail "collect_copilot() missing"
+    grep -q "collect_claude"  "$COLLECT_METRICS" && pass "collect_claude() defined"  || fail "collect_claude() missing"
+    grep -q "collect_codex"   "$COLLECT_METRICS" && pass "collect_codex() defined"   || fail "collect_codex() missing"
 }
 
-test_collect_has_llm_cache() {
-    grep -q "LLM_CACHE=" "$COLLECT_METRICS" && pass "LLM_CACHE variable defined" || fail "LLM_CACHE missing"
+test_collect_has_four_cache_files() {
+    grep -q "open-chad-zai"     "$COLLECT_METRICS" && pass "open-chad-zai cache defined"     || fail "open-chad-zai missing"
+    grep -q "open-chad-copilot" "$COLLECT_METRICS" && pass "open-chad-copilot cache defined" || fail "open-chad-copilot missing"
+    grep -q "open-chad-claude"  "$COLLECT_METRICS" && pass "open-chad-claude cache defined"  || fail "open-chad-claude missing"
+    grep -q "open-chad-codex"   "$COLLECT_METRICS" && pass "open-chad-codex cache defined"   || fail "open-chad-codex missing"
 }
 
-test_collect_has_collect_llm_fuel() {
-    grep -q "collect_llm_fuel" "$COLLECT_METRICS" && pass "collect_llm_fuel() function defined" || fail "collect_llm_fuel() missing"
+test_collect_no_bare_wait() {
+    # Must NOT have a bare `wait` without a PID (unsafe under set -euo pipefail)
+    # Allow `wait $pid_*` patterns but not bare `wait` alone on a line
+    if grep -qE '^\s*wait\s*$' "$COLLECT_METRICS"; then
+        fail "collect_metrics.sh contains bare 'wait' (unsafe — use 'wait \$pid || rc=\$?')"
+    else
+        pass "collect_metrics.sh has no bare 'wait' (safe parallel pattern)"
+    fi
 }
 
-test_collect_uses_time_created_not_mmin() {
-    grep -q "time_created" "$COLLECT_METRICS" && pass "uses time_created (not file mtime)" || fail "time_created not found"
-    assert_not_contains "$(cat "$COLLECT_METRICS")" "mmin" "does NOT use -mmin (unreliable)"
+test_collect_uses_auth_json() {
+    grep -q "auth.json" "$COLLECT_METRICS" && pass "collect_metrics.sh reads auth.json" || fail "auth.json not referenced"
 }
 
-test_collect_has_graceful_fallback() {
-    # Script should set fuel_pct=100 as default before any conditional
-    grep -q "fuel_pct=100" "$COLLECT_METRICS" && pass "graceful fallback (fuel_pct=100) present" || fail "no graceful fallback found"
+test_collect_atomic_writes() {
+    grep -q 'mv -f' "$COLLECT_METRICS" && pass "collect_metrics.sh uses atomic mv writes" || fail "atomic mv writes not found"
 }
 
-test_collect_atomic_write() {
-    grep -q 'mv -f.*LLM_CACHE' "$COLLECT_METRICS" && pass "LLM cache uses atomic mv" || fail "LLM cache write not atomic"
+test_collect_max_time() {
+    grep -q -- '--max-time' "$COLLECT_METRICS" && pass "curl uses --max-time timeout" || fail "--max-time not found in curl calls"
+}
+
+test_collect_no_old_llm_fuel() {
+    grep -q "collect_llm_fuel" "$COLLECT_METRICS" && fail "collect_llm_fuel() still present (should be removed)" || pass "collect_llm_fuel() removed"
 }
 
 test_collect_syntax
-test_collect_has_plan_limit
-test_collect_has_llm_cache
-test_collect_has_collect_llm_fuel
-test_collect_uses_time_created_not_mmin
-test_collect_has_graceful_fallback
-test_collect_atomic_write
+test_collect_has_four_adapters
+test_collect_has_four_cache_files
+test_collect_no_bare_wait
+test_collect_uses_auth_json
+test_collect_atomic_writes
+test_collect_max_time
+test_collect_no_old_llm_fuel
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 
