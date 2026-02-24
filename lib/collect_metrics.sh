@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # open-chad: Shared system metrics collector (singleton)
-# Writes CPU%, RAM%, load to /tmp/open-chad-metrics every 30s
+# Writes CPU%, RAM%, load to $OPEN_CHAD_CACHE_DIR/metrics every 30s
 # Writes per-provider LLM quota % to 4 separate cache files every 30s:
-#   /tmp/open-chad-zai, /tmp/open-chad-copilot,
-#   /tmp/open-chad-claude, /tmp/open-chad-codex
+#   $OPEN_CHAD_CACHE_DIR/zai, $OPEN_CHAD_CACHE_DIR/copilot,
+#   $OPEN_CHAD_CACHE_DIR/claude, $OPEN_CHAD_CACHE_DIR/codex
 #
 # Multi-provider gauge is opt-in via OPEN_CHAD_MULTI_GAUGE=1 (default: auto)
 #   OPEN_CHAD_MULTI_GAUGE=1   → always collect
@@ -14,16 +14,20 @@
 
 set -euo pipefail
 
+# Resolve dedicated cache directory (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
+# shellcheck source=opencode_env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
+
 AUTH_JSON="${HOME}/.local/share/opencode/auth.json"
-CACHE="/tmp/open-chad-metrics"
-LOCKFILE="/tmp/open-chad-metrics.lock"
+CACHE="${OPEN_CHAD_CACHE_DIR}/metrics"
+LOCKFILE="${OPEN_CHAD_CACHE_DIR}/metrics.lock"
 INTERVAL=30
 
 # Per-provider cache files (plain integer 0-100, or empty = unknown)
-ZAI_CACHE="/tmp/open-chad-zai"
-COPILOT_CACHE="/tmp/open-chad-copilot"
-CLAUDE_CACHE="/tmp/open-chad-claude"
-CODEX_CACHE="/tmp/open-chad-codex"
+ZAI_CACHE="${OPEN_CHAD_CACHE_DIR}/zai"
+COPILOT_CACHE="${OPEN_CHAD_CACHE_DIR}/copilot"
+CLAUDE_CACHE="${OPEN_CHAD_CACHE_DIR}/claude"
+CODEX_CACHE="${OPEN_CHAD_CACHE_DIR}/codex"
 
 # Singleton guard: exit if another collector is running
 if [ -f "$LOCKFILE" ]; then
@@ -37,6 +41,12 @@ fi
 
 echo $$ > "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT INT TERM
+
+# 7-day TTL cleanup: remove stale files from the cache dir.
+# Runs once per singleton startup — not on every launcher invocation.
+# The 2>/dev/null suppresses errors from race-deleted files; || true prevents
+# set -e from aborting if find exits non-zero on a transient ENOENT.
+find "${OPEN_CHAD_CACHE_DIR}" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
 
 collect() {
     # CPU: 1-second sample via /proc/stat (no external tools)

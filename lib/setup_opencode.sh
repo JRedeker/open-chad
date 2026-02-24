@@ -88,7 +88,7 @@ fi
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
 step "Syncing instruction files -> $DEST_INSTRUCTIONS_DIR"
 mkdir -p "$DEST_INSTRUCTIONS_DIR"
-for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
+for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md temp_directory.md; do
     src="$BUNDLE_INSTRUCTIONS_DIR/$filename"
     dest="$DEST_INSTRUCTIONS_DIR/$filename"
     if [ -f "$src" ]; then
@@ -113,7 +113,7 @@ done
 step "Wiring instructions and theme into $OPENCODE_JSON"
 
 INSTRUCTIONS_JSON="[$(
-    for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
+    for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md temp_directory.md; do
         dest="$DEST_INSTRUCTIONS_DIR/$filename"
         # Use ~ expansion-safe path
         dest_display="${dest/#$HOME/\~}"
