@@ -8,6 +8,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 NO_ANIM=0
 
+# ─── Discord CLI routing ──────────────────────────────────────────────────────
+# Handle: open-chad discord {enable|disable|status} before main arg parsing
+
+if [ "${1:-}" = "discord" ]; then
+    shift
+    exec bash "$LIB_DIR/discord/setup.sh" "${@:-}"
+fi
+
 usage() {
     cat <<EOF
 Usage: open-chad [OPTIONS] <project-dir|args...>
@@ -16,11 +24,17 @@ Options:
   --no-anim    Skip the boot animation
   -h, --help   Show this help
 
+Commands:
+  discord enable   Enable Discord Rich Presence (first-run wizard)
+  discord disable  Disable Discord Rich Presence
+  discord status   Show Discord Rich Presence status
+
 Features:
   - Retro muted 80s Apple/Amiga theme
   - Smart tab context (ADV parsing, git branch)
   - Shared system metrics (CPU/RAM/load)
   - Tmux crash isolation
+  - Optional Discord Rich Presence (open-chad discord enable)
 EOF
 }
 
@@ -78,6 +92,23 @@ if [ ${#args[@]} -gt 0 ]; then
     tmux new-session -d -s "$session_name" "opencode ${args[*]}"
 else
     tmux new-session -d -s "$session_name" "opencode"
+fi
+
+# 5. Discord Rich Presence update (optional, non-blocking, SC-10: silent on failure)
+# Count active open-chad tmux sessions for presence display
+if [ -f "$LIB_DIR/discord/update.sh" ]; then
+    _discord_session_count() {
+        tmux list-sessions 2>/dev/null | grep -c "^oc-" || echo 1
+    }
+    _discord_start_ts="${OPEN_CHAD_START_TS:-$(date +%s)}"
+    _discord_elapsed=$(( $(date +%s) - _discord_start_ts ))
+    _discord_sessions=$(_discord_session_count)
+
+    # Fire-and-forget — never blocks open-chad startup
+    bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>/dev/null &
+
+    # Cleanup trap: remove lockfiles on exit
+    trap 'rm -f "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}" "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}.guard" "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}.tagline" 2>/dev/null || true' EXIT
 fi
 
 # Attach to session (replaces current process)

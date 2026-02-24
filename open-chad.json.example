@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to ~/.config/opencode/open-chad.json and customize",
+
+  "discordPresence": {
+    "_comment": "Optional Discord Rich Presence integration. Run 'open-chad discord enable' to set up.",
+    "enabled": false,
+    "clientId": ""
+  }
+}
