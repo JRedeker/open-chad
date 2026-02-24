@@ -14,7 +14,7 @@ fi
 read -r -a parts <<< "$title"
 
 if [ ${#parts[@]} -lt 3 ]; then
-    printf '#[bold,fg=colour250]%s' "$title"
+    printf '#[bold,fg=#BFBDB6]%s' "$title"
     exit 0
 fi
 
@@ -39,8 +39,8 @@ case "$emoji" in
 esac
 
 # ▎ 🚀 ADV ▎ pokeedge / openChad10Retro
-printf '#[fg=colour107]▎ #[fg=colour245]%s %s #[fg=colour107]▎ #[fg=colour245]%s #[fg=colour238]/ #[bold,fg=colour250]%s' "$emoji" "$state" "$repo" "$change"
+printf '#[fg=#AAD94C]▎ #[fg=#626d7a]%s %s #[fg=#AAD94C]▎ #[fg=#626d7a]%s #[fg=#1B1F29]/ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "$repo" "$change"
 
 if [ -n "$extra" ]; then
-    printf ' #[nobold,fg=colour245]%s' "$extra"
+    printf ' #[nobold,fg=#626d7a]%s' "$extra"
 fi

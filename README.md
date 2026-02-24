@@ -4,10 +4,12 @@ A retro tmux launcher and orchestrator for [OpenCode](https://github.com/opencod
 
 Designed for developers who run 5-10+ concurrent OpenCode sessions and need instant visual context when switching tabs.
 
+Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, beautiful developer experience. Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
+
 ## Features
 
-- **Boot Animation**: Muted 80s Apple/Amiga color-cycling logo and CRT scanline sweep (skippable via `--no-anim`).
-- **Unified Retro Monitor**: Transforms tmux into a 2-row retro display (sage, gold, coral, brick, lavender, steel).
+- **Boot Animation**: ayu-dark color-cycling logo and contextual launch sequence (skippable via `--no-anim`).
+- **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
 - **Smart Context Bar**: 
   - Left: ADV window title parser (extracts `EMOJI REPO CHANGE_ID` into structured zones).
   - Right: Live git branch + dirty state.
@@ -52,7 +54,8 @@ This will:
 - `~/.config/opencode/agents/` — agent markdown files (scout, refine, librarian, explore)
 - `~/.config/opencode/command/adv-*.md` — ADV slash commands (synced from checkout)
 - `~/.config/opencode/instructions/` — global instruction files (shell_strategy, mcp-tools, worktree-guide, lbp)
-- `~/.config/opencode/opencode.json` — ADV plugin path + instruction paths merged in (additive only)
+- `~/.config/opencode/themes/ayu-dark.json` — ayu-dark color theme
+- `~/.config/opencode/opencode.json` — ADV plugin path, instruction paths, and theme merged in (additive only)
 
 ### Opt-out flags
 
@@ -78,7 +81,7 @@ This will:
 - `git pull` the ADV checkout instead of re-cloning
 - Re-run `pnpm install + build` in the ADV plugin directory
 - Skip `omp` re-install if the same version is current (`go install` is idempotent)
-- Re-sync agent, command, and instruction files (overwrites with latest bundle)
+- Re-sync agent, command, instruction, and theme files (overwrites with latest bundle)
 - Re-merge opencode.json without duplicating existing entries
 
 ## Usage

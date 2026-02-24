@@ -5,7 +5,8 @@
 #   1. Sync bundled agent markdown files -> ~/.config/opencode/agents/
 #   2. Sync ADV command files from checkout -> ~/.config/opencode/command/
 #   3. Sync bundled instruction files -> ~/.config/opencode/instructions/
-#   4. Merge instruction paths into ~/.config/opencode/opencode.json
+#   4. Sync bundled theme files -> ~/.config/opencode/themes/
+#   5. Merge instruction paths + theme into ~/.config/opencode/opencode.json
 #
 # Flags:
 #   --skip-commands    Skip ADV command sync (use when ADV checkout unavailable)
@@ -47,10 +48,12 @@ OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"
 
 BUNDLE_AGENTS_DIR="$REPO_DIR/config/opencode/agents"
 BUNDLE_INSTRUCTIONS_DIR="$REPO_DIR/config/opencode/instructions"
+BUNDLE_THEMES_DIR="$REPO_DIR/config/opencode/themes"
 
 DEST_AGENTS_DIR="$OPENCODE_CONFIG_DIR/agents"
 DEST_COMMANDS_DIR="$OPENCODE_CONFIG_DIR/command"
 DEST_INSTRUCTIONS_DIR="$OPENCODE_CONFIG_DIR/instructions"
+DEST_THEMES_DIR="$OPENCODE_CONFIG_DIR/themes"
 
 # ─── 1. Sync agent files ───────────────────────────────────────────────────────
 step "Syncing agent files -> $DEST_AGENTS_DIR"
@@ -96,8 +99,18 @@ for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
     fi
 done
 
-# ─── 4. Merge instruction paths into opencode.json ────────────────────────────
-step "Wiring instructions into $OPENCODE_JSON"
+# ─── 4. Sync theme files ──────────────────────────────────────────────────────
+step "Syncing theme files -> $DEST_THEMES_DIR"
+mkdir -p "$DEST_THEMES_DIR"
+for src in "$BUNDLE_THEMES_DIR"/*.json; do
+    [ -f "$src" ] || continue
+    dest="$DEST_THEMES_DIR/$(basename "$src")"
+    cp "$src" "$dest"
+    ok "theme: $(basename "$src")"
+done
+
+# ─── 5. Merge instruction paths + theme into opencode.json ────────────────────
+step "Wiring instructions and theme into $OPENCODE_JSON"
 
 INSTRUCTIONS_JSON="[$(
     for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md; do
@@ -109,7 +122,7 @@ INSTRUCTIONS_JSON="[$(
 )]"
 
 bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-    "{\"instructions\":$INSTRUCTIONS_JSON}"
-ok "Instructions merged into $OPENCODE_JSON"
+    "{\"instructions\":$INSTRUCTIONS_JSON,\"theme\":\"ayu-dark\"}"
+ok "Instructions and theme merged into $OPENCODE_JSON"
 
 ok "OpenCode setup complete."
