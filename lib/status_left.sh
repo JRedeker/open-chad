@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
 # open-chad: Row 1 left-side renderer
 # Shows "worktree / branch" for the current pane's git repo.
-# Hidden when there is only one window in the session (no need to differentiate).
 
 set -euo pipefail
 
 path="${1:-}"
-window_count="${2:-1}"
-
-# Hide when only one window — nothing to differentiate
-if [ "$window_count" -le 1 ]; then
-    exit 0
-fi
 
 [ -z "$path" ] && exit 0
 
