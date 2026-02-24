@@ -12,9 +12,10 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
 - **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
 - **Smart Context Bar**: 
   - Left: repo name + branch.
-  - Row 2 left: ADV window title parser (extracts `EMOJI REPO CHANGE_ID` into structured zones).
+  - Row 2 left: LLM fuel gauge + ADV window title parser (extracts `EMOJI REPO CHANGE_ID` into structured zones).
   - Row 2 right: live CPU%, RAM%, and load average.
-- **Shared System Metrics**: Background singleton collector tracks CPU%, RAM%, and Load Avg across all sessions with near-zero overhead.
+- **LLM Fuel Gauge**: Displays `⛽ N%` in the tmux status bar showing remaining token budget in the 5-hour rolling window. Color-coded: green ≥50%, yellow 20–49%, red <20%. Configurable plan limit (`PLAN_LIMIT` in `lib/collect_metrics.sh`; defaults to 44k tokens for Pro plan).
+- **Shared System Metrics**: Background singleton collector tracks CPU%, RAM%, Load Avg, and LLM fuel across all sessions with near-zero overhead.
 - **Crash Isolation**: Wraps every OpenCode instance in an isolated tmux session (`oc-<timestamp>-<pid>`) to prevent WSL/terminal cascade failures.
 
 ## Installation
@@ -108,8 +109,9 @@ oc-killall
 
 - `bin/open-chad`: Main entrypoint. Handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
 - `lib/animation.sh`: Pure bash boot animation using ayu-dark true-color ANSI sequences.
-- `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` every 30s. Uses `pgrep` and PID locks.
-- `lib/status_right.sh`: Fast tmux `#()` renderer. Derives git state and reads metrics cache.
+- `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` (CPU/RAM/load) and `/tmp/open-chad-llm-metrics` (fuel %) every 30s. Uses PID locks.
+- `lib/status_left.sh`: Fast tmux `#()` renderer. Reads LLM fuel cache, applies color thresholds, composes with `title_parser.sh` output.
+- `lib/status_right.sh`: Fast tmux `#()` renderer. Reads system metrics cache.
 - `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV string structures.
 - `lib/theme.conf`: Sourced by `~/.tmux.conf`.
 
