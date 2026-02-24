@@ -6,6 +6,8 @@ Designed for developers who run 5-10+ concurrent OpenCode sessions and need inst
 
 Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, beautiful developer experience. Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
 
+![open-chad screenshot](Screenshot.png)
+
 ## Features
 
 - **Boot Animation**: ayu-dark color-cycling logo and contextual launch sequence (skippable via `--no-anim`).
