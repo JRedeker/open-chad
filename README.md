@@ -10,7 +10,7 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
 
 ## Features
 
-- **Boot Animation**: ayu-dark color-cycling logo and contextual launch sequence (skippable via `--no-anim`).
+- **Boot Animation**: Centered, color-cycling OPEN CHAD logo with typewriter subtitle and contextual launch sequence. Dynamically adapts to terminal size (skippable via `--no-anim`).
 - **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
 - **Smart Context Bar**: 
   - Left: repo name + branch.
@@ -110,7 +110,7 @@ oc-killall
 ## Architecture
 
 - `bin/open-chad`: Main entrypoint. Handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
-- `lib/animation.sh`: Pure bash boot animation using ayu-dark true-color ANSI sequences.
+- `lib/animation.sh`: Pure bash boot animation. Dynamically centers on screen, cycles the logo through the ayu-dark palette, and typewriter-renders the subtitle. Uses true-color ANSI sequences.
 - `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `/tmp/open-chad-zai`, `/tmp/open-chad-copilot`, `/tmp/open-chad-claude`, `/tmp/open-chad-codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
 - `lib/status_left.sh`: Fast tmux `#()` renderer. Reads 4 per-provider cache files (no jq, no curl — plain bash), applies per-segment color thresholds, composes 4-segment gauge with `title_parser.sh` output.
 - `lib/status_right.sh`: Fast tmux `#()` renderer. Reads system metrics cache.
