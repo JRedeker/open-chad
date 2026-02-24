@@ -8,6 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 NO_ANIM=0
 
+# Set up dedicated cache directory (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
+# shellcheck source=lib/opencode_env.sh
+source "$LIB_DIR/opencode_env.sh"
+
 # ─── Discord CLI routing ──────────────────────────────────────────────────────
 # Handle: open-chad discord {enable|disable|status} before main arg parsing
 

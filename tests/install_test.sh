@@ -350,6 +350,84 @@ test_install_tmux_theme_not_duplicated() {
 test_install_symlink_idempotent
 test_install_tmux_theme_not_duplicated
 
+# ─── Section 8: lib/opencode_env.sh — cache dir setup ────────────────────────
+
+section "lib/opencode_env.sh — cache dir creation and env resolution"
+
+assert_perms_700() {
+    local dir="$1"
+    local actual
+    actual=$(stat -c '%a' "$dir" 2>/dev/null || stat -f '%A' "$dir" 2>/dev/null)
+    [ "$actual" = "700" ] && pass "permissions 0700: $dir" || fail "permissions not 0700 (got $actual): $dir"
+}
+
+test_opencode_env_creates_cache_dir() {
+    setup_tmp_env
+    local fake_cache="$TMP_DIR/runtime/open-chad"
+    XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
+        bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
+    assert_dir_exists "$fake_cache"
+    assert_perms_700 "$fake_cache"
+    teardown_tmp_env
+}
+
+test_opencode_env_fallback_without_xdg() {
+    setup_tmp_env
+    # Unset XDG_RUNTIME_DIR to trigger fallback path
+    local fallback_dir="/tmp/open-chad-${USER}"
+    unset XDG_RUNTIME_DIR
+    bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null || true
+    # Fallback dir should be created
+    assert_dir_exists "$fallback_dir"
+    assert_perms_700 "$fallback_dir"
+    rm -rf "$fallback_dir"
+    teardown_tmp_env
+}
+
+test_opencode_env_exports_var() {
+    setup_tmp_env
+    local fake_runtime="$TMP_DIR/runtime"
+    mkdir -p "$fake_runtime"
+    # Source the env file and verify OPEN_CHAD_CACHE_DIR is set
+    local exported_val
+    exported_val=$(XDG_RUNTIME_DIR="$fake_runtime" bash -c \
+        'source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
+    [ "$exported_val" = "$fake_runtime/open-chad" ] && \
+        pass "OPEN_CHAD_CACHE_DIR=$exported_val (expected $fake_runtime/open-chad)" || \
+        fail "OPEN_CHAD_CACHE_DIR='$exported_val' (expected '$fake_runtime/open-chad')"
+    teardown_tmp_env
+}
+
+test_opencode_env_override_respected() {
+    setup_tmp_env
+    local custom_dir="$TMP_DIR/custom-cache"
+    # Pre-existing OPEN_CHAD_CACHE_DIR should override XDG resolution
+    local used_val
+    used_val=$(OPEN_CHAD_CACHE_DIR="$custom_dir" \
+        bash -c 'source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
+    [ "$used_val" = "$custom_dir" ] && \
+        pass "override OPEN_CHAD_CACHE_DIR respected: $used_val" || \
+        fail "override not respected: got '$used_val', expected '$custom_dir'"
+    teardown_tmp_env
+}
+
+test_opencode_env_idempotent() {
+    setup_tmp_env
+    local fake_runtime="$TMP_DIR/runtime"
+    # Running twice should not error or change permissions
+    XDG_RUNTIME_DIR="$fake_runtime" bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
+    XDG_RUNTIME_DIR="$fake_runtime" bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
+    assert_dir_exists "$fake_runtime/open-chad"
+    assert_perms_700 "$fake_runtime/open-chad"
+    teardown_tmp_env
+}
+
+test_opencode_env_creates_cache_dir
+test_opencode_env_fallback_without_xdg
+test_opencode_env_exports_var
+test_opencode_env_override_respected
+test_opencode_env_idempotent
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

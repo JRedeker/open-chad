@@ -39,6 +39,12 @@ done
 
 echo -e "${C_SAGE}Starting open-chad installation...${C_RESET}"
 
+# ─── 0. Set up dedicated cache directory ──────────────────────────────────────
+# Creates $OPEN_CHAD_CACHE_DIR (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
+# with owner-only (0700) permissions. Safe to run before OpenCode is launched.
+source "$SCRIPT_DIR/lib/opencode_env.sh"
+echo -e "Cache directory: ${C_GOLD}$OPEN_CHAD_CACHE_DIR${C_RESET}"
+
 BIN_PATH="$SCRIPT_DIR/bin/open-chad"
 
 # ─── 1. Verify hard dependencies ──────────────────────────────────────────────

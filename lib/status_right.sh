@@ -12,8 +12,9 @@
 
 set -euo pipefail
 
-# Cache directory (override via OPEN_CHAD_CACHE_DIR for testing)
-_cache_dir="${OPEN_CHAD_CACHE_DIR:-/tmp}"
+# Resolve dedicated cache directory (exports OPEN_CHAD_CACHE_DIR)
+# shellcheck source=opencode_env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 # --- Color thresholds ---
 _color_for_pct() {
@@ -51,10 +52,10 @@ _render_provider() {
 _has_any_gauge_data() {
     local f
     for f in \
-        "${_cache_dir}/open-chad-zai" \
-        "${_cache_dir}/open-chad-copilot" \
-        "${_cache_dir}/open-chad-claude" \
-        "${_cache_dir}/open-chad-codex"
+        "${OPEN_CHAD_CACHE_DIR}/zai" \
+        "${OPEN_CHAD_CACHE_DIR}/copilot" \
+        "${OPEN_CHAD_CACHE_DIR}/claude" \
+        "${OPEN_CHAD_CACHE_DIR}/codex"
     do
         if [ -f "$f" ]; then
             local v
@@ -81,12 +82,12 @@ _multi_gauge_enabled() {
 sep='#[fg=#1B1F29] | '
 
 if _multi_gauge_enabled; then
-    _render_provider "Z.ai"    "${_cache_dir}/open-chad-zai"
+    _render_provider "Z.ai"    "${OPEN_CHAD_CACHE_DIR}/zai"
     printf '%s' "$sep"
-    _render_provider "Copilot" "${_cache_dir}/open-chad-copilot"
+    _render_provider "Copilot" "${OPEN_CHAD_CACHE_DIR}/copilot"
     printf '%s' "$sep"
-    _render_provider "Claude"  "${_cache_dir}/open-chad-claude"
+    _render_provider "Claude"  "${OPEN_CHAD_CACHE_DIR}/claude"
     printf '%s' "$sep"
-    _render_provider "Codex"   "${_cache_dir}/open-chad-codex"
+    _render_provider "Codex"   "${OPEN_CHAD_CACHE_DIR}/codex"
     printf ' #[fg=#FF8F40]▐#[fg=#59C2FF]▐#[fg=#E6B450]▐#[fg=#AAD94C]▐'
 fi
