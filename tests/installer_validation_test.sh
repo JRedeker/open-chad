@@ -413,9 +413,16 @@ section "wizard.sh — non-interactive flags"
 test_wizard_yes_flag_skips_prompts() {
     # --yes mode should run without hanging on prompts
     # Use all --skip-* flags to avoid actually installing anything
+    # Sandbox: override HOME + OPENCODE_CONFIG_DIR to prevent writes to real config
+    local tmp_wizard="$TMP_DIR/wizard-sandbox"
+    mkdir -p "$tmp_wizard/home/.config/opencode" "$tmp_wizard/cache"
     local exit_code=0
     local output
-    output=$(timeout 10 bash "$REPO_DIR/lib/wizard.sh" \
+    output=$(HOME="$tmp_wizard/home" \
+        OPENCODE_CONFIG_DIR="$tmp_wizard/home/.config/opencode" \
+        OPEN_CHAD_INSTALL_LOG="$tmp_wizard/install.log" \
+        OPEN_CHAD_CACHE_DIR="$tmp_wizard/cache" \
+        timeout 10 bash "$REPO_DIR/lib/wizard.sh" \
         --yes \
         --skip-deps \
         --skip-auth \
@@ -458,21 +465,15 @@ test_wizard_verbose_flag() {
 }
 
 test_wizard_log_file_created() {
-    local tmp_log="$TMP_DIR/wizard-test.log"
-    timeout 10 bash "$REPO_DIR/lib/wizard.sh" \
-        --yes \
-        --skip-deps \
-        --skip-auth \
-        --skip-bundles \
-        --skip-mcp \
-        --skip-adv \
-        --skip-morph \
-        OPEN_CHAD_INSTALL_LOG="$tmp_log" \
-        > /dev/null 2>&1 || true
+    # Sandbox: override HOME + OPENCODE_CONFIG_DIR to prevent writes to real config
+    local tmp_wizard="$TMP_DIR/wizard-log-sandbox"
+    mkdir -p "$tmp_wizard/home/.config/opencode" "$tmp_wizard/cache"
+    local tmp_log="$tmp_wizard/wizard-test.log"
 
-    # Log should be created (wizard creates it via _log calls)
-    # Use env var override
+    HOME="$tmp_wizard/home" \
+    OPENCODE_CONFIG_DIR="$tmp_wizard/home/.config/opencode" \
     OPEN_CHAD_INSTALL_LOG="$tmp_log" \
+    OPEN_CHAD_CACHE_DIR="$tmp_wizard/cache" \
     timeout 10 bash "$REPO_DIR/lib/wizard.sh" \
         --yes \
         --skip-deps \
@@ -572,6 +573,71 @@ test_install_yes_flag
 test_install_bundles_flag
 test_install_no_env_check_flag
 test_install_tty_detection
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# bin/cds — file presence and wiring
+# ═══════════════════════════════════════════════════════════════════════════════
+section "bin/cds — file presence and wiring"
+
+test_cds_bin_exists() {
+    if [ -f "$REPO_DIR/bin/cds" ]; then
+        pass "bin/cds exists"
+    else
+        fail "bin/cds missing"
+    fi
+}
+
+test_cds_bin_executable() {
+    if [ -x "$REPO_DIR/bin/cds" ]; then
+        pass "bin/cds is executable"
+    else
+        fail "bin/cds is not executable"
+    fi
+}
+
+test_cds_bin_syntax_ok() {
+    bash -n "$REPO_DIR/bin/cds" 2>/dev/null && pass "bin/cds syntax OK" || fail "bin/cds syntax error"
+}
+
+test_cds_references_open_chad() {
+    if grep -q 'open-chad' "$REPO_DIR/bin/cds"; then
+        pass "bin/cds references open-chad"
+    else
+        fail "bin/cds does not reference open-chad"
+    fi
+}
+
+test_cds_does_not_exec_opencode_directly() {
+    if grep -qE '^[[:space:]]*exec opencode' "$REPO_DIR/bin/cds"; then
+        fail "bin/cds execs opencode directly (should use open-chad)"
+    else
+        pass "bin/cds does not exec opencode directly"
+    fi
+}
+
+test_install_wires_cds_symlink() {
+    if grep -q 'bin/cds\|cds' "$REPO_DIR/install.sh"; then
+        pass "install.sh wires cds symlink"
+    else
+        fail "install.sh does not wire cds symlink"
+    fi
+}
+
+test_update_wires_cds_symlink() {
+    if grep -q 'bin/cds\|cds' "$REPO_DIR/lib/update.sh"; then
+        pass "lib/update.sh wires cds symlink"
+    else
+        fail "lib/update.sh does not wire cds symlink"
+    fi
+}
+
+test_cds_bin_exists
+test_cds_bin_executable
+test_cds_bin_syntax_ok
+test_cds_references_open_chad
+test_cds_does_not_exec_opencode_directly
+test_install_wires_cds_symlink
+test_update_wires_cds_symlink
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

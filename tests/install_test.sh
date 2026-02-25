@@ -42,15 +42,18 @@ setup_tmp_env() {
     TMP_INSTALL_DIR="$TMP_DIR/install"
     mkdir -p "$TMP_HOME/.local/bin"
     mkdir -p "$TMP_HOME/.config/opencode"
+    mkdir -p "$TMP_DIR/cache"
     mkdir -p "$TMP_INSTALL_DIR"
     # Copy repo into temp install dir to simulate fresh checkout
     cp -r "$REPO_DIR"/. "$TMP_INSTALL_DIR/"
     export HOME="$TMP_HOME"
+    # Sandbox cache dir so opencode_env.sh doesn't touch real XDG_RUNTIME_DIR
+    export OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache"
 }
 
 teardown_tmp_env() {
     rm -rf "$TMP_DIR"
-    unset TMP_DIR TMP_HOME TMP_INSTALL_DIR
+    unset TMP_DIR TMP_HOME TMP_INSTALL_DIR OPEN_CHAD_CACHE_DIR
 }
 
 # ─── Section 1: Repository Structure ─────────────────────────────────────────
@@ -288,7 +291,32 @@ test_setup_adv_skips_gracefully_without_pnpm() {
     teardown_tmp_env
 }
 
+test_wizard_adv_ok_only_on_success() {
+    # wizard.sh should only print "ADV plugin configured" when setup_adv.sh succeeds
+    # Verify the ok message is inside an if-then block, not unconditional
+    local adv_block
+    adv_block=$(sed -n '/Installing ADV/,/fi$/p' "$REPO_DIR/lib/wizard.sh")
+    if echo "$adv_block" | grep -q 'then' && echo "$adv_block" | grep -q 'ok.*ADV'; then
+        pass "wizard.sh: ADV 'ok' message is conditional on success"
+    else
+        fail "wizard.sh: ADV 'ok' message should be conditional (inside if/then)"
+    fi
+}
+
+test_wizard_morph_ok_only_on_success() {
+    # Same check for morph
+    local morph_block
+    morph_block=$(sed -n '/Installing morph/,/fi$/p' "$REPO_DIR/lib/wizard.sh")
+    if echo "$morph_block" | grep -q 'then' && echo "$morph_block" | grep -q 'ok.*morph'; then
+        pass "wizard.sh: morph 'ok' message is conditional on success"
+    else
+        fail "wizard.sh: morph 'ok' message should be conditional (inside if/then)"
+    fi
+}
+
 test_setup_adv_skips_gracefully_without_pnpm
+test_wizard_adv_ok_only_on_success
+test_wizard_morph_ok_only_on_success
 
 # ─── Section 6: install.sh flag parsing ───────────────────────────────────────
 
@@ -320,9 +348,27 @@ test_install_accepts_no_opencode_setup_flag() {
     teardown_tmp_env
 }
 
+test_install_no_opencode_setup_includes_skip_adv() {
+    # --no-opencode-setup should map to --skip-adv (among others) in wizard args
+    if grep -q 'NO_OPENCODE_SETUP.*skip-adv\|"--skip-adv"' "$REPO_DIR/install.sh" && \
+       grep -q 'NO_OPENCODE_SETUP' "$REPO_DIR/install.sh"; then
+        # Verify the line that handles NO_OPENCODE_SETUP includes --skip-adv
+        local line
+        line=$(grep 'NO_OPENCODE_SETUP.*WIZARD_ARGS' "$REPO_DIR/install.sh" || echo "")
+        if echo "$line" | grep -q 'skip-adv'; then
+            pass "--no-opencode-setup maps to --skip-adv in wizard args"
+        else
+            fail "--no-opencode-setup does NOT map to --skip-adv (ADV still runs)"
+        fi
+    else
+        fail "--no-opencode-setup flag or --skip-adv mapping missing from install.sh"
+    fi
+}
+
 test_install_accepts_no_adv_flag
 test_install_accepts_no_omp_flag
 test_install_accepts_no_opencode_setup_flag
+test_install_no_opencode_setup_includes_skip_adv
 
 # ─── Section 7: install.sh idempotency ────────────────────────────────────────
 
@@ -334,6 +380,27 @@ test_install_symlink_idempotent() {
     HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
     HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
     assert_symlink "$TMP_HOME/.local/bin/open-chad"
+    assert_symlink "$TMP_HOME/.local/bin/cds"
+    teardown_tmp_env
+}
+
+test_install_cds_symlink_created() {
+    setup_tmp_env
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    assert_symlink "$TMP_HOME/.local/bin/cds"
+    teardown_tmp_env
+}
+
+test_install_cds_symlink_points_to_bin_cds() {
+    setup_tmp_env
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    local target
+    target=$(readlink "$TMP_HOME/.local/bin/cds" 2>/dev/null || echo "")
+    if echo "$target" | grep -q "bin/cds"; then
+        pass "cds symlink points to bin/cds"
+    else
+        fail "cds symlink target unexpected: $target"
+    fi
     teardown_tmp_env
 }
 
@@ -353,6 +420,8 @@ test_install_tmux_theme_not_duplicated() {
 }
 
 test_install_symlink_idempotent
+test_install_cds_symlink_created
+test_install_cds_symlink_points_to_bin_cds
 test_install_tmux_theme_not_duplicated
 
 # ─── Section 8: lib/opencode_env.sh — cache dir setup ────────────────────────
@@ -369,6 +438,8 @@ assert_perms_700() {
 test_opencode_env_creates_cache_dir() {
     setup_tmp_env
     local fake_cache="$TMP_DIR/runtime/open-chad"
+    # Unset sandbox override so we can test XDG resolution
+    unset OPEN_CHAD_CACHE_DIR
     XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
         bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
     assert_dir_exists "$fake_cache"
@@ -378,7 +449,8 @@ test_opencode_env_creates_cache_dir() {
 
 test_opencode_env_fallback_without_xdg() {
     setup_tmp_env
-    # Unset XDG_RUNTIME_DIR to trigger fallback path
+    # Unset sandbox override + XDG_RUNTIME_DIR to trigger fallback path
+    unset OPEN_CHAD_CACHE_DIR
     local fallback_dir="/tmp/open-chad-${USER}"
     unset XDG_RUNTIME_DIR
     bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null || true
@@ -393,10 +465,11 @@ test_opencode_env_exports_var() {
     setup_tmp_env
     local fake_runtime="$TMP_DIR/runtime"
     mkdir -p "$fake_runtime"
+    # Unset sandbox override so we can test XDG resolution
     # Source the env file and verify OPEN_CHAD_CACHE_DIR is set
     local exported_val
-    exported_val=$(XDG_RUNTIME_DIR="$fake_runtime" bash -c \
-        'source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
+    exported_val=$(XDG_RUNTIME_DIR="$fake_runtime" OPEN_CHAD_CACHE_DIR="" bash -c \
+        'unset OPEN_CHAD_CACHE_DIR; source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
     [ "$exported_val" = "$fake_runtime/open-chad" ] && \
         pass "OPEN_CHAD_CACHE_DIR=$exported_val (expected $fake_runtime/open-chad)" || \
         fail "OPEN_CHAD_CACHE_DIR='$exported_val' (expected '$fake_runtime/open-chad')"
@@ -418,6 +491,8 @@ test_opencode_env_override_respected() {
 
 test_opencode_env_idempotent() {
     setup_tmp_env
+    # Unset sandbox override so we can test XDG resolution
+    unset OPEN_CHAD_CACHE_DIR
     local fake_runtime="$TMP_DIR/runtime"
     # Running twice should not error or change permissions
     XDG_RUNTIME_DIR="$fake_runtime" bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null

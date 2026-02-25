@@ -323,22 +323,24 @@ if [ "$SKIP_ADV" -eq 1 ]; then
     skip "ADV plugin (--skip-adv)"
 else
     info "Installing ADV (Advance) plugin..."
-    OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
-        bash "$REPO_DIR/lib/setup_adv.sh" || {
+    if OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
+        bash "$REPO_DIR/lib/setup_adv.sh"; then
+        ok "ADV plugin configured"
+    else
         warn "ADV setup had errors (non-fatal). Install pnpm and retry: bash lib/setup_adv.sh"
-    }
-    ok "ADV plugin configured"
+    fi
 fi
 
 if [ "$SKIP_MORPH" -eq 1 ]; then
     skip "morph-fast-apply (--skip-morph)"
 else
     info "Installing morph-fast-apply plugin..."
-    OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
-        bash "$REPO_DIR/lib/setup_morph.sh" || {
+    if OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
+        bash "$REPO_DIR/lib/setup_morph.sh"; then
+        ok "morph-fast-apply configured"
+    else
         warn "morph setup had errors (non-fatal). Retry: bash lib/setup_morph.sh"
-    }
-    ok "morph-fast-apply configured"
+    fi
 fi
 _log_flush
 

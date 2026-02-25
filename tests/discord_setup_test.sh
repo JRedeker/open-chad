@@ -297,6 +297,73 @@ test_update_sh_does_not_run_without_config() {
 
 test_update_sh_does_not_run_without_config
 
+# ─── Section 7: Disabled by default ──────────────────────────────────────────
+
+section "Discord disabled by default"
+
+test_discord_disabled_when_no_config_file() {
+    if [ ! -f "$UPDATE_SH" ]; then skip "update.sh not found"; return; fi
+    setup_tmp_env
+    # No config file at all — simulates a fresh install
+
+    local exit_code=0
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$UPDATE_SH" "1" "0" 2>/dev/null || exit_code=$?
+
+    assert_eq "$exit_code" "0" "update.sh exits 0 with no config file (disabled by default)"
+    teardown_tmp_env
+}
+
+test_discord_disabled_when_key_absent() {
+    if [ ! -f "$UPDATE_SH" ]; then skip "update.sh not found"; return; fi
+    setup_tmp_env
+    # Config exists but has no discordPresence key — e.g. after install.sh runs
+    echo '{"installer":{"selectedBundles":[]}}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    local exit_code=0
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$UPDATE_SH" "1" "0" 2>/dev/null || exit_code=$?
+
+    assert_eq "$exit_code" "0" "update.sh exits 0 when discordPresence key absent"
+    teardown_tmp_env
+}
+
+test_discord_disabled_when_enabled_false() {
+    if [ ! -f "$UPDATE_SH" ]; then skip "update.sh not found"; return; fi
+    setup_tmp_env
+    echo '{"discordPresence":{"enabled":false}}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    local exit_code=0
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$UPDATE_SH" "1" "0" 2>/dev/null || exit_code=$?
+
+    assert_eq "$exit_code" "0" "update.sh exits 0 when discordPresence.enabled=false"
+    teardown_tmp_env
+}
+
+test_installer_does_not_write_discord_enabled() {
+    # Verify no installer script writes discordPresence.enabled=true
+    local found=0
+    for f in \
+        "$REPO_DIR/install.sh" \
+        "$REPO_DIR/lib/wizard.sh" \
+        "$REPO_DIR/lib/setup_opencode.sh" \
+        "$REPO_DIR/lib/setup_mcp.sh" \
+        "$REPO_DIR/lib/update.sh"
+    do
+        if grep -q 'discordPresence.*enabled.*true\|"discordPresence".*"enabled".*true' "$f" 2>/dev/null; then
+            fail "installer file writes discordPresence.enabled=true: $f"
+            found=1
+        fi
+    done
+    [ "$found" -eq 0 ] && pass "no installer script enables Discord by default"
+}
+
+test_discord_disabled_when_no_config_file
+test_discord_disabled_when_key_absent
+test_discord_disabled_when_enabled_false
+test_installer_does_not_write_discord_enabled
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

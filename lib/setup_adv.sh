@@ -59,6 +59,15 @@ if [ -d "$ADV_CHECKOUT_DIR/.git" ]; then
         error "Aborting ADV build to avoid using stale code."
         exit 1
     fi
+elif [ -d "$ADV_CHECKOUT_DIR" ]; then
+    # Directory exists but is not a git repo (partial/failed clone) — quarantine it
+    local_bak="$ADV_CHECKOUT_DIR.bak.$(date +%s)"
+    warn "Directory exists but is not a git repo: $ADV_CHECKOUT_DIR"
+    warn "Quarantining to: $local_bak"
+    mv "$ADV_CHECKOUT_DIR" "$local_bak"
+    step "Cloning ADV from $ADVANCE_REPO -> $ADV_CHECKOUT_DIR"
+    mkdir -p "$(dirname "$ADV_CHECKOUT_DIR")"
+    git clone "$ADVANCE_REPO" "$ADV_CHECKOUT_DIR"
 else
     step "Cloning ADV from $ADVANCE_REPO -> $ADV_CHECKOUT_DIR"
     mkdir -p "$(dirname "$ADV_CHECKOUT_DIR")"

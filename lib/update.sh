@@ -156,6 +156,25 @@ _new_head=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unkno
 ok "Pulled to $REPO_DIR ($current_branch @ $_new_head)"
 log "git pull OK: HEAD=$_new_head"
 
+# ─── 4b. Repair symlinks (open-chad + cds) ───────────────────────────────────
+step "Ensuring ~/.local/bin symlinks are current"
+_DEST_DIR="$HOME/.local/bin"
+mkdir -p "$_DEST_DIR"
+
+_repair_symlink() {
+    local src="$1"
+    local dest="$2"
+    if [ -L "$dest" ] || [ -f "$dest" ]; then
+        rm -f "$dest"
+    fi
+    ln -s "$src" "$dest"
+    ok "Symlink: $(basename "$src") -> $dest"
+}
+
+_repair_symlink "$REPO_DIR/bin/open-chad" "$_DEST_DIR/open-chad"
+_repair_symlink "$REPO_DIR/bin/cds"       "$_DEST_DIR/cds"
+log "Symlinks repaired"
+
 # ─── 5. Re-run setup modules ──────────────────────────────────────────────────
 echo ""
 step "Re-running setup modules..."

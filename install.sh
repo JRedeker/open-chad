@@ -112,17 +112,22 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 
-# ─── 3. Setup symlink ─────────────────────────────────────────────────────────
-BIN_PATH="$SCRIPT_DIR/bin/open-chad"
+# ─── 3. Setup symlinks ────────────────────────────────────────────────────────
 DEST_DIR="$HOME/.local/bin"
-DEST_BIN="$DEST_DIR/open-chad"
-
 mkdir -p "$DEST_DIR"
-if [ -L "$DEST_BIN" ] || [ -f "$DEST_BIN" ]; then
-    rm -f "$DEST_BIN"
-fi
-ln -s "$BIN_PATH" "$DEST_BIN"
-echo -e "Symlinked ${C_GOLD}bin/open-chad${C_RESET} -> ${C_GOLD}$DEST_BIN${C_RESET}"
+
+_install_symlink() {
+    local src="$1"
+    local dest="$2"
+    if [ -L "$dest" ] || [ -f "$dest" ]; then
+        rm -f "$dest"
+    fi
+    ln -s "$src" "$dest"
+    echo -e "Symlinked ${C_GOLD}$(basename "$src")${C_RESET} -> ${C_GOLD}$dest${C_RESET}"
+}
+
+_install_symlink "$SCRIPT_DIR/bin/open-chad" "$DEST_DIR/open-chad"
+_install_symlink "$SCRIPT_DIR/bin/cds"       "$DEST_DIR/cds"
 
 # ─── 4. Tmux theme integration ────────────────────────────────────────────────
 TMUX_CONF="$HOME/.tmux.conf"
@@ -164,7 +169,7 @@ else
 
     # Apply legacy --no-* flags that weren't already in WIZARD_EXTRA_FLAGS
     [ "$NO_ADV" -eq 1 ]            && WIZARD_ARGS+=("--skip-adv")
-    [ "$NO_OPENCODE_SETUP" -eq 1 ] && WIZARD_ARGS+=("--skip-mcp" "--skip-morph")
+    [ "$NO_OPENCODE_SETUP" -eq 1 ] && WIZARD_ARGS+=("--skip-mcp" "--skip-morph" "--skip-adv")
 
     exec bash "$SCRIPT_DIR/lib/wizard.sh" "${WIZARD_ARGS[@]}"
 fi

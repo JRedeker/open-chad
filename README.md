@@ -11,6 +11,7 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
 ## Features
 
 - **Boot Animation**: Centered, color-cycling OPEN CHAD logo with typewriter subtitle and contextual launch sequence. Dynamically adapts to terminal size (skippable via `--no-anim`).
+- **`cds` Scratch Launcher**: `cds [date]` creates `~/scratch/YYYY-MM-DD` and launches open-chad there. Ideal for quick throwaway sessions. Accepts an optional explicit date (`cds 2026-01-15`).
 - **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
 - **Smart Context Bar**: 
   - Left: repo name + branch.
@@ -83,6 +84,7 @@ bash install.sh --no-opencode-setup
 | Component | Path | Notes |
 |-----------|------|-------|
 | Launcher | `~/.local/bin/open-chad` | Symlink |
+| Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches open-chad |
 | tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
 | ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
@@ -142,6 +144,12 @@ oc ~/dev/my-project
 
 # Skip the boot animation
 oc --no-anim
+
+# Create ~/scratch/YYYY-MM-DD and launch open-chad there
+cds
+
+# Use a specific date for the scratch directory
+cds 2026-01-15
 
 # List all running OpenCode sessions and their memory usage
 oc-list

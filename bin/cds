@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# cds — Create Date-stamped Scratch directory and launch open-chad
+#
+# Usage:
+#   cds              Create ~/scratch/YYYY-MM-DD (today) and launch open-chad
+#   cds 2026-01-15   Create ~/scratch/2026-01-15 and launch open-chad
+#   cds --help       Show this help
+#
+# Part of open-chad. Installed to ~/.local/bin/cds by install.sh.
+
+set -euo pipefail
+
+# ─── Help ─────────────────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<EOF
+Usage: cds [date]
+
+  cds              Create ~/scratch/YYYY-MM-DD (today) and launch open-chad
+  cds 2026-01-15   Create ~/scratch/2026-01-15 and launch open-chad
+
+Creates the scratch directory if it doesn't exist, changes into it,
+then launches open-chad (the retro tmux launcher for OpenCode).
+EOF
+    exit 0
+fi
+
+# ─── Date resolution ──────────────────────────────────────────────────────────
+DATE="${1:-$(date +%Y-%m-%d)}"
+SCRATCH_DIR="$HOME/scratch/$DATE"
+
+# ─── Create and enter scratch dir ─────────────────────────────────────────────
+mkdir -p "$SCRATCH_DIR"
+cd "$SCRATCH_DIR"
+
+echo "Launching open-chad in $SCRATCH_DIR"
+
+# ─── Launch open-chad ─────────────────────────────────────────────────────────
+# Prefer the sibling bin/open-chad (works even if PATH isn't set up yet),
+# then fall back to PATH lookup.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+OPEN_CHAD_BIN="$SCRIPT_DIR/open-chad"
+
+if [[ -x "$OPEN_CHAD_BIN" ]]; then
+    exec "$OPEN_CHAD_BIN" "$SCRATCH_DIR"
+elif command -v open-chad &>/dev/null; then
+    exec open-chad "$SCRATCH_DIR"
+else
+    echo "ERROR: open-chad not found. Is it installed?" >&2
+    echo "       Try: bash ~/dev/open-chad/install.sh" >&2
+    exit 1
+fi

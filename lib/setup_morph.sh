@@ -59,6 +59,15 @@ if [ -d "$MORPH_CHECKOUT_DIR/.git" ]; then
         error "Aborting morph build to avoid using stale code."
         exit 1
     fi
+elif [ -d "$MORPH_CHECKOUT_DIR" ]; then
+    # Directory exists but is not a git repo (partial/failed clone) — quarantine it
+    local_bak="$MORPH_CHECKOUT_DIR.bak.$(date +%s)"
+    warn "Directory exists but is not a git repo: $MORPH_CHECKOUT_DIR"
+    warn "Quarantining to: $local_bak"
+    mv "$MORPH_CHECKOUT_DIR" "$local_bak"
+    step "Cloning morph-fast-apply from $MORPH_REPO -> $MORPH_CHECKOUT_DIR"
+    mkdir -p "$(dirname "$MORPH_CHECKOUT_DIR")"
+    git clone "$MORPH_REPO" "$MORPH_CHECKOUT_DIR"
 else
     step "Cloning morph-fast-apply from $MORPH_REPO -> $MORPH_CHECKOUT_DIR"
     mkdir -p "$(dirname "$MORPH_CHECKOUT_DIR")"
