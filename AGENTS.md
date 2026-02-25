@@ -31,10 +31,12 @@ lib/
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
   session_title.sh          Row 0 left — queries OpenCode SQLite DB for session title,
                             correlates by tmux launch timestamp (no cross-session bleed)
-  status_resources.sh       Row 0 right — renders CPU%, RAM%, load from metrics cache
+  status_resources.sh       Standalone resource renderer (CPU%, RAM%, Load) — available
+                            for custom layouts; Row 1 uses status_right.sh which includes
+                            resources inline alongside LLM gauges.
   status_left.sh            Row 1 left — renders worktree / branch for current pane
-  status_right.sh           Row 1 right — renders 4-provider LLM fuel gauge with color
-                            thresholds and OPEN_CHAD_MULTI_GAUGE toggle
+  status_right.sh           Row 1 right — renders CPU%, RAM%, Load + 4-provider LLM fuel
+                            gauges as one unit. OPEN_CHAD_MULTI_GAUGE toggle supported.
   title_parser.sh           Parses ADV state strings (emoji + repo + changeId) for
                             structured tmux display in window name area
   collect_metrics.sh        Singleton background daemon — writes system metrics and
@@ -79,7 +81,13 @@ lib/
                             recovery guide (reset --hard / stash / rebase).
   wizard.sh                 Interactive 9-step install wizard. YES_MODE for CI/--yes.
                             Logs to ~/.config/opencode/open-chad-install.log. Flags:
-                            --yes, --skip-deps/auth/bundles/mcp/adv/morph/zsh, --verbose.
+                            --yes, --skip-deps/auth/bundles/mcp/adv/morph/omp/zsh, --verbose.
+
+bin/
+  open-chad                 Main launcher — animation, metrics bootstrap, tmux session
+  cds                       Date-stamped scratch directory launcher
+  oc-list                   List active oc-* tmux sessions with window count and memory
+  oc-killall                Kill all oc-* tmux sessions (--yes to skip confirmation)
 
 config/
   opencode/
@@ -158,7 +166,7 @@ Two-row tmux status bar, both rows on `bg=#0D1017`:
 |----------|---------|--------|
 | Left | `▌▌▌▌` accent edges → window name → `│` → session title | `session_title.sh` |
 | Center | Tab bar (inactive: comment gray, active: lifted bg) | `theme.conf` |
-| Right | CPU% `│` RAM% `│` Load `│` HH:MM `│` DD-Mon → `▐▐▐▐` accent edges | `status_resources.sh` |
+| Right | HH:MM `│` DD-Mon → `▐▐▐▐` accent edges | `theme.conf` |
 
 ### Row 1 (detail line)
 
@@ -281,31 +289,43 @@ Exit code = number of failures (0 = all pass).
 ### Running tests
 
 ```bash
-# All tests
-bash tests/install_test.sh && \
-bash tests/llm_fuel_test.sh && \
-bash tests/animation_test.sh && \
-bash tests/session_title_test.sh && \
-bash tests/discord_sanitizer_test.sh && \
-bash tests/discord_setup_test.sh && \
-bash tests/installer_validation_test.sh
-
-# Or via npm (all 7 suites):
+# All tests (via npm — runs all 13 suites):
 npm test
+
+# Or run individual suites:
+bash tests/install_test.sh
+bash tests/llm_fuel_test.sh
+bash tests/animation_test.sh
+bash tests/session_title_test.sh
+bash tests/discord_sanitizer_test.sh
+bash tests/discord_setup_test.sh
+bash tests/installer_validation_test.sh
+bash tests/cds_test.sh
+bash tests/integration_test.sh
+bash tests/installer_robustness_test.sh
+bash tests/setup_zsh_test.sh
+bash tests/shell_profile_test.sh
+bash tests/oc_sessions_test.sh
 ```
 
 ### Test counts
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 57 | Idempotency, flags, file creation, MCP regression |
-| `llm_fuel_test.sh` | 50 | Gauge rendering, API parsing, toggle, edge cases |
+| `install_test.sh` | 80+ | Idempotency, flags, file creation, MCP regression, oc-list/oc-killall symlinks |
+| `llm_fuel_test.sh` | 62 | Gauge rendering, API parsing, toggle, edge cases |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
-| `installer_validation_test.sh` | 38 | Error paths, wizard flags, MCP enabled/disabled, bundle config |
+| `installer_validation_test.sh` | 57 | Error paths, wizard flags, MCP enabled/disabled, bundle config |
 | `discord_sanitizer_test.sh` | 34 | Sanitizer pattern matching |
-| `discord_setup_test.sh` | 16 | Setup wizard, config read/write |
-| **Total** | **265+** | |
+| `discord_setup_test.sh` | 20 | Setup wizard, config read/write |
+| `cds_test.sh` | 18 | Date-stamped scratch dir launcher |
+| `integration_test.sh` | 36+ | End-to-end installer flow |
+| `installer_robustness_test.sh` | 50+ | Scenario-driven robustness |
+| `setup_zsh_test.sh` | 67+ | Zsh plugin setup, managed .zshrc block |
+| `shell_profile_test.sh` | 21+ | Shell profile PATH wiring |
+| `oc_sessions_test.sh` | 29 | oc-list and oc-killall behavior |
+| **Total** | **545+** | |
 
 ### Testing conventions
 
@@ -386,6 +406,40 @@ All dynamic input to Discord RPC passes through a sanitizer that redacts: home d
 - Scripts: `snake_case.sh`
 - Config: `snake_case.conf` or `camelCase.json`
 - Tests: `<module>_test.sh`
+
+---
+
+## Security Hardening (v1.1)
+
+The following security fixes were applied in the v1.1 hardening pass:
+
+| ID | Script | Fix |
+|----|--------|-----|
+| CVE-001 | `bin/open-chad`, `lib/discord/update.sh` | Discord lockfile moved from `/tmp` to `$OPEN_CHAD_CACHE_DIR` (user-private). Legacy `/tmp/discord-rpc.lock*` cleaned up on startup with symlink-safe deletion guards. |
+| CVE-002 | `lib/setup_dev_bundle.sh` | Go tarball SHA256 verified before `sudo rm -rf /usr/local/go`. Requires `sha256sum`; aborts on mismatch or missing checksum file. |
+| CVE-003 | `lib/setup_mcp.sh` | Removed silent `opencode.json` auto-wipe in `--yes` mode. Invalid JSON now exits with `ERROR:` + recovery instructions. See README for recovery procedure. |
+| CVE-004 | `lib/setup_opencode.sh` | Symlink sources rejected during agent/instruction/theme file copy. Symlinks are skipped with a `WARN:` message. |
+| CVE-005 | `bin/open-chad` | Discord `update.sh` stderr now logged to `$OPEN_CHAD_CACHE_DIR/discord.log` (0600) instead of `/dev/null`. |
+| ISSUE-006 | `install.sh`, `lib/update.sh` | Symlink creation changed to atomic `ln -sfn`. Source existence validated before linking. |
+| ISSUE-008 | `lib/wizard.sh` | Install log created with `install -m 0600` for atomic secure creation. |
+| ISSUE-009 | `lib/setup_mcp.sh` | Node.js invocations use `process.argv` file inputs (not interpolated strings) for path safety. |
+| ISSUE-010 | `bin/open-chad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir. |
+| ISSUE-011 | `lib/setup_dev_bundle.sh` | Go fallback version updated to `go1.26.0` with maintenance comment. |
+| ISSUE-012 | `lib/check_environment.sh` | Non-fatal `python3` presence check added with `apt install python3` hint. |
+| ISSUE-013 | `lib/setup_dev_bundle.sh` | `_persist_bundles` moved to after failure checks — failed installs no longer persist as selected. |
+| ISSUE-016 | `lib/json_merge.sh` | 1MB size guard added before Node.js parse for both target file and merge payload. |
+| ISSUE-017 | `lib/wizard.sh` | WSL detected via `/proc/version`; generates `~/open-chad-keybindings.ps1` instead of manual instructions. |
+| ISSUE-018 | `lib/setup_shell_profile.sh` | Sources rc file + exports PATH directly after writing block for immediate availability. |
+| ISSUE-019 | `lib/collect_metrics.sh` | `find` cleanup wrapped in `timeout 5` to prevent hangs on slow filesystems. |
+| ISSUE-021 | `lib/setup_shell_profile.sh` | Heredoc changed from `<<'EOF'` to `<<EOF` with `\$HOME` for explicit intent. |
+
+### Behavioral changes in `--yes` mode
+
+- **CVE-003**: `setup_mcp.sh` no longer silently wipes `opencode.json` on parse failure. It exits with an error and recovery instructions. This is a **breaking change** for automated installs with corrupted configs — fix the config first.
+
+### New environment requirements
+
+- **python3**: `check_environment.sh` now warns (non-fatal) if `python3` is missing. Required for `session_title.sh` SQLite lookup. Install with: `sudo apt install python3`
 
 ---
 

@@ -76,13 +76,23 @@ fi
 
 info "Writing PATH block to $_rc_file"
 
-cat >> "$_rc_file" <<'EOF'
+cat >> "$_rc_file" <<EOF
 
 # BEGIN open-chad
 # Added by open-chad installer — https://github.com/JRedeker/open-chad
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="\$HOME/.local/bin:\$PATH"
 # END open-chad
 EOF
 
 ok "PATH block written to $_rc_file"
 info "Reload with:  $_reload_cmd"
+
+# Source the rc file in the current session so PATH is immediately available.
+# This is a no-op if the script is run as a subprocess (subshell), but takes
+# effect when the caller does: source lib/setup_shell_profile.sh
+# shellcheck source=/dev/null
+source "$_rc_file" 2>/dev/null || true
+
+# Belt-and-suspenders: export PATH directly so this process benefits even
+# if sourcing is skipped or the rc file has syntax errors.
+export PATH="$HOME/.local/bin:$PATH"

@@ -45,8 +45,9 @@ bash install.sh --yes
 | 4. MCP servers | Wires `context7`, `grep-app`, `lgrep` (enabled) + `firecrawl`, `brave-web-search` (disabled) into `opencode.json` |
 | 5. Plugins | Installs ADV spec-driven dev plugin and morph fast-apply plugin |
 | 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
-| 7. Zsh setup | Installs zsh + plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting) into `~/.zsh/plugins/`, adds managed block to `~/.zshrc` |
-| 8. Windows Terminal | Optional copy-paste keybinding setup instructions |
+| 7. Model prefs (omp) | Installs `omp` (opencode-model-preferences) via `go install`. Skipped gracefully if Go is not installed. |
+| 8. Zsh setup | Installs zsh + plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting) into `~/.zsh/plugins/`, adds managed block to `~/.zshrc` |
+| 9. Windows Terminal | Optional copy-paste keybinding setup instructions |
 
 ### Non-interactive flags
 
@@ -54,7 +55,7 @@ bash install.sh --yes
 # Skip specific wizard steps
 bash install.sh --yes --skip-deps --skip-auth --skip-bundles
 bash install.sh --yes --skip-mcp --skip-adv --skip-morph
-bash install.sh --yes --skip-zsh
+bash install.sh --yes --skip-omp --skip-zsh
 
 # Select bundles non-interactively (comma or space separated, both work)
 bash install.sh --yes --bundles python,go
@@ -132,6 +133,36 @@ Requires a git-cloned install (errors clearly if run from a tarball/zip). Runs `
 
 `install.sh` is safe to re-run. It will re-sync config, pull latest plugins, and merge opencode.json without duplicating existing entries.
 
+### Recovering from opencode.json conflicts
+
+If `setup_mcp.sh` exits with an error about invalid or unparseable `opencode.json`, it will **not** automatically overwrite your config. This is intentional — silent auto-recovery was removed (CVE-003) to prevent data loss.
+
+**Recovery options (choose one):**
+
+**Option A — Restore from git backup (recommended):**
+```bash
+# If opencode.json is tracked in a dotfiles repo:
+git checkout ~/.config/opencode/opencode.json
+```
+
+**Option B — Manual config merge:**
+```bash
+# Validate the file:
+node -e "JSON.parse(require('fs').readFileSync('~/.config/opencode/opencode.json','utf8'))"
+# Fix any syntax errors shown, then re-run:
+bash install.sh
+```
+
+**Option C — Clean reinstall (last resort):**
+```bash
+# Back up first, then remove and reinstall:
+cp ~/.config/opencode/opencode.json ~/.config/opencode/opencode.json.bak
+rm ~/.config/opencode/opencode.json
+bash install.sh
+```
+
+After recovery, re-run `bash install.sh` to re-apply MCP server wiring.
+
 ### Windows Terminal
 
 The wizard (step 8) prints optional keybinding setup for copy-paste in WSL. To enable it manually, add to your Windows Terminal `settings.json`:
@@ -175,22 +206,24 @@ cds
 # Use a specific date for the scratch directory
 cds 2026-01-15
 
-# List all running OpenCode sessions and their memory usage
+# List all running open-chad sessions with window count and memory usage
 oc-list
 
-# Kill all OpenCode sessions
+# Kill all open-chad sessions (prompts for confirmation; use --yes to skip)
 oc-killall
+oc-killall --yes
 ```
 
 ## Architecture
 
 - `bin/open-chad`: Main entrypoint. Handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
 - `lib/animation.sh`: Pure bash boot animation. Dynamically centers on screen, cycles the logo through the ayu-dark palette, and typewriter-renders the subtitle. Uses true-color ANSI sequences.
-- `lib/collect_metrics.sh`: Singleton daemon. Writes `/tmp/open-chad-metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `/tmp/open-chad-zai`, `/tmp/open-chad-copilot`, `/tmp/open-chad-claude`, `/tmp/open-chad-codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
-- `lib/status_left.sh`: Fast tmux `#()` renderer. Reads 4 per-provider cache files (no jq, no curl — plain bash), applies per-segment color thresholds, composes 4-segment gauge with `title_parser.sh` output.
-- `lib/status_right.sh`: Fast tmux `#()` renderer. Reads system metrics cache.
-- `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV string structures.
-- `lib/theme.conf`: Sourced by `~/.tmux.conf`.
+- `lib/collect_metrics.sh`: Singleton daemon. Writes `$OPEN_CHAD_CACHE_DIR/metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `$OPEN_CHAD_CACHE_DIR/zai`, `$OPEN_CHAD_CACHE_DIR/copilot`, `$OPEN_CHAD_CACHE_DIR/claude`, `$OPEN_CHAD_CACHE_DIR/codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
+- `lib/status_left.sh`: Fast tmux `#()` renderer (Row 1 left). Shows worktree name and current git branch for the active pane. No external dependencies.
+- `lib/status_right.sh`: Fast tmux `#()` renderer (Row 1 right). Reads system metrics cache (`$OPEN_CHAD_CACHE_DIR/metrics`) and 4 per-provider LLM quota cache files. Renders CPU/RAM/Load + LLM fuel gauges as one unit. No jq, no curl — plain bash.
+- `lib/status_resources.sh`: Standalone Row 0 resource renderer (CPU/RAM/Load only). Available for custom tmux layouts; Row 1 uses `status_right.sh` which includes resources inline.
+- `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV state strings (emoji + repo + changeId) for structured display in the window name area.
+- `lib/theme.conf`: Sourced by `~/.tmux.conf`. Defines the 2-row ayu-dark status bar layout.
 
 ## LLM Provider Auth
 

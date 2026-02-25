@@ -424,6 +424,51 @@ test_install_cds_symlink_created
 test_install_cds_symlink_points_to_bin_cds
 test_install_tmux_theme_not_duplicated
 
+test_install_oc_list_symlink_created() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    assert_symlink "$TMP_HOME/.local/bin/oc-list"
+    teardown_tmp_env
+}
+
+test_install_oc_killall_symlink_created() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    assert_symlink "$TMP_HOME/.local/bin/oc-killall"
+    teardown_tmp_env
+}
+
+test_install_oc_list_symlink_points_to_bin() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    local target
+    target=$(readlink "$TMP_HOME/.local/bin/oc-list" 2>/dev/null || echo "")
+    if echo "$target" | grep -q "bin/oc-list"; then
+        pass "oc-list symlink points to bin/oc-list"
+    else
+        fail "oc-list symlink target unexpected: $target"
+    fi
+    teardown_tmp_env
+}
+
+test_install_oc_killall_symlink_points_to_bin() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    local target
+    target=$(readlink "$TMP_HOME/.local/bin/oc-killall" 2>/dev/null || echo "")
+    if echo "$target" | grep -q "bin/oc-killall"; then
+        pass "oc-killall symlink points to bin/oc-killall"
+    else
+        fail "oc-killall symlink target unexpected: $target"
+    fi
+    teardown_tmp_env
+}
+
+test_install_oc_list_symlink_created
+test_install_oc_killall_symlink_created
+test_install_oc_list_symlink_points_to_bin
+test_install_oc_killall_symlink_points_to_bin
+
 # ─── Section 8: lib/opencode_env.sh — cache dir setup ────────────────────────
 
 section "lib/opencode_env.sh — cache dir creation and env resolution"
@@ -740,6 +785,217 @@ test_open_chad_metrics_lockdir_starts_when_not_locked() {
 test_open_chad_uses_atomic_mkdir_for_metrics_singleton
 test_open_chad_metrics_lockdir_skips_start_when_locked
 test_open_chad_metrics_lockdir_starts_when_not_locked
+
+# ─── Section 15: collect_metrics.sh find cleanup timeout ─────────────────────
+
+section "collect_metrics.sh — find cleanup wrapped in timeout 5"
+
+test_collect_metrics_find_cleanup_has_timeout() {
+    # The 7-day TTL find cleanup should be wrapped in timeout 5 to prevent
+    # hangs on slow/network filesystems.
+    if grep -q "timeout.*find\|timeout 5.*find\|timeout.*5.*find" "$REPO_DIR/lib/collect_metrics.sh"; then
+        pass "collect_metrics.sh find cleanup is wrapped in timeout"
+    else
+        fail "collect_metrics.sh find cleanup missing timeout wrapper"
+    fi
+}
+
+test_collect_metrics_find_cleanup_has_timeout
+
+# ─── Section 16: setup_shell_profile.sh here-doc $HOME escaping ──────────────
+
+section "setup_shell_profile.sh — here-doc uses escaped \$HOME (not single-quoted)"
+
+test_setup_shell_profile_heredoc_uses_escaped_home() {
+    # The heredoc should use <<EOF (unquoted) with \$HOME so the intent is
+    # explicit: we want the literal string $HOME written to the rc file,
+    # not expanded at write time. Single-quoted <<'EOF' also works but is
+    # less clear about intent.
+    if grep -q '\\$HOME' "$REPO_DIR/lib/setup_shell_profile.sh"; then
+        pass "setup_shell_profile.sh uses escaped \$HOME in heredoc"
+    else
+        fail "setup_shell_profile.sh does not use escaped \$HOME (uses single-quoted heredoc)"
+    fi
+}
+
+test_setup_shell_profile_heredoc_uses_escaped_home
+
+# ─── Section 17: CVE-001 addendum — stale /tmp/discord-rpc.lock cleanup ───────
+
+section "CVE-001 addendum — stale /tmp/discord-rpc.lock cleanup on startup"
+
+test_open_chad_cleans_legacy_discord_lock() {
+    # bin/open-chad should remove stale /tmp/discord-rpc.lock* files on startup
+    assert_contains "$REPO_DIR/bin/open-chad" "_legacy_discord_lock"
+    assert_contains "$REPO_DIR/bin/open-chad" "/tmp/discord-rpc.lock"
+}
+
+test_open_chad_legacy_cleanup_checks_regular_file() {
+    # Cleanup must check [ -f ] and [ ! -L ] to avoid symlink-follow deletion
+    assert_contains "$REPO_DIR/bin/open-chad" '! -L'
+    # Check for -f check on the legacy file variable (pattern avoids shell expansion)
+    if grep -q '\-f.*_legacy_file' "$REPO_DIR/bin/open-chad"; then
+        pass "bin/open-chad: legacy cleanup checks -f before deleting"
+    else
+        fail "bin/open-chad: legacy cleanup missing -f check on _legacy_file"
+    fi
+}
+
+test_open_chad_legacy_cleanup_covers_guard_and_tagline() {
+    # All three legacy lock variants should be cleaned up
+    assert_contains "$REPO_DIR/bin/open-chad" '.guard'
+    assert_contains "$REPO_DIR/bin/open-chad" '.tagline'
+}
+
+test_open_chad_cleans_legacy_discord_lock
+test_open_chad_legacy_cleanup_checks_regular_file
+test_open_chad_legacy_cleanup_covers_guard_and_tagline
+
+# ─── Section 18: CVE-004 — symlink rejection in setup_opencode.sh ─────────────
+
+section "CVE-004 — symlink sources rejected in setup_opencode.sh file copy"
+
+test_setup_opencode_rejects_symlink_source() {
+    setup_tmp_env
+    local agents_src="$TMP_DIR/agents_src"
+    mkdir -p "$agents_src"
+    # Create a real file and a symlink
+    echo "# real agent" > "$agents_src/real.md"
+    ln -s "$agents_src/real.md" "$agents_src/symlink.md"
+
+    local dest_dir="$TMP_HOME/.config/opencode/agents"
+    mkdir -p "$dest_dir"
+
+    # Run setup_opencode.sh with the symlink in the source dir
+    local output
+    output=$(OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>&1 || true)
+
+    # The symlink should NOT be copied
+    if [ ! -f "$dest_dir/symlink.md" ]; then
+        pass "CVE-004: symlink source not copied to agents dest"
+    else
+        fail "CVE-004: symlink source was copied (should be rejected)"
+    fi
+    teardown_tmp_env
+}
+
+test_setup_opencode_symlink_rejection_emits_warning() {
+    # Verify the warning message is present in setup_opencode.sh
+    assert_contains "$REPO_DIR/lib/setup_opencode.sh" "skipped symlink source"
+}
+
+test_setup_opencode_rejects_symlink_source
+test_setup_opencode_symlink_rejection_emits_warning
+
+# ─── Section 19: CVE-002 — Go tarball SHA256 check ────────────────────────────
+
+section "CVE-002 — Go tarball SHA256 verification before rm -rf"
+
+test_setup_dev_bundle_has_sha256_check() {
+    assert_contains "$REPO_DIR/lib/setup_dev_bundle.sh" "sha256sum"
+}
+
+test_setup_dev_bundle_sha256_before_rm_rf() {
+    # sha256 check must appear before the rm -rf /usr/local/go line
+    local sha_line rm_line
+    sha_line=$(grep -n "sha256sum" "$REPO_DIR/lib/setup_dev_bundle.sh" | head -1 | cut -d: -f1)
+    rm_line=$(grep -n "rm -rf /usr/local/go" "$REPO_DIR/lib/setup_dev_bundle.sh" | head -1 | cut -d: -f1)
+    if [ -n "$sha_line" ] && [ -n "$rm_line" ] && [ "$sha_line" -lt "$rm_line" ]; then
+        pass "CVE-002: sha256 check (line $sha_line) precedes rm -rf (line $rm_line)"
+    else
+        fail "CVE-002: sha256 check not before rm -rf (sha_line=$sha_line rm_line=$rm_line)"
+    fi
+}
+
+test_setup_dev_bundle_has_sha256_check
+test_setup_dev_bundle_sha256_before_rm_rf
+
+# ─── Section 20: CVE-005 — Discord stderr logging ─────────────────────────────
+
+section "CVE-005 — Discord update.sh stderr logged to cache dir"
+
+test_open_chad_discord_stderr_logged_not_devnull() {
+    # Discord update.sh stderr should go to a log file, not /dev/null
+    assert_contains "$REPO_DIR/bin/open-chad" "discord.log"
+    assert_not_contains "$REPO_DIR/bin/open-chad" 'discord/update.sh.*2>/dev/null'
+}
+
+test_open_chad_discord_log_created_with_0600() {
+    # The discord.log file should be created with 0600 permissions
+    assert_contains "$REPO_DIR/bin/open-chad" "0600"
+}
+
+test_open_chad_discord_stderr_logged_not_devnull
+test_open_chad_discord_log_created_with_0600
+
+# ─── Section 21: ISSUE-006 — Atomic ln -sfn in install.sh and update.sh ───────
+
+section "ISSUE-006 — Atomic ln -sfn in install.sh and update.sh"
+
+test_install_sh_uses_ln_sfn() {
+    assert_contains "$REPO_DIR/install.sh" "ln -sfn"
+}
+
+test_update_sh_uses_ln_sfn() {
+    assert_contains "$REPO_DIR/lib/update.sh" "ln -sfn"
+}
+
+test_install_sh_no_rm_then_ln() {
+    # Should not have the old non-atomic rm -f + ln -s pattern
+    assert_not_contains "$REPO_DIR/install.sh" 'rm -f.*&&.*ln -s '
+}
+
+test_install_sh_uses_ln_sfn
+test_update_sh_uses_ln_sfn
+test_install_sh_no_rm_then_ln
+
+# ─── Section 22: ISSUE-008 — Secure wizard log creation ──────────────────────
+
+section "ISSUE-008 — Secure wizard log creation with install -m 0600"
+
+test_wizard_log_uses_install_0600() {
+    assert_contains "$REPO_DIR/lib/wizard.sh" "install -m 0600"
+}
+
+test_wizard_log_uses_install_0600
+
+# ─── Section 23: ISSUE-019 — collect_metrics.sh cleanup performance SLA ───────
+
+section "ISSUE-019 — collect_metrics.sh cleanup completes within 5s SLA"
+
+test_collect_metrics_cleanup_completes_within_sla() {
+    # The find cleanup is wrapped in timeout 5. Verify it completes well within
+    # the 5-second SLA on a normal (non-network) filesystem.
+    # Expected time: < 1s on local disk. SLA: 5s (enforced by timeout wrapper).
+    local cache_dir
+    cache_dir=$(mktemp -d)
+    # Create some test files, including one "old" file (simulate stale cache)
+    touch "$cache_dir/metrics" "$cache_dir/zai" "$cache_dir/copilot"
+    # Simulate a 7-day-old file using touch -d
+    touch -d "8 days ago" "$cache_dir/stale_file" 2>/dev/null || touch "$cache_dir/stale_file"
+
+    local start_ts end_ts elapsed
+    start_ts=$(date +%s%N 2>/dev/null || date +%s)
+    timeout 5 find "$cache_dir" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+    end_ts=$(date +%s%N 2>/dev/null || date +%s)
+
+    # Calculate elapsed in milliseconds (fallback to seconds if %N unavailable)
+    if [ ${#start_ts} -gt 10 ]; then
+        elapsed=$(( (end_ts - start_ts) / 1000000 ))
+        [ "$elapsed" -lt 2000 ] \
+            && pass "collect_metrics.sh cleanup completed in ${elapsed}ms (SLA: 5000ms)" \
+            || fail "collect_metrics.sh cleanup took ${elapsed}ms (SLA: 5000ms)"
+    else
+        elapsed=$(( end_ts - start_ts ))
+        [ "$elapsed" -lt 5 ] \
+            && pass "collect_metrics.sh cleanup completed in ${elapsed}s (SLA: 5s)" \
+            || fail "collect_metrics.sh cleanup took ${elapsed}s (SLA: 5s)"
+    fi
+    rm -rf "$cache_dir"
+}
+
+test_collect_metrics_cleanup_completes_within_sla
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

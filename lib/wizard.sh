@@ -14,6 +14,7 @@
 #   --skip-adv       Skip ADV plugin install
 #   --skip-auth      Skip Claude OAuth step
 #   --skip-bundles   Skip dev bundle selection
+#   --skip-omp       Skip omp (model preferences) install
 #   --bundles <list> Pre-select bundles (space-separated: "python go rust")
 #
 # Environment overrides:
@@ -53,6 +54,7 @@ SKIP_MORPH=0
 SKIP_ADV=0
 SKIP_AUTH=0
 SKIP_BUNDLES=0
+SKIP_OMP=0
 SKIP_ZSH=0
 PRESELECT_BUNDLES=""
 
@@ -67,6 +69,7 @@ while [[ $# -gt 0 ]]; do
         --skip-adv)          SKIP_ADV=1;                   shift ;;
         --skip-auth)         SKIP_AUTH=1;                  shift ;;
         --skip-bundles)      SKIP_BUNDLES=1;               shift ;;
+        --skip-omp)          SKIP_OMP=1;                   shift ;;
         --skip-zsh)          SKIP_ZSH=1;                   shift ;;
         --bundles)           PRESELECT_BUNDLES="$2";       shift 2 ;;
         --help|-h)
@@ -81,6 +84,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-adv          Skip ADV install"
             echo "  --skip-auth         Skip Claude OAuth step"
             echo "  --skip-bundles      Skip dev bundle selection"
+            echo "  --skip-omp          Skip omp (model preferences) install"
             echo "  --skip-zsh          Skip zsh + plugin setup"
             echo "  --bundles <list>    Pre-select bundles (e.g. 'python go')"
             exit 0
@@ -390,6 +394,27 @@ OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
 }
 ok "Agents, instructions, and theme synced"
 _log "OPENCODE CONFIG DONE"
+_log_flush
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 7: OMP (opencode-model-preferences)
+# ═══════════════════════════════════════════════════════════════════════════════
+_step_banner 7 "$TOTAL_STEPS" "Model Preferences (omp)"
+
+if [ "$SKIP_OMP" -eq 1 ]; then
+    skip "omp (--skip-omp)"
+else
+    info "Installing omp (opencode-model-preferences)..."
+    info "Requires Go 1.16+. Skipped gracefully if Go is not installed."
+    echo ""
+    if OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
+        bash "$REPO_DIR/lib/setup_omp.sh"; then
+        ok "omp installed"
+    else
+        warn "omp install had errors (non-fatal). Install Go 1.16+ and retry: bash lib/setup_omp.sh"
+    fi
+fi
+_log "OMP STEP DONE"
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════

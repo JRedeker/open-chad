@@ -44,9 +44,10 @@ trap 'rm -f "$LOCKFILE"' EXIT INT TERM
 
 # 7-day TTL cleanup: remove stale files from the cache dir.
 # Runs once per singleton startup — not on every launcher invocation.
+# Wrapped in timeout 5 to prevent hangs on slow or network-mounted filesystems.
 # The 2>/dev/null suppresses errors from race-deleted files; || true prevents
-# set -e from aborting if find exits non-zero on a transient ENOENT.
-find "${OPEN_CHAD_CACHE_DIR}" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+# set -e from aborting if find or timeout exits non-zero on a transient ENOENT.
+timeout 5 find "${OPEN_CHAD_CACHE_DIR}" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
 
 collect() {
     # CPU: 1-second sample via /proc/stat (no external tools)

@@ -48,6 +48,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-omp)
             NO_OMP=1
+            WIZARD_EXTRA_FLAGS+=("--skip-omp")
             shift
             ;;
         --no-opencode-setup)

@@ -208,6 +208,12 @@ step "Syncing OpenCode agents and instructions"
 bash "$REPO_DIR/lib/setup_opencode.sh" || warn "OpenCode setup had errors (non-fatal)"
 log "OpenCode setup done"
 
+# OMP (opencode-model-preferences) — graceful skip if Go not installed
+step "Updating omp (model preferences)"
+OPEN_CHAD_INSTALL_LOG="$INSTALL_LOG" \
+    bash "$REPO_DIR/lib/setup_omp.sh" || warn "omp setup had errors (non-fatal — install Go 1.16+ to enable)"
+log "OMP setup done"
+
 # Zsh plugins (idempotent — clone or pull, managed .zshrc block)
 step "Updating zsh plugins"
 YES_MODE=1 \

@@ -932,6 +932,91 @@ test_wizard_wsl_generates_ps1_script
 test_wizard_wsl_ps1_script_has_correct_syntax
 test_wizard_wsl_ps1_script_written_to_cache_or_home
 
+# ─── Section: setup_shell_profile.sh — source after write ─────────────────────
+
+section "setup_shell_profile.sh — source profile in same session after PATH write"
+
+test_setup_shell_profile_sources_after_write() {
+    # After writing the PATH block, setup_shell_profile.sh should source the
+    # rc file so the PATH is immediately available in the current session.
+    if grep -q "source.*_rc_file\|\. \"\$_rc_file\"\|source \"\$_rc_file\"" "$REPO_DIR/lib/setup_shell_profile.sh"; then
+        pass "setup_shell_profile.sh sources rc file after writing PATH block"
+    else
+        fail "setup_shell_profile.sh does not source rc file after writing PATH block"
+    fi
+}
+
+test_setup_shell_profile_exports_path_directly() {
+    # As a belt-and-suspenders fallback, the script should export PATH
+    # directly (outside the heredoc) so the current process benefits immediately.
+    # The heredoc block is delimited by EOF — we check lines after it.
+    local after_heredoc
+    after_heredoc=$(awk '/^EOF$/{found=1; next} found{print}' "$REPO_DIR/lib/setup_shell_profile.sh")
+    if echo "$after_heredoc" | grep -q 'export PATH\|PATH=.*local.*bin'; then
+        pass "setup_shell_profile.sh exports PATH directly after heredoc write"
+    else
+        fail "setup_shell_profile.sh does not export PATH directly after heredoc write"
+    fi
+}
+
+test_setup_shell_profile_sources_after_write
+test_setup_shell_profile_exports_path_directly
+
+# ─── Section: Error message consistency across CRITICAL/HIGH fixes ─────────────
+
+section "Error message consistency — ERROR: prefix + actionable remediation"
+
+test_json_merge_error_messages_use_error_prefix() {
+    # All json_merge.sh error paths should use "ERROR:" prefix
+    local error_count
+    error_count=$(grep -c "echo.*ERROR:" "$REPO_DIR/lib/json_merge.sh" 2>/dev/null || echo 0)
+    [ "$error_count" -ge 3 ] \
+        && pass "json_merge.sh has $error_count ERROR: prefixed messages (≥3 required)" \
+        || fail "json_merge.sh has only $error_count ERROR: prefixed messages (need ≥3)"
+}
+
+test_json_merge_size_error_has_remediation() {
+    # Size guard errors should include actionable remediation text
+    if grep -q "Refusing to parse\|Reduce the size\|Check for accidental" "$REPO_DIR/lib/json_merge.sh"; then
+        pass "json_merge.sh size guard errors include actionable remediation"
+    else
+        fail "json_merge.sh size guard errors missing actionable remediation"
+    fi
+}
+
+test_setup_mcp_error_function_uses_stderr() {
+    # setup_mcp.sh error() function must write to stderr
+    if grep -q "error().*>&2\|>&2.*error()\|echo.*ERROR.*>&2" "$REPO_DIR/lib/setup_mcp.sh"; then
+        pass "setup_mcp.sh error() function writes to stderr"
+    else
+        fail "setup_mcp.sh error() function does not write to stderr"
+    fi
+}
+
+test_setup_dev_bundle_sha256_errors_have_hints() {
+    # SHA256 verification errors should have actionable hints
+    if grep -q "hint\|Install coreutils\|Cannot safely install\|checksum verification" "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh SHA256 errors include actionable hints"
+    else
+        fail "setup_dev_bundle.sh SHA256 errors missing actionable hints"
+    fi
+}
+
+test_check_environment_python3_warning_has_hint() {
+    # python3 warning should include install hint
+    if grep -q "apt.*install.*python3\|install.*python3\|python3.*install" "$REPO_DIR/lib/check_environment.sh"; then
+        pass "check_environment.sh python3 warning includes install hint"
+    else
+        fail "check_environment.sh python3 warning missing install hint"
+    fi
+}
+
+test_json_merge_error_messages_use_error_prefix
+test_json_merge_size_error_has_remediation
+test_setup_mcp_error_function_uses_stderr
+test_setup_dev_bundle_sha256_errors_have_hints
+test_check_environment_python3_warning_has_hint
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
