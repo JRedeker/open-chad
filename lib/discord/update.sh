@@ -21,10 +21,14 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Resolve dedicated cache directory (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
+# shellcheck source=../opencode_env.sh
+source "$REPO_DIR/lib/opencode_env.sh"
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 RATE_LIMIT_SEC="${DISCORD_RATE_LIMIT_SEC:-15}"
-LOCK_FILE="${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}"
+LOCK_FILE="${OPEN_CHAD_DISCORD_LOCK:-${OPEN_CHAD_CACHE_DIR}/discord-rpc.lock}"
 GUARD_FILE="${LOCK_FILE}.guard"
 
 # Resolve config file: env override → default location

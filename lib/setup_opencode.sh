@@ -32,6 +32,21 @@ step()  { echo -e "${C_GOLD}[opencode]${C_RESET} $*"; }
 ok()    { echo -e "${C_SAGE}[opencode] OK:${C_RESET} $*"; }
 warn()  { echo -e "${C_CORAL}[opencode] WARN:${C_RESET} $*"; }
 
+_copy_if_regular() {
+    local src="$1"
+    local dest="$2"
+    local label="$3"
+
+    if [ -L "$src" ]; then
+        warn "$label skipped symlink source: $(basename "$src")"
+        return 0
+    fi
+    [ -f "$src" ] || return 0
+
+    cp "$src" "$dest"
+    ok "$label: $(basename "$src")"
+}
+
 # ─── Flag parsing ─────────────────────────────────────────────────────────────
 SKIP_COMMANDS=0
 while [[ $# -gt 0 ]]; do
@@ -59,30 +74,49 @@ DEST_THEMES_DIR="$OPENCODE_CONFIG_DIR/themes"
 step "Syncing agent files -> $DEST_AGENTS_DIR"
 mkdir -p "$DEST_AGENTS_DIR"
 for src in "$BUNDLE_AGENTS_DIR"/*.md; do
-    [ -f "$src" ] || continue
     dest="$DEST_AGENTS_DIR/$(basename "$src")"
-    cp "$src" "$dest"
-    ok "agent: $(basename "$src")"
+    _copy_if_regular "$src" "$dest" "agent"
 done
 
 # ─── 2. Sync ADV command files ─────────────────────────────────────────────────
+# ADV has used two layouts across versions:
+#   legacy:  plugin/commands/
+#   current: .opencode/command/
+# Try current layout first, fall back to legacy.
 if [ "$SKIP_COMMANDS" -eq 0 ]; then
-    ADV_COMMANDS_DIR="$ADV_CHECKOUT_DIR/plugin/commands"
-    if [ -d "$ADV_COMMANDS_DIR" ]; then
+    ADV_COMMANDS_DIR=""
+    if [ -d "$ADV_CHECKOUT_DIR/.opencode/command" ]; then
+        ADV_COMMANDS_DIR="$ADV_CHECKOUT_DIR/.opencode/command"
+    elif [ -d "$ADV_CHECKOUT_DIR/plugin/commands" ]; then
+        ADV_COMMANDS_DIR="$ADV_CHECKOUT_DIR/plugin/commands"
+    fi
+
+    if [ -n "$ADV_COMMANDS_DIR" ]; then
         step "Syncing ADV commands from $ADV_COMMANDS_DIR -> $DEST_COMMANDS_DIR"
         mkdir -p "$DEST_COMMANDS_DIR"
         for src in "$ADV_COMMANDS_DIR"/*.md; do
-            [ -f "$src" ] || continue
             dest="$DEST_COMMANDS_DIR/$(basename "$src")"
-            cp "$src" "$dest"
-            ok "command: $(basename "$src")"
+            _copy_if_regular "$src" "$dest" "command"
         done
     else
-        warn "ADV commands directory not found: $ADV_COMMANDS_DIR"
+        warn "ADV commands directory not found in $ADV_CHECKOUT_DIR"
+        warn "Checked: .opencode/command and plugin/commands"
         warn "Run setup_adv.sh first, or use --skip-commands flag."
     fi
 else
     warn "Skipping ADV command sync (--skip-commands)"
+fi
+
+# ─── 2b. Sync ADV agent files (e.g. adv-researcher.md) ────────────────────────
+# ADV ships its own sub-agent definitions in .opencode/agents/.
+# When the checkout is present, prefer upstream versions over bundled fallbacks.
+ADV_AGENTS_DIR="$ADV_CHECKOUT_DIR/.opencode/agents"
+if [ -d "$ADV_AGENTS_DIR" ]; then
+    step "Syncing ADV agents from $ADV_AGENTS_DIR -> $DEST_AGENTS_DIR"
+    for src in "$ADV_AGENTS_DIR"/*.md; do
+        dest="$DEST_AGENTS_DIR/$(basename "$src")"
+        _copy_if_regular "$src" "$dest" "agent (adv)"
+    done
 fi
 
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
@@ -103,10 +137,8 @@ done
 step "Syncing theme files -> $DEST_THEMES_DIR"
 mkdir -p "$DEST_THEMES_DIR"
 for src in "$BUNDLE_THEMES_DIR"/*.json; do
-    [ -f "$src" ] || continue
     dest="$DEST_THEMES_DIR/$(basename "$src")"
-    cp "$src" "$dest"
-    ok "theme: $(basename "$src")"
+    _copy_if_regular "$src" "$dest" "theme"
 done
 
 # ─── 5. Merge instruction paths + theme into opencode.json ────────────────────

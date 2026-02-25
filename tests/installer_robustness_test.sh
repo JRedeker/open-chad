@@ -156,13 +156,13 @@ test_install_aborts_when_target_is_directory() {
 
 test_install_aborts_when_target_is_directory
 
-# ─── Section 3: Corrupted opencode.json — auto-recovery ─────────────────────
-# setup_mcp.sh should detect invalid JSON, back it up, reinitialize to {},
-# and retry the merge. Tests use YES_MODE=1 to trigger auto-recovery.
+# ─── Section 3: Corrupted opencode.json — fail-fast (no silent wipe) ─────────
+# setup_mcp.sh should detect invalid JSON and fail with guidance. It must not
+# silently reset user config, even in YES_MODE=1.
 
-section "Corrupted opencode.json: auto-recovery"
+section "Corrupted opencode.json: fail-fast"
 
-test_mcp_recovers_from_corrupted_json_with_yes() {
+test_mcp_fails_on_corrupted_json_with_yes() {
     if ! command -v node &>/dev/null; then
         skip "test_mcp_recovers_from_corrupted_json_with_yes (node not found)"
         return
@@ -178,25 +178,25 @@ test_mcp_recovers_from_corrupted_json_with_yes() {
     YES_MODE=1 \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || exit_code=$?
 
-    # Should succeed (auto-recover)
-    [ "$exit_code" -eq 0 ] && \
-        pass "setup_mcp: exits 0 after auto-recovering from corrupted JSON" || \
-        fail "setup_mcp: should exit 0 after auto-recovery (got $exit_code)"
+    # Should fail (no silent auto-recovery)
+    [ "$exit_code" -ne 0 ] && \
+        pass "setup_mcp: exits non-zero on corrupted JSON even with YES_MODE=1" || \
+        fail "setup_mcp: should fail-fast on corrupted JSON (got $exit_code)"
 
-    # opencode.json should now be valid
+    # opencode.json should remain corrupted (no mutation)
     node -e "
 const fs=require('fs');
 try {
     JSON.parse(fs.readFileSync('$TMP_HOME/.config/opencode/opencode.json','utf8'));
-    process.exit(0);
-} catch(e) { process.exit(1); }
+    process.exit(1);
+} catch(e) { process.exit(0); }
 " 2>/dev/null && \
-        pass "setup_mcp: opencode.json is valid JSON after recovery" || \
-        fail "setup_mcp: opencode.json should be valid JSON after recovery"
+        pass "setup_mcp: corrupted opencode.json is preserved (not silently overwritten)" || \
+        fail "setup_mcp: corrupted opencode.json should be preserved"
     teardown_tmp
 }
 
-test_mcp_creates_backup_of_corrupted_json() {
+test_mcp_does_not_create_backup_or_reset_file_implicitly() {
     if ! command -v node &>/dev/null; then
         skip "test_mcp_creates_backup_of_corrupted_json (node not found)"
         return
@@ -210,17 +210,17 @@ test_mcp_creates_backup_of_corrupted_json() {
     YES_MODE=1 \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
-    # A backup file should exist
+    # No implicit backup/reset file should be created on fail-fast path
     local backup_count
     backup_count=$(ls "$TMP_HOME/.config/opencode/" 2>/dev/null | grep -c "opencode.json.bak" || true)
     backup_count=${backup_count:-0}
-    [ "$backup_count" -ge 1 ] && \
-        pass "setup_mcp: backup file created for corrupted opencode.json (count=$backup_count)" || \
-        fail "setup_mcp: no backup file found after corrupted JSON recovery"
+    [ "$backup_count" -eq 0 ] && \
+        pass "setup_mcp: no implicit backup/reset created on fail-fast path" || \
+        fail "setup_mcp: unexpected backup file(s) created (count=$backup_count)"
     teardown_tmp
 }
 
-test_mcp_recovers_and_registers_all_servers() {
+test_mcp_does_not_merge_servers_when_json_is_corrupted() {
     if ! command -v node &>/dev/null; then
         skip "test_mcp_recovers_and_registers_all_servers (node not found)"
         return
@@ -234,24 +234,24 @@ test_mcp_recovers_and_registers_all_servers() {
     YES_MODE=1 \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
-    # All 5 servers should be registered after recovery
+    # No server merge should occur when base JSON is invalid.
     for server in context7 grep-app lgrep firecrawl brave-web-search; do
         node -e "
 const fs=require('fs');
 try {
     const c=JSON.parse(fs.readFileSync('$TMP_HOME/.config/opencode/opencode.json','utf8'));
-    process.exit((c.mcp && c.mcp['$server']) ? 0 : 1);
-} catch(e) { process.exit(1); }
+    process.exit((c.mcp && c.mcp['$server']) ? 1 : 0);
+} catch(e) { process.exit(0); }
 " 2>/dev/null && \
-            pass "setup_mcp: '$server' registered after JSON recovery" || \
-            fail "setup_mcp: '$server' missing after JSON recovery"
+            pass "setup_mcp: '$server' not merged when JSON is corrupted" || \
+            fail "setup_mcp: '$server' should not be merged on corrupted JSON"
     done
     teardown_tmp
 }
 
-test_mcp_recovers_from_corrupted_json_with_yes
-test_mcp_creates_backup_of_corrupted_json
-test_mcp_recovers_and_registers_all_servers
+test_mcp_fails_on_corrupted_json_with_yes
+test_mcp_does_not_create_backup_or_reset_file_implicitly
+test_mcp_does_not_merge_servers_when_json_is_corrupted
 
 # ─── Section 4: Partial plugin checkout — non-git dir quarantined ────────────
 # setup_adv.sh and setup_morph.sh should detect non-git checkout dirs
@@ -393,11 +393,12 @@ test_update_repair_symlink_handles_regular_file() {
 }
 
 test_update_repair_handles_file_not_symlink() {
-    # The repair function should handle the case where target is a regular file
-    if grep -qE '\[ -f.*dest\]|\[ -L.*dest\]|rm -f.*dest' "$REPO_DIR/lib/update.sh"; then
-        pass "update.sh: repair function checks for existing file/symlink before replacing"
+    # The repair function should handle regular-file collisions safely.
+    # Current implementation validates source and uses ln -sfn for atomic replacement.
+    if grep -qE 'ln -sfn.*\$src.*\$dest|\[ ! -e.*\$src\]' "$REPO_DIR/lib/update.sh"; then
+        pass "update.sh: repair function uses atomic replacement and source validation"
     else
-        fail "update.sh: repair function should check for existing file/symlink"
+        fail "update.sh: repair function should use ln -sfn and source existence check"
     fi
 }
 

@@ -100,6 +100,17 @@ else
     fi
 fi
 
+# ─── 3b. python3 check (required for session title SQLite query) ─────────────
+check "python3 (required for session title lookup)"
+
+if command -v python3 &>/dev/null; then
+    _py_version=$(python3 --version 2>/dev/null | awk '{print $2}')
+    ok "python3 ${_py_version:-installed}"
+else
+    warn "python3 not found in PATH. Session titles may be empty in tmux."
+    hint "Install python3:  sudo apt-get install -y python3"
+fi
+
 # ─── 4. Conflicting installation check ───────────────────────────────────────
 check "Conflicting installations"
 

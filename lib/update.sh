@@ -153,7 +153,7 @@ if [ "$_pull_exit" -ne 0 ]; then
 fi
 
 _new_head=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-ok "Pulled to $REPO_DIR ($current_branch @ $_new_head)"
+ok "Pulled to $REPO_DIR ($_current_branch @ $_new_head)"
 log "git pull OK: HEAD=$_new_head"
 
 # ─── 4b. Repair symlinks (open-chad + cds) ───────────────────────────────────
@@ -164,10 +164,11 @@ mkdir -p "$_DEST_DIR"
 _repair_symlink() {
     local src="$1"
     local dest="$2"
-    if [ -L "$dest" ] || [ -f "$dest" ]; then
-        rm -f "$dest"
+    if [ ! -e "$src" ]; then
+        warn "Symlink source missing, skipping: $src"
+        return 0
     fi
-    ln -s "$src" "$dest"
+    ln -sfn "$src" "$dest"
     ok "Symlink: $(basename "$src") -> $dest"
 }
 
@@ -206,6 +207,13 @@ log "ADV setup done"
 step "Syncing OpenCode agents and instructions"
 bash "$REPO_DIR/lib/setup_opencode.sh" || warn "OpenCode setup had errors (non-fatal)"
 log "OpenCode setup done"
+
+# Zsh plugins (idempotent — clone or pull, managed .zshrc block)
+step "Updating zsh plugins"
+YES_MODE=1 \
+OPEN_CHAD_INSTALL_LOG="$INSTALL_LOG" \
+    bash "$REPO_DIR/lib/setup_zsh_plugins.sh" || warn "Zsh plugin setup had errors (non-fatal)"
+log "Zsh plugin setup done"
 
 # ─── 6. Re-apply dev bundles from persisted state [R4] ────────────────────────
 if [ "$SKIP_BUNDLES" != "1" ] && [ -f "$OPEN_CHAD_CONFIG_FILE" ]; then

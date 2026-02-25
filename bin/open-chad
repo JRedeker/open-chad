@@ -110,6 +110,18 @@ fi
 # 5. Discord Rich Presence update (optional, non-blocking, SC-10: silent on failure)
 # Count active open-chad tmux sessions for presence display
 if [ -f "$LIB_DIR/discord/update.sh" ]; then
+    _discord_lock="${OPEN_CHAD_DISCORD_LOCK:-${OPEN_CHAD_CACHE_DIR}/discord-rpc.lock}"
+    export OPEN_CHAD_DISCORD_LOCK="$_discord_lock"
+
+    # One-time migration cleanup for legacy /tmp lockfiles.
+    # Only remove regular files to avoid symlink-follow deletion risks.
+    _legacy_discord_lock="/tmp/discord-rpc.lock"
+    for _legacy_file in "$_legacy_discord_lock" "$_legacy_discord_lock.guard" "$_legacy_discord_lock.tagline"; do
+        if [ -e "$_legacy_file" ] && [ ! -L "$_legacy_file" ] && [ -f "$_legacy_file" ]; then
+            rm -f "$_legacy_file" 2>/dev/null || true
+        fi
+    done
+
     _discord_session_count() {
         tmux list-sessions 2>/dev/null | grep -c "^oc-" || echo 1
     }
@@ -118,10 +130,18 @@ if [ -f "$LIB_DIR/discord/update.sh" ]; then
     _discord_sessions=$(_discord_session_count)
 
     # Fire-and-forget — never blocks open-chad startup
-    bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>/dev/null &
+    # Log stderr to a user-private cache log for troubleshooting.
+    _discord_log="${OPEN_CHAD_CACHE_DIR}/discord.log"
+    if [ ! -f "$_discord_log" ]; then
+        install -m 0600 /dev/null "$_discord_log" 2>/dev/null || {
+            touch "$_discord_log" 2>/dev/null || true
+            chmod 0600 "$_discord_log" 2>/dev/null || true
+        }
+    fi
+    bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>>"$_discord_log" &
 
     # Cleanup trap: remove lockfiles on exit
-    trap 'rm -f "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}" "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}.guard" "${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}.tagline" 2>/dev/null || true' EXIT
+    trap 'rm -f "$OPEN_CHAD_DISCORD_LOCK" "$OPEN_CHAD_DISCORD_LOCK.guard" "$OPEN_CHAD_DISCORD_LOCK.tagline" 2>/dev/null || true' EXIT
 fi
 
 # Attach to session (replaces current process)

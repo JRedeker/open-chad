@@ -60,34 +60,28 @@ fi
 # Validate existing JSON before merge
 _validate_json() {
     local file="$1"
-    node -e "
+    node - "$file" <<'EOF' 2>&1
 try {
     const fs = require('fs');
-    JSON.parse(fs.readFileSync('$file', 'utf8'));
+    const file = process.argv[2];
+    JSON.parse(fs.readFileSync(file, 'utf8'));
     process.exit(0);
 } catch(e) {
     process.stderr.write('JSON parse error: ' + e.message + '\n');
     process.exit(1);
 }
-" 2>&1
+EOF
 }
 
 _json_valid_output=$(_validate_json "$OPENCODE_JSON" 2>&1) || {
-    if [ "${YES_MODE:-0}" = "1" ]; then
-        # Auto-recovery: backup corrupted file, reinitialize to {}
-        _bak="$OPENCODE_JSON.bak.$(date +%s)"
-        warn "opencode.json is not valid JSON — auto-recovering"
-        hint "Parse error: $_json_valid_output"
-        cp "$OPENCODE_JSON" "$_bak"
-        echo '{}' > "$OPENCODE_JSON"
-        audit "Corrupted opencode.json backed up to $_bak and reinitialized to {}"
-        ok "Backed up corrupted config to $_bak"
-    else
-        error "opencode.json is not valid JSON: $_json_valid_output"
-        hint "File: $OPENCODE_JSON"
-        hint "Fix the JSON manually or delete the file to start fresh."
-        exit 1
-    fi
+    _bak="$OPENCODE_JSON.bak.$(date +%s)"
+    error "opencode.json is not valid JSON: $_json_valid_output"
+    hint "File: $OPENCODE_JSON"
+    hint "Recovery options:"
+    hint "  1) Fix JSON manually and re-run setup"
+    hint "  2) Back up then reset: cp '$OPENCODE_JSON' '$_bak' && printf '{}\\n' > '$OPENCODE_JSON'"
+    hint "  3) Restore a known-good backup"
+    exit 1
 }
 ok "opencode.json is valid JSON"
 
@@ -198,11 +192,13 @@ _final_valid=$(_validate_json "$OPENCODE_JSON" 2>&1) || {
 # Verify all 5 servers are present in the output
 _servers_ok=1
 for server in context7 grep-app lgrep firecrawl brave-web-search; do
-    if node -e "
+    if node - "$OPENCODE_JSON" "$server" <<'EOF' 2>/dev/null
 const fs=require('fs');
-const c=JSON.parse(fs.readFileSync('$OPENCODE_JSON','utf8'));
-process.exit((c.mcp && c.mcp['$server']) ? 0 : 1);
-" 2>/dev/null; then
+const c=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const server=process.argv[3];
+process.exit((c.mcp && c.mcp[server]) ? 0 : 1);
+EOF
+    then
         : # present
     else
         error "Server '$server' is missing from opencode.json after merge!"

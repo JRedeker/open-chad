@@ -199,12 +199,14 @@ _install_go_bundle() {
             step "Installing Go via official tarball (latest stable)"
             log "Fetching latest Go version from go.dev"
 
-            _go_latest=$(curl -fsSL "https://go.dev/VERSION?m=text" 2>/dev/null | head -1 || echo "go1.22.0")
+            # Keep fallback in sync with current stable listed on go.dev/dl.
+            _go_latest=$(curl -fsSL "https://go.dev/VERSION?m=text" 2>/dev/null | head -1 || echo "go1.26.0")
             _go_tarball="${_go_latest}.linux-amd64.tar.gz"
             _go_url="https://go.dev/dl/${_go_tarball}"
+            _go_sha_url="${_go_url}.sha256"
 
             step "Downloading ${_go_tarball}"
-            local _tmp_tar
+            local _tmp_tar _tmp_sha _expected_sha _actual_sha
             _tmp_tar=$(mktemp /tmp/go-XXXXXX.tar.gz)
             curl -fsSL "$_go_url" -o "$_tmp_tar" >> "$INSTALL_LOG" 2>&1 || {
                 error "Failed to download Go tarball: $_go_url"
@@ -213,10 +215,42 @@ _install_go_bundle() {
                 return 1
             }
 
+            if ! command -v sha256sum &>/dev/null; then
+                error "sha256sum not found; cannot verify Go tarball integrity."
+                hint "Install coreutils and retry."
+                rm -f "$_tmp_tar"
+                return 1
+            fi
+
+            step "Verifying ${_go_tarball} checksum"
+            _tmp_sha=$(mktemp /tmp/go-XXXXXX.sha256)
+            curl -fsSL "$_go_sha_url" -o "$_tmp_sha" >> "$INSTALL_LOG" 2>&1 || {
+                error "Failed to download Go checksum file: $_go_sha_url"
+                hint "Cannot safely install without checksum verification."
+                rm -f "$_tmp_tar" "$_tmp_sha"
+                return 1
+            }
+
+            _expected_sha=$(tr -d '[:space:]' < "$_tmp_sha")
+            _actual_sha=$(sha256sum "$_tmp_tar" | awk '{print $1}')
+            if [ -z "$_expected_sha" ] || [ "$_actual_sha" != "$_expected_sha" ]; then
+                error "Go tarball SHA256 verification failed."
+                hint "Expected: ${_expected_sha:-<empty>}"
+                hint "Actual:   ${_actual_sha:-<empty>}"
+                rm -f "$_tmp_tar" "$_tmp_sha"
+                return 1
+            fi
+
+            if ! tar -tzf "$_tmp_tar" >/dev/null 2>&1; then
+                error "Downloaded Go tarball is invalid or corrupted."
+                rm -f "$_tmp_tar" "$_tmp_sha"
+                return 1
+            fi
+
             step "Installing Go to /usr/local/go"
             $_SUDO rm -rf /usr/local/go
             $_SUDO tar -C /usr/local -xzf "$_tmp_tar" >> "$INSTALL_LOG" 2>&1
-            rm -f "$_tmp_tar"
+            rm -f "$_tmp_tar" "$_tmp_sha"
 
             # Add to PATH for this session
             export PATH="/usr/local/go/bin:$PATH"
@@ -288,9 +322,6 @@ for bundle in $BUNDLES; do
     esac
 done
 
-# ─── Persist install state (R4) ───────────────────────────────────────────────
-_persist_bundles
-
 # ─── Summary ──────────────────────────────────────────────────────────────────
 if [ "${#_failed_bundles[@]}" -gt 0 ]; then
     warn "The following bundles had errors: ${_failed_bundles[*]}"
@@ -316,6 +347,9 @@ if [ "${#_failed_bundles[@]}" -gt 0 ]; then
     warn "Retry failed bundles: OPEN_CHAD_BUNDLES=\"${_failed_bundles[*]}\" bash lib/setup_dev_bundle.sh"
     exit 1
 fi
+
+# ─── Persist install state (R4) ───────────────────────────────────────────────
+_persist_bundles
 
 ok "All selected bundles installed: $BUNDLES"
 ok "Bundle state saved to: $OPEN_CHAD_CONFIG_FILE"

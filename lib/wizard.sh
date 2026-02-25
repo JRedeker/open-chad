@@ -53,6 +53,7 @@ SKIP_MORPH=0
 SKIP_ADV=0
 SKIP_AUTH=0
 SKIP_BUNDLES=0
+SKIP_ZSH=0
 PRESELECT_BUNDLES=""
 
 # ─── Flag parsing ─────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ while [[ $# -gt 0 ]]; do
         --skip-adv)          SKIP_ADV=1;                   shift ;;
         --skip-auth)         SKIP_AUTH=1;                  shift ;;
         --skip-bundles)      SKIP_BUNDLES=1;               shift ;;
+        --skip-zsh)          SKIP_ZSH=1;                   shift ;;
         --bundles)           PRESELECT_BUNDLES="$2";       shift 2 ;;
         --help|-h)
             echo "Usage: bash lib/wizard.sh [OPTIONS]"
@@ -79,6 +81,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-adv          Skip ADV install"
             echo "  --skip-auth         Skip Claude OAuth step"
             echo "  --skip-bundles      Skip dev bundle selection"
+            echo "  --skip-zsh          Skip zsh + plugin setup"
             echo "  --bundles <list>    Pre-select bundles (e.g. 'python go')"
             exit 0
             ;;
@@ -88,8 +91,11 @@ done
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 mkdir -p "$(dirname "$OPEN_CHAD_INSTALL_LOG")"
-touch "$OPEN_CHAD_INSTALL_LOG"
-chmod 0600 "$OPEN_CHAD_INSTALL_LOG"
+if [ ! -f "$OPEN_CHAD_INSTALL_LOG" ]; then
+    install -m 0600 /dev/null "$OPEN_CHAD_INSTALL_LOG"
+else
+    chmod 0600 "$OPEN_CHAD_INSTALL_LOG"
+fi
 
 _log() {
     local msg="[$(date -Iseconds)] $*"
@@ -215,7 +221,7 @@ _log "YES_MODE=$YES_MODE VERBOSE=$VERBOSE"
 _log "CONFIG=$OPEN_CHAD_CONFIG_FILE"
 _log_flush
 
-TOTAL_STEPS=7
+TOTAL_STEPS=9
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1: System Dependencies
@@ -387,9 +393,30 @@ _log "OPENCODE CONFIG DONE"
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 7: Windows Terminal Keybindings
+# STEP 8: Zsh Shell Setup
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 7 "$TOTAL_STEPS" "Windows Terminal Keybindings (optional)"
+_step_banner 8 "$TOTAL_STEPS" "Zsh Shell Setup"
+
+if [ "$SKIP_ZSH" -eq 1 ]; then
+    skip "zsh + plugin setup (--skip-zsh)"
+else
+    info "Installing zsh and plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting)..."
+    info "Plugins cloned to ~/.zsh/plugins/ — managed block added to ~/.zshrc"
+    echo ""
+    YES_MODE="$YES_MODE" \
+    OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
+        bash "$REPO_DIR/lib/setup_zsh_plugins.sh" || {
+        warn "Zsh setup had errors. Check: $OPEN_CHAD_INSTALL_LOG"
+    }
+    ok "Zsh plugins configured"
+fi
+_log "ZSH SETUP DONE"
+_log_flush
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 9: Windows Terminal Keybindings
+# ═══════════════════════════════════════════════════════════════════════════════
+_step_banner 9 "$TOTAL_STEPS" "Windows Terminal Keybindings (optional)"
 
 if [ "$YES_MODE" -eq 0 ]; then
     echo -e "  ${C_FG}If you're using Windows Terminal + WSL, these keybindings enable${C_RESET}"

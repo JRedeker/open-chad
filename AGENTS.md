@@ -67,17 +67,30 @@ lib/
                             Pyrefly wired as LSP. Persists selectedBundles to
                             ~/.config/opencode/open-chad.json under installer key.
   setup_opencode_auth.sh    Step-by-step Claude OAuth onboarding. --check, --no-wait flags.
+  setup_zsh_plugins.sh      Zsh + plugin setup — installs zsh via apt, clones
+                            romkatv/powerlevel10k, zsh-users/zsh-autosuggestions,
+                            zdharma-continuum/fast-syntax-highlighting into
+                            ~/.zsh/plugins/. Writes idempotent OPEN-CHAD ZSH BEGIN/END
+                            block to ~/.zshrc (plugin order: p10k → autosuggestions →
+                            fast-syntax-highlighting). Opt-in chsh prompt in interactive
+                            mode. Called by wizard.sh (Step 8) and update.sh (non-fatal).
   update.sh                 `open-chad update` backend: git pull --ff-only, re-runs all
                             setup modules. .git detection + releases URL. Diverged branch
                             recovery guide (reset --hard / stash / rebase).
-  wizard.sh                 Interactive 7-step install wizard. YES_MODE for CI/--yes.
+  wizard.sh                 Interactive 9-step install wizard. YES_MODE for CI/--yes.
                             Logs to ~/.config/opencode/open-chad-install.log. Flags:
-                            --yes, --skip-deps/auth/bundles/mcp/adv/morph, --verbose.
+                            --yes, --skip-deps/auth/bundles/mcp/adv/morph/zsh, --verbose.
 
 config/
   opencode/
     agents/                 Agent markdown files (scout, refine, librarian, explore,
-                            build, general, plan)
+                            build, general, plan, adv-researcher).
+                            refine: full tool access, scope-locked; owns /adv-prep and
+                            /adv-harden gates including investigation, architectural
+                            decisions, and implementation of fixes found.
+                            adv-researcher: hidden sub-agent for /adv-research; validates
+                            architectural decisions via Context7 and web search. Bundled
+                            as fallback; upstream copy synced from ADV checkout when present.
     instructions/           Global instruction files (identity, rules, lbp, mcp-tools,
                             shell_strategy, worktree-guide)
     themes/ayu-dark.json    OpenCode color theme

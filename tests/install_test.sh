@@ -612,6 +612,77 @@ process.stdout.write(String(servers.length));
 test_json_merge_mcp_nested_objects
 test_json_merge_mcp_five_servers
 
+# ─── Section 11: Refine agent ADV compatibility ───────────────────────────────
+
+section "Refine agent — ADV compatibility markers"
+
+# Refine must explicitly claim /adv-prep and /adv-harden as in-scope so it
+# doesn't deflect those gate steps to Build/Plan.
+assert_contains "$REPO_DIR/config/opencode/agents/refine.md" "/adv-prep"
+assert_contains "$REPO_DIR/config/opencode/agents/refine.md" "/adv-harden"
+
+# Refine must NOT autonomously orchestrate review/archive/signoff gates.
+# A stable marker phrase enforces this boundary.
+assert_contains "$REPO_DIR/config/opencode/agents/refine.md" "do not orchestrate"
+
+# ─── Section 12: adv-researcher bundled agent ─────────────────────────────────
+
+section "adv-researcher — bundled fallback agent"
+
+assert_file_exists "$REPO_DIR/config/opencode/agents/adv-researcher.md"
+
+test_setup_opencode_syncs_adv_researcher() {
+    setup_tmp_env
+    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+
+    assert_file_exists "$TMP_HOME/.config/opencode/agents/adv-researcher.md"
+    teardown_tmp_env
+}
+
+test_setup_opencode_syncs_adv_researcher
+
+# ─── Section 13: setup_opencode.sh ADV command path fallback ──────────────────
+
+section "setup_opencode.sh — ADV command path fallback (.opencode/command)"
+
+test_setup_opencode_syncs_adv_commands_opencode_layout() {
+    setup_tmp_env
+    # ADV uses .opencode/command layout (not plugin/commands)
+    local fake_adv="$TMP_DIR/fake-adv"
+    mkdir -p "$fake_adv/.opencode/command"
+    echo "# adv-status" > "$fake_adv/.opencode/command/adv-status.md"
+    echo "# adv-apply" > "$fake_adv/.opencode/command/adv-apply.md"
+
+    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    ADV_CHECKOUT_DIR="$fake_adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" 2>/dev/null || true
+
+    assert_file_exists "$TMP_HOME/.config/opencode/command/adv-status.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/command/adv-apply.md"
+    teardown_tmp_env
+}
+
+test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
+    setup_tmp_env
+    # ADV checkout has .opencode/agents/adv-researcher.md — should be synced
+    local fake_adv="$TMP_DIR/fake-adv"
+    mkdir -p "$fake_adv/.opencode/agents"
+    echo "# adv-researcher upstream" > "$fake_adv/.opencode/agents/adv-researcher.md"
+
+    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    ADV_CHECKOUT_DIR="$fake_adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+
+    # Upstream checkout version should win over bundled fallback
+    assert_contains "$TMP_HOME/.config/opencode/agents/adv-researcher.md" "adv-researcher upstream"
+    teardown_tmp_env
+}
+
+test_setup_opencode_syncs_adv_commands_opencode_layout
+test_setup_opencode_syncs_adv_commands_opencode_layout_agents
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

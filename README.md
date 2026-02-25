@@ -45,7 +45,8 @@ bash install.sh --yes
 | 4. MCP servers | Wires `context7`, `grep-app`, `lgrep` (enabled) + `firecrawl`, `brave-web-search` (disabled) into `opencode.json` |
 | 5. Plugins | Installs ADV spec-driven dev plugin and morph fast-apply plugin |
 | 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
-| 7. Windows Terminal | Optional copy-paste keybinding setup instructions |
+| 7. Zsh setup | Installs zsh + plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting) into `~/.zsh/plugins/`, adds managed block to `~/.zshrc` |
+| 8. Windows Terminal | Optional copy-paste keybinding setup instructions |
 
 ### Non-interactive flags
 
@@ -53,6 +54,7 @@ bash install.sh --yes
 # Skip specific wizard steps
 bash install.sh --yes --skip-deps --skip-auth --skip-bundles
 bash install.sh --yes --skip-mcp --skip-adv --skip-morph
+bash install.sh --yes --skip-zsh
 
 # Select bundles non-interactively (comma or space separated, both work)
 bash install.sh --yes --bundles python,go
@@ -89,7 +91,7 @@ bash install.sh --no-opencode-setup
 | tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
 | ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
-| Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore |
+| Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore, adv-researcher |
 | Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp, post_install_verification |
 | Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |
 | Theme | `~/.config/opencode/themes/ayu-dark.json` | ayu-dark color theme |
@@ -132,7 +134,7 @@ Requires a git-cloned install (errors clearly if run from a tarball/zip). Runs `
 
 ### Windows Terminal
 
-The wizard (step 7) prints optional keybinding setup for copy-paste in WSL. To enable it manually, add to your Windows Terminal `settings.json`:
+The wizard (step 8) prints optional keybinding setup for copy-paste in WSL. To enable it manually, add to your Windows Terminal `settings.json`:
 
 ```json
 { "command": "copy", "keys": "ctrl+c" },

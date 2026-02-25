@@ -30,6 +30,7 @@ NO_ADV=0
 NO_OMP=0
 NO_OPENCODE_SETUP=0
 NO_ENV_CHECK=0
+SKIP_ZSH=0
 BUNDLES=""
 WIZARD_EXTRA_FLAGS=()
 
@@ -57,6 +58,11 @@ while [[ $# -gt 0 ]]; do
             NO_ENV_CHECK=1
             shift
             ;;
+        --skip-zsh|--no-zsh)
+            SKIP_ZSH=1
+            WIZARD_EXTRA_FLAGS+=("--skip-zsh")
+            shift
+            ;;
         --bundles)
             # Normalize: accept comma-separated or space-separated
             BUNDLES=$(echo "$2" | tr ',' ' ' | tr -s ' ' | xargs)
@@ -75,6 +81,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-adv               Skip ADV (Advance) plugin install"
             echo "  --no-omp               Skip omp (opencode-model-preferences) install"
             echo "  --no-opencode-setup    Skip all OpenCode config changes"
+            echo "  --skip-zsh / --no-zsh  Skip zsh + plugin setup"
             echo "  --bundles <list>       Pre-select language bundles: 'python go rust'"
             echo "  --verbose              Show verbose output"
             echo "  --no-env-check         Skip pre-flight environment checks"
@@ -120,10 +127,15 @@ mkdir -p "$DEST_DIR"
 _install_symlink() {
     local src="$1"
     local dest="$2"
-    if [ -L "$dest" ] || [ -f "$dest" ]; then
-        rm -f "$dest"
+    if [ ! -e "$src" ]; then
+        echo -e "${C_CORAL}ERROR: Cannot create symlink, source not found: $src${C_RESET}" >&2
+        exit 1
     fi
-    ln -s "$src" "$dest"
+    if [ -d "$dest" ] && [ ! -L "$dest" ]; then
+        echo -e "${C_CORAL}ERROR: Cannot replace directory with symlink: $dest${C_RESET}" >&2
+        exit 1
+    fi
+    ln -sfn "$src" "$dest"
     echo -e "Symlinked ${C_GOLD}$(basename "$src")${C_RESET} -> ${C_GOLD}$dest${C_RESET}"
 }
 
@@ -136,7 +148,8 @@ THEME_CONF="$SCRIPT_DIR/lib/theme.conf"
 SOURCE_CMD="source-file $THEME_CONF"
 
 if [ -f "$TMUX_CONF" ]; then
-    if ! grep -q "$THEME_CONF" "$TMUX_CONF"; then
+    # Check for both absolute path and ~/... variants to avoid duplicate source-file lines
+    if ! grep -q 'open-chad/lib/theme\.conf' "$TMUX_CONF"; then
         printf "\n# OPEN-CHAD THEME\n%s\n" "$SOURCE_CMD" >> "$TMUX_CONF"
         echo -e "Added theme source to ${C_GOLD}$TMUX_CONF${C_RESET}"
     else

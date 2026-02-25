@@ -33,8 +33,10 @@ confirm each item works:
    If the theme looks wrong, re-run: open-chad (setup_opencode.sh syncs theme).
 
 6. AGENTS — Confirm these agents are available: scout, refine, librarian,
-   explore, build, general, plan.
-   Expected: all 7 agents listed when you check agent configuration.
+   explore, build, general, plan, adv-researcher.
+   Expected: all 8 agents listed when you check agent configuration.
+   Note: adv-researcher is a hidden sub-agent used by /adv-research; it may
+   not appear in the primary agent picker but should exist as a file.
 
 Please report the status of each item (OK / FAIL + error message).
 ```
