@@ -1,6 +1,7 @@
 ---
 description: General-purpose agent for researching complex questions and executing multi-step implementation tasks. Use for tasks that require reading, writing, searching, and running commands across multiple files and directories.
 mode: subagent
+model: openai/gpt-5.3-codex
 temperature: 0.3
 tools:
   bash: true
