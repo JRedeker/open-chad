@@ -322,10 +322,10 @@ bash tests/oc_sessions_test.sh
 | `cds_test.sh` | 18 | Date-stamped scratch dir launcher |
 | `integration_test.sh` | 36+ | End-to-end installer flow |
 | `installer_robustness_test.sh` | 50+ | Scenario-driven robustness |
-| `setup_zsh_test.sh` | 67+ | Zsh plugin setup, managed .zshrc block |
+| `setup_zsh_test.sh` | 32 | Zsh plugin setup, managed .zshrc block |
 | `shell_profile_test.sh` | 21+ | Shell profile PATH wiring |
 | `oc_sessions_test.sh` | 29 | oc-list and oc-killall behavior |
-| **Total** | **545+** | |
+| **Total** | **510+** | |
 
 ### Testing conventions
 
