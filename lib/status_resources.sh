@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# open-chad: System resources renderer for tmux status bar (Row 1)
+# open-chad: System resources renderer for tmux status bar (Row 0 right, standalone)
 # Reads CPU%, RAM%, load from $OPEN_CHAD_CACHE_DIR/metrics (written by collect_metrics.sh)
 # Output: tmux-formatted string in comment gray, matching clock/date style
+# Note: status_right.sh also renders resources inline alongside LLM gauges on Row 1.
 # No external tool dependencies (no jq, no curl — plain bash read)
 
 set -euo pipefail

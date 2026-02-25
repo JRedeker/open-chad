@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# oc-killall — Kill all active open-chad tmux sessions
+#
+# Usage:
+#   oc-killall           Prompt for confirmation, then kill all oc-* sessions
+#   oc-killall --yes     Skip confirmation prompt (for scripts/CI)
+#   oc-killall --help    Show this help
+#
+# Safety: Only kills sessions with the oc-* prefix (created by open-chad).
+#         Never uses tmux kill-server (which would kill all tmux sessions).
+#
+# Part of open-chad. Installed to ~/.local/bin/oc-killall by install.sh.
+
+set -euo pipefail
+
+YES_MODE=0
+
+# ─── Arg parsing ──────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --yes|-y)
+            YES_MODE=1
+            shift
+            ;;
+        --help|-h)
+            cat <<EOF
+Usage: oc-killall [--yes]
+
+Kill all active open-chad tmux sessions (oc-* prefix).
+
+Options:
+  --yes / -y   Skip confirmation prompt (non-interactive / CI mode)
+  --help       Show this help
+
+Safety:
+  Only kills sessions with the oc-* prefix created by open-chad.
+  Does NOT use tmux kill-server (which would kill all tmux sessions).
+
+Examples:
+  oc-killall           # prompts for confirmation
+  oc-killall --yes     # kills immediately without prompt
+EOF
+            exit 0
+            ;;
+        *)
+            echo "Unknown flag: $1" >&2
+            echo "Usage: oc-killall [--yes]" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ─── Check tmux ───────────────────────────────────────────────────────────────
+if ! command -v tmux &>/dev/null; then
+    echo "tmux not found — no sessions to kill" >&2
+    exit 0
+fi
+
+# ─── Get oc-* sessions ────────────────────────────────────────────────────────
+all_sessions=$(tmux list-sessions 2>/dev/null || true)
+
+if [ -z "$all_sessions" ]; then
+    echo "No active open-chad sessions."
+    exit 0
+fi
+
+oc_sessions=$(echo "$all_sessions" | grep '^oc-' | awk -F: '{print $1}' || true)
+
+if [ -z "$oc_sessions" ]; then
+    echo "No active open-chad sessions."
+    exit 0
+fi
+
+session_count=$(echo "$oc_sessions" | wc -l | tr -d ' ')
+
+# ─── Confirmation prompt ──────────────────────────────────────────────────────
+if [ "$YES_MODE" -eq 0 ]; then
+    echo "Found ${session_count} open-chad session(s) to kill:"
+    echo "$oc_sessions" | while IFS= read -r s; do
+        echo "  - $s"
+    done
+    echo ""
+    printf "Kill all %s session(s)? [y/N] " "$session_count"
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES) ;;
+        *)
+            echo "Aborted."
+            exit 0
+            ;;
+    esac
+fi
+
+# ─── Kill each session ────────────────────────────────────────────────────────
+killed=0
+while IFS= read -r session; do
+    [ -z "$session" ] && continue
+    if tmux kill-session -t "$session" 2>/dev/null; then
+        echo "Killed: $session"
+        killed=$((killed + 1))
+    else
+        echo "Warning: could not kill session: $session" >&2
+    fi
+done <<< "$oc_sessions"
+
+echo ""
+echo "${killed} open-chad session(s) killed."

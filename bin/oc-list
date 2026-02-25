@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# oc-list — List active open-chad tmux sessions
+#
+# Usage:
+#   oc-list          List all running oc-* tmux sessions with memory usage
+#   oc-list --help   Show this help
+#
+# Output format:
+#   SESSION NAME          WINDOWS   MEMORY
+#   oc-1700000000-12345   1         42.0 MB
+#
+# Part of open-chad. Installed to ~/.local/bin/oc-list by install.sh.
+
+set -euo pipefail
+
+# ─── Help ─────────────────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<EOF
+Usage: oc-list
+
+List all active open-chad tmux sessions (oc-* prefix) with their
+window count and opencode process memory usage.
+
+Output columns:
+  SESSION NAME   — tmux session name (oc-<epoch>-<pid>)
+  WINDOWS        — number of tmux windows in the session
+  MEMORY         — RSS memory of the opencode process in that session
+
+Part of open-chad. Sessions are created by: open-chad [project-dir]
+EOF
+    exit 0
+fi
+
+# ─── Check tmux ───────────────────────────────────────────────────────────────
+if ! command -v tmux &>/dev/null; then
+    echo "tmux not found — no sessions to list" >&2
+    exit 0
+fi
+
+# ─── Get oc-* sessions ────────────────────────────────────────────────────────
+# Format: session_name: N windows (created ...)
+all_sessions=$(tmux list-sessions 2>/dev/null || true)
+
+if [ -z "$all_sessions" ]; then
+    echo "No active open-chad sessions."
+    exit 0
+fi
+
+# Filter to oc-* sessions only
+oc_sessions=$(echo "$all_sessions" | grep '^oc-' || true)
+
+if [ -z "$oc_sessions" ]; then
+    echo "No active open-chad sessions."
+    exit 0
+fi
+
+# ─── Print header ─────────────────────────────────────────────────────────────
+printf '%-30s  %-8s  %s\n' "SESSION NAME" "WINDOWS" "MEMORY"
+printf '%-30s  %-8s  %s\n' "────────────────────────────" "───────" "──────"
+
+# ─── Print each session ───────────────────────────────────────────────────────
+while IFS= read -r line; do
+    # Parse: "oc-1700000000-12345: 2 windows (created ...)"
+    session_name="${line%%:*}"
+    windows_part="${line#*: }"
+    window_count="${windows_part%% *}"
+
+    # Try to find memory usage of opencode process in this session
+    # Get the PID from the session name (oc-<epoch>-<pid>)
+    session_pid="${session_name##*-}"
+    mem_display="--"
+
+    if [[ "$session_pid" =~ ^[0-9]+$ ]]; then
+        # Look for opencode process that is a child of this PID or matches
+        mem_kb=$(ps -o rss= -p "$session_pid" 2>/dev/null | tr -d ' ' || true)
+        if [[ "${mem_kb:-}" =~ ^[0-9]+$ ]] && [ "$mem_kb" -gt 0 ]; then
+            mem_mb=$(echo "scale=1; $mem_kb / 1024" | bc 2>/dev/null || echo "$mem_kb KB")
+            mem_display="${mem_mb} MB"
+        else
+            # Try to find opencode child processes
+            mem_kb=$(ps --ppid "$session_pid" -o rss= 2>/dev/null | awk '{sum+=$1} END {if(sum>0) print sum}' || true)
+            if [[ "${mem_kb:-}" =~ ^[0-9]+$ ]] && [ "$mem_kb" -gt 0 ]; then
+                mem_mb=$(echo "scale=1; $mem_kb / 1024" | bc 2>/dev/null || echo "$mem_kb KB")
+                mem_display="${mem_mb} MB"
+            fi
+        fi
+    fi
+
+    printf '%-30s  %-8s  %s\n' "$session_name" "$window_count" "$mem_display"
+done <<< "$oc_sessions"
+
+# ─── Summary ──────────────────────────────────────────────────────────────────
+session_count=$(echo "$oc_sessions" | wc -l | tr -d ' ')
+echo ""
+echo "${session_count} open-chad session(s) active."

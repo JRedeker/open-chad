@@ -28,6 +28,26 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 
+# 1MB size guard — reject oversized inputs before Node.js parse to prevent
+# runaway memory use or accidental config corruption from huge payloads.
+_MAX_SIZE=1048576
+
+if [ -f "$TARGET_FILE" ]; then
+    _target_size=$(wc -c < "$TARGET_FILE" 2>/dev/null || echo 0)
+    if [ "$_target_size" -gt "$_MAX_SIZE" ]; then
+        echo "ERROR: json_merge.sh: target file is too large (${_target_size} bytes > 1MB limit): $TARGET_FILE" >&2
+        echo "       Refusing to parse. Check for accidental config file corruption." >&2
+        exit 1
+    fi
+fi
+
+_payload_size=${#MERGE_JSON}
+if [ "$_payload_size" -gt "$_MAX_SIZE" ]; then
+    echo "ERROR: json_merge.sh: merge payload is too large (${_payload_size} bytes > 1MB limit)." >&2
+    echo "       Refusing to parse. Reduce the size of the JSON being merged." >&2
+    exit 1
+fi
+
 node - "$TARGET_FILE" "$MERGE_JSON" <<'EOF'
 const fs   = require('fs');
 const path = require('path');

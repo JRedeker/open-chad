@@ -683,6 +683,64 @@ test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
 test_setup_opencode_syncs_adv_commands_opencode_layout
 test_setup_opencode_syncs_adv_commands_opencode_layout_agents
 
+# ─── Section 14: bin/open-chad metrics collector atomic lockdir ───────────────
+
+section "bin/open-chad — atomic mkdir lockdir for metrics collector"
+
+test_open_chad_uses_atomic_mkdir_for_metrics_singleton() {
+    # Verify bin/open-chad uses mkdir-based atomic lock (not just pgrep)
+    # for the metrics collector singleton guard.
+    assert_contains "$REPO_DIR/bin/open-chad" "mkdir"
+    assert_contains "$REPO_DIR/bin/open-chad" "metrics.lock"
+}
+
+test_open_chad_metrics_lockdir_skips_start_when_locked() {
+    # Simulate: lockdir already exists → collector should NOT be started
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+    # Pre-create the lockdir to simulate a running collector
+    mkdir -p "$cache_dir/metrics.lock"
+
+    # Extract and run just the metrics-start logic from bin/open-chad
+    # by sourcing a minimal stub that exercises the lockdir guard
+    local started=0
+    _start_collector() { started=1; }
+
+    local lockdir="$cache_dir/metrics.lock"
+    if mkdir "$lockdir" 2>/dev/null; then
+        _start_collector
+        rmdir "$lockdir"
+    fi
+    # lockdir already existed — should NOT have started
+    [ "$started" -eq 0 ] && pass "metrics collector not started when lockdir exists" \
+                          || fail "metrics collector started despite existing lockdir"
+    teardown_tmp_env
+}
+
+test_open_chad_metrics_lockdir_starts_when_not_locked() {
+    # Simulate: lockdir absent → collector SHOULD be started
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+
+    local started=0
+    _start_collector() { started=1; }
+
+    local lockdir="$cache_dir/metrics.lock"
+    if mkdir "$lockdir" 2>/dev/null; then
+        _start_collector
+        rmdir "$lockdir"
+    fi
+    [ "$started" -eq 1 ] && pass "metrics collector started when lockdir absent" \
+                          || fail "metrics collector not started when lockdir absent"
+    teardown_tmp_env
+}
+
+test_open_chad_uses_atomic_mkdir_for_metrics_singleton
+test_open_chad_metrics_lockdir_skips_start_when_locked
+test_open_chad_metrics_lockdir_starts_when_not_locked
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

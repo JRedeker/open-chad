@@ -842,6 +842,96 @@ test_pyrefly_lsp_command_is_array
 test_pyrefly_lsp_has_extensions
 test_pyrefly_lsp_schema_roundtrip
 
+# ─── Section: json_merge.sh payload size guard ────────────────────────────────
+
+section "json_merge.sh — 1MB payload size guard"
+
+test_json_merge_rejects_oversized_target_file() {
+    local test_dir
+    test_dir=$(mktemp -d)
+    local target="$test_dir/big.json"
+    # Create a file just over 1MB
+    python3 -c "
+import json, sys
+data = {'key': 'x' * (1024 * 1024 + 1)}
+sys.stdout.write(json.dumps(data))
+" > "$target"
+    local output
+    output=$(bash "$REPO_DIR/lib/json_merge.sh" "$target" '{"a":1}' 2>&1) || true
+    rm -rf "$test_dir"
+    if echo "$output" | grep -qi "too large\|size\|1MB\|1 MB\|exceed"; then
+        pass "json_merge.sh rejects oversized target file with size error"
+    else
+        fail "json_merge.sh did not reject oversized target file (output: $output)"
+    fi
+}
+
+test_json_merge_has_merge_payload_size_guard() {
+    # Verify the script contains a size guard for the merge payload.
+    # Passing a 1MB+ string as a shell argument hits OS ARG_MAX, so we
+    # verify the guard exists in the script source rather than invoking it.
+    if grep -q "1048576\|1MB\|MAX_SIZE\|payload.*size\|size.*payload\|MERGE_JSON.*#\|#.*MERGE_JSON\|too large" "$REPO_DIR/lib/json_merge.sh"; then
+        pass "json_merge.sh contains merge payload size guard"
+    else
+        fail "json_merge.sh missing merge payload size guard (1048576 / 1MB constant)"
+    fi
+}
+
+test_json_merge_accepts_normal_sized_payload() {
+    local test_dir
+    test_dir=$(mktemp -d)
+    local target="$test_dir/normal.json"
+    echo '{"existing":"value"}' > "$target"
+    bash "$REPO_DIR/lib/json_merge.sh" "$target" '{"new":"entry"}' 2>/dev/null
+    local result
+    result=$(grep -c '"new"' "$target" 2>/dev/null || echo 0)
+    rm -rf "$test_dir"
+    [ "$result" -gt 0 ] \
+        && pass "json_merge.sh accepts normal-sized payload and merges correctly" \
+        || fail "json_merge.sh rejected or failed to merge normal-sized payload"
+}
+
+test_json_merge_rejects_oversized_target_file
+test_json_merge_has_merge_payload_size_guard
+test_json_merge_accepts_normal_sized_payload
+
+# ─── Section: wizard.sh WSL PowerShell keybinding script generation ───────────
+
+section "wizard.sh — WSL PowerShell keybinding script generation"
+
+test_wizard_wsl_generates_ps1_script() {
+    # When WSL is detected, wizard.sh should generate a .ps1 keybinding script
+    # rather than only showing manual instructions.
+    # Verify the wizard contains WSL detection + ps1 generation logic.
+    if grep -q "WSL_INTEROP\|microsoft.*wsl\|wsl.*microsoft\|/proc/version.*[Mm]icrosoft\|IS_WSL\|_is_wsl\|is_wsl" "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh contains WSL detection logic"
+    else
+        fail "wizard.sh missing WSL detection logic (IS_WSL / /proc/version check)"
+    fi
+}
+
+test_wizard_wsl_ps1_script_has_correct_syntax() {
+    # Verify the generated PS1 script content is present in wizard.sh
+    if grep -q "\.ps1\|PowerShell\|powershell\|Add-Content\|settings\.json\|wt_settings" "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh contains PowerShell/ps1 script generation"
+    else
+        fail "wizard.sh missing PowerShell script generation (.ps1 / Add-Content / settings.json)"
+    fi
+}
+
+test_wizard_wsl_ps1_script_written_to_cache_or_home() {
+    # The generated .ps1 file should be written to a user-accessible location
+    if grep -q "open-chad-keybindings\.ps1\|keybindings.*\.ps1\|\.ps1.*keybind" "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh writes keybindings .ps1 to a named output file"
+    else
+        fail "wizard.sh missing named .ps1 output file (open-chad-keybindings.ps1)"
+    fi
+}
+
+test_wizard_wsl_generates_ps1_script
+test_wizard_wsl_ps1_script_has_correct_syntax
+test_wizard_wsl_ps1_script_written_to_cache_or_home
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

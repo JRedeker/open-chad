@@ -139,8 +139,10 @@ _install_symlink() {
     echo -e "Symlinked ${C_GOLD}$(basename "$src")${C_RESET} -> ${C_GOLD}$dest${C_RESET}"
 }
 
-_install_symlink "$SCRIPT_DIR/bin/open-chad" "$DEST_DIR/open-chad"
-_install_symlink "$SCRIPT_DIR/bin/cds"       "$DEST_DIR/cds"
+_install_symlink "$SCRIPT_DIR/bin/open-chad"  "$DEST_DIR/open-chad"
+_install_symlink "$SCRIPT_DIR/bin/cds"        "$DEST_DIR/cds"
+_install_symlink "$SCRIPT_DIR/bin/oc-list"    "$DEST_DIR/oc-list"
+_install_symlink "$SCRIPT_DIR/bin/oc-killall" "$DEST_DIR/oc-killall"
 
 # ─── 4. Tmux theme integration ────────────────────────────────────────────────
 TMUX_CONF="$HOME/.tmux.conf"
