@@ -73,10 +73,21 @@ try {
 }
 
 _json_valid_output=$(_validate_json "$OPENCODE_JSON" 2>&1) || {
-    error "opencode.json is not valid JSON: $_json_valid_output"
-    hint "File: $OPENCODE_JSON"
-    hint "Fix the JSON manually or delete the file to start fresh."
-    exit 1
+    if [ "${YES_MODE:-0}" = "1" ]; then
+        # Auto-recovery: backup corrupted file, reinitialize to {}
+        _bak="$OPENCODE_JSON.bak.$(date +%s)"
+        warn "opencode.json is not valid JSON — auto-recovering"
+        hint "Parse error: $_json_valid_output"
+        cp "$OPENCODE_JSON" "$_bak"
+        echo '{}' > "$OPENCODE_JSON"
+        audit "Corrupted opencode.json backed up to $_bak and reinitialized to {}"
+        ok "Backed up corrupted config to $_bak"
+    else
+        error "opencode.json is not valid JSON: $_json_valid_output"
+        hint "File: $OPENCODE_JSON"
+        hint "Fix the JSON manually or delete the file to start fresh."
+        exit 1
+    fi
 }
 ok "opencode.json is valid JSON"
 

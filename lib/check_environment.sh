@@ -119,12 +119,12 @@ if command -v open-chad &>/dev/null; then
     fi
 fi
 
-# Warn if $HOME/.local/bin is not in PATH (install won't be usable without it)
+# Auto-fix if $HOME/.local/bin is not in PATH (install won't be usable without it)
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    # Non-fatal: warn only
-    echo -e "${C_GOLD}[env] WARN:${C_RESET} \$HOME/.local/bin is not in \$PATH."
-    echo -e "       The 'open-chad' command won't be available after install."
-    echo -e "       Add to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo -e "${C_GOLD}[env] WARN:${C_RESET} \$HOME/.local/bin is not in \$PATH — auto-fixing shell profile..."
+    _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    bash "$_SCRIPT_DIR/setup_shell_profile.sh" || \
+        echo -e "       ${C_CORAL}↳${C_RESET} Could not auto-fix. Add manually:  export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
 if [ "$_conflicts" -eq 0 ]; then

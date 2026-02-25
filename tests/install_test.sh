@@ -326,7 +326,7 @@ test_install_accepts_no_adv_flag() {
     setup_tmp_env
     # Pass all --no-* flags to avoid sub-script execution in test environment
     local output
-    output=$(HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup 2>&1) || true
+    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
     # Should not error on unknown-flag
     echo "$output" | grep -qi "unknown.*--no-adv\|invalid.*--no-adv\|illegal.*--no-adv" && fail "--no-adv flag caused error" || pass "--no-adv flag parsed without error"
     teardown_tmp_env
@@ -335,7 +335,7 @@ test_install_accepts_no_adv_flag() {
 test_install_accepts_no_omp_flag() {
     setup_tmp_env
     local output
-    output=$(HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup 2>&1) || true
+    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
     echo "$output" | grep -qi "unknown.*--no-omp\|invalid.*--no-omp\|illegal.*--no-omp" && fail "--no-omp flag caused error" || pass "--no-omp flag parsed without error"
     teardown_tmp_env
 }
@@ -343,7 +343,7 @@ test_install_accepts_no_omp_flag() {
 test_install_accepts_no_opencode_setup_flag() {
     setup_tmp_env
     local output
-    output=$(HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup 2>&1) || true
+    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
     echo "$output" | grep -qi "unknown\|invalid\|error.*flag\|illegal" && fail "--no-opencode-setup flag caused error" || pass "--no-opencode-setup flag parsed without error"
     teardown_tmp_env
 }
@@ -377,8 +377,8 @@ section "install.sh — idempotency (tmux theme + symlink)"
 test_install_symlink_idempotent() {
     setup_tmp_env
     # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
     assert_symlink "$TMP_HOME/.local/bin/open-chad"
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
@@ -386,14 +386,14 @@ test_install_symlink_idempotent() {
 
 test_install_cds_symlink_created() {
     setup_tmp_env
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
 }
 
 test_install_cds_symlink_points_to_bin_cds() {
     setup_tmp_env
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
     local target
     target=$(readlink "$TMP_HOME/.local/bin/cds" 2>/dev/null || echo "")
     if echo "$target" | grep -q "bin/cds"; then
@@ -409,8 +409,8 @@ test_install_tmux_theme_not_duplicated() {
     # Create existing tmux.conf
     echo "# existing config" > "$TMP_HOME/.tmux.conf"
 
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
 
     # Theme source should appear exactly once
     local count

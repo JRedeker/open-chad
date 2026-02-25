@@ -245,5 +245,5 @@ ok "open-chad update complete!"
 ok "Log: $INSTALL_LOG"
 echo ""
 echo -e "  ${C_GOLD}Tip:${C_RESET} Restart open-chad sessions to pick up any theme/config changes."
-echo -e "  ${C_GOLD}Tip:${C_RESET} Source your shell profile to get updated PATH entries:"
-echo -e "         ${C_SAGE}source ~/.bashrc${C_RESET}  (or ~/.zshrc)"
+  echo -e "  ${C_GOLD}Tip:${C_RESET} Re-wiring shell profile for PATH entries..."
+  bash "$REPO_DIR/lib/setup_shell_profile.sh" || true

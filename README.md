@@ -90,12 +90,33 @@ bash install.sh --no-opencode-setup
 | ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
 | Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore |
-| Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp |
+| Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp, post_install_verification |
 | Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |
 | Theme | `~/.config/opencode/themes/ayu-dark.json` | ayu-dark color theme |
 | opencode.json | `~/.config/opencode/opencode.json` | Plugin paths, MCP servers, instructions (additive merge) |
 | Install state | `~/.config/opencode/open-chad.json` | Selected bundles, timestamps |
 | Install log | `~/.config/opencode/open-chad-install.log` | Timestamped wizard log |
+
+### Shell support (bash + zsh)
+
+The installer automatically detects your active shell (`$SHELL`) and writes an idempotent `~/.local/bin` PATH export to the correct rc file:
+
+| Shell | Target file |
+|-------|-------------|
+| `bash` | `~/.bashrc` |
+| `zsh` | `~/.zshrc` |
+| other / unknown | `~/.profile` |
+
+The block is guarded by `# BEGIN open-chad` / `# END open-chad` markers — re-running the installer never duplicates it. After install, reload your shell:
+
+```bash
+source ~/.bashrc   # bash
+source ~/.zshrc    # zsh
+```
+
+### Post-install verification
+
+After launching OpenCode, paste the verification prompt from `~/.config/opencode/instructions/post_install_verification.md` to confirm auth, ADV plugin, lgrep MCP, morph plugin, theme, and agents are all working. The wizard prints this prompt at the end of installation.
 
 ### Updating
 

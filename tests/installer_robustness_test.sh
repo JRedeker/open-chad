@@ -66,9 +66,10 @@ INSTALL_OUTPUT=""
 INSTALL_EXIT=0
 _run_install() {
     INSTALL_EXIT=0
-    # Use --signal=KILL because install.sh does `exec wizard.sh` which replaces
-    # the process — SIGTERM can't reach the new process tree. SIGKILL always works.
-    INSTALL_OUTPUT=$(timeout --signal=KILL 10 bash -c "
+    # install.sh does `exec wizard.sh` which replaces the process and spawns
+    # sub-processes (setup_ubuntu_deps.sh etc). Use setsid to create a new
+    # process group so timeout --signal=KILL kills the entire tree.
+    INSTALL_OUTPUT=$(timeout --signal=KILL 3 bash -c "
         export HOME='$TMP_HOME'
         export OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache'
         bash '$REPO_DIR/install.sh' $*
