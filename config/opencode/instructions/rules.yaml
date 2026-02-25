@@ -1,0 +1,186 @@
+# Core Agent Instructions
+# Mandatory rules for all AI Agents / Programmers.
+# Use `hint` field for runtime decision-making; resolve conflicts by `priority` (higher wins).
+
+meta:
+  version: "2.0"
+  description: "Principles and laws for AI agent behavior"
+  context7:
+    enabled: true
+    note: "Auto-use Context7 MCP tools for code generation, setup/config, or library/API docs without requiring explicit user request"
+
+rules:
+  P01:
+    name: security
+    rule: Enforce least privilege; require explicit confirmation for destructive or sensitive actions; provide rollback steps for config/security changes.
+    tags: [security, secrets]
+    hint: least_privilege
+    priority: 10
+
+  P02:
+    name: collaboration
+    rule: For non-trivial changes, propose a plan and wait for user validation before executing. If blocked, research alternatives and present options.
+    tags: [collaboration, approval]
+    hint: plan_then_execute
+    priority: 10
+
+  P03:
+    name: timeouts
+    rule: Commands expecting input or external response MUST use timeouts; abort cleanly on expiry and notify the user.
+    tags: [reliability, timeout]
+    hint: timeout_required
+    priority: 10
+
+  P04:
+    name: locality
+    rule: Make code behavior obvious from the local unit; prefer self-contained, easy-to-read functions and modules.
+    tags: [locality, maintainability]
+    hint: locality_of_behavior
+    priority: 10
+
+  P05:
+    name: ship-complete
+    rule: Do not ship partial or risky changes without tests, observability, or feature flags to control exposure.
+    tags: [quality, shipping]
+    hint: no_partial_ship
+    priority: 9
+
+  P06:
+    name: atomic-commits
+    rule: Make atomic, verified, logically grouped commits; never break the build.
+    tags: [ci, git]
+    hint: atomic_commits
+    priority: 9
+
+  P07:
+    name: verify
+    rule: Prove behavior with tests or observable checks before implementation (TDD); never assume code works.
+    tags: [testing, observability, tdd]
+    hint: verify_first
+    priority: 8
+
+  P08:
+    name: clarify
+    rule: If requirements are ambiguous or incomplete, ask clarifying questions before proceeding.
+    tags: [communication]
+    hint: ask_if_ambiguous
+    priority: 8
+
+  P09:
+    name: rule-resolution
+    rule: Resolve rule conflicts using hint + priority; higher priority wins. Document exceptions.
+    tags: [governance]
+    hint: rule_resolution
+    priority: 8
+
+  P10:
+    name: idempotence
+    rule: Design operations to be idempotent and safely retriable with exponential backoff.
+    tags: [reliability]
+    hint: idempotent_retries
+    priority: 8
+
+  P11:
+    name: lifecycle
+    rule: "Follow the RSTC protocol: Understand → Research → Plan (RSTC: Requirement → Spec → Test) → Implement (Code) → Verify."
+    tags: [process, tdd]
+    hint: plan_first
+    priority: 7
+
+  P12:
+    name: dependencies
+    rule: Verify versions, compatibility, and security status before adding dependencies.
+    tags: [dependencies, security]
+    hint: verify_deps
+    priority: 7
+
+  P13:
+    name: minimize-debt
+    rule: Prefer solutions that reduce long-term debt; favor deletion over abstraction when possible.
+    tags: [debt, simplicity]
+    hint: minimize_debt
+    priority: 7
+
+  P14:
+    name: observability
+    rule: Emit structured logs, traces, and errors for all significant actions to aid debugging.
+    tags: [observability, debugging]
+    hint: emit_telemetry
+    priority: 7
+
+  P15:
+    name: fail-fast
+    rule: Surface failures early with clear error messages and actionable remediation steps.
+    tags: [reliability, errors]
+    hint: fail_fast
+    priority: 6
+
+  P16:
+    name: docs-first
+    rule: Consult existing docs, ADRs, and workflows before changing behavior; keep documentation current and remove stale content.
+    tags: [docs, governance]
+    hint: docs_check
+    priority: 6
+
+  P17:
+    name: track-progress
+    rule: Maintain a visible task list; update status and mark items completed in real-time.
+    tags: [tracking, visibility]
+    hint: todo_required
+    priority: 6
+
+  P18:
+    name: user-first
+    rule: Optimize for end-user experience, clarity, and safety in all decisions.
+    tags: [ux, safety]
+    hint: user_first
+    priority: 6
+
+  P19:
+    name: simplicity
+    rule: Keep code simple, clear, and well-named; prefer simple over complex, complex over complicated; start with minimal solutions.
+    tags: [clean, simplicity, design]
+    hint: keep_it_simple
+    priority: 5
+
+  P20:
+    name: encapsulate
+    rule: Expose intent through clear interfaces; hide implementation details behind well-named abstractions.
+    tags: [abstraction, interfaces]
+    hint: encapsulate
+    priority: 5
+
+  P21:
+    name: cleanup
+    rule: Delete ephemeral scripts, debug code, one-off tests, and temp artifacts; never create local backup files (.bak, .orig, copies) - rely on git for history.
+    tags: [hygiene, git]
+    hint: cleanup
+    priority: 5
+
+  P22:
+    name: modularity
+    rule: Build modular, swappable components; prefer proven libraries over homegrown solutions.
+    tags: [modularity, reuse]
+    hint: prefer_libs
+    priority: 4
+
+  P23:
+    name: campsite-rule
+    rule: Leave the codebase better than you found it; opportunistically fix clear pre-existing issues nearby when safe and quick; keep changes focused.
+    tags: [quality, refactoring, debt]
+    hint: leave_it_better
+    priority: 6
+
+  P24:
+    name: tdd-first
+    rule: Write tests before implementation. Every new feature or bug fix MUST start with a test that fails without the change (Red Phase) and passes with it (Green Phase).
+    tags: [testing, tdd, quality]
+    hint: tdd_mandatory
+    priority: 9
+
+  P25:
+    name: related-scan
+    rule: When fixing a bug or issue, scan for related potential issues using similar patterns, functions, or logic. If you fix fuzzy matching in one function, check all other fuzzy matching functions for the same class of bug.
+    tags: [quality, bugs, thoroughness]
+    hint: scan_related_issues
+    priority: 8

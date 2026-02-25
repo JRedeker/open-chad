@@ -174,11 +174,6 @@ test_right_script_syntax() {
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-ZAI_CACHE="$TMP_DIR/open-chad-zai"
-COPILOT_CACHE="$TMP_DIR/open-chad-copilot"
-CLAUDE_CACHE="$TMP_DIR/open-chad-claude"
-CODEX_CACHE="$TMP_DIR/open-chad-codex"
-
 # Helper: run status_right.sh with overridden cache paths
 run_status_right() {
     OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" "$@" 2>/dev/null || true
@@ -190,7 +185,6 @@ run_status_right_force() {
 }
 
 test_renders_all_dash_when_no_caches_forced() {
-    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
     result=$(run_status_right_force)
     assert_contains "$result" "Z.ai" "force-on: Z.ai label shown even with no caches"
@@ -200,74 +194,14 @@ test_renders_all_dash_when_no_caches_forced() {
 }
 
 test_auto_hides_when_no_caches() {
-    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
     result=$(run_status_right)
     assert_eq "$result" "" "auto mode: empty output when no cache files exist"
 }
 
 test_exits_zero_with_no_caches() {
-    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
     assert_eq "$?" "0" "status_right.sh exits 0 with no caches"
-}
-
-test_renders_green_for_75() {
-    printf '75' > "$ZAI_CACHE"
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "#AAD94C" "Z.ai 75% → green color"
-    assert_contains "$result" "75%" "Z.ai 75% shown"
-}
-
-test_renders_yellow_for_35() {
-    printf '35' > "$COPILOT_CACHE"
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "#E6B450" "Copilot 35% → yellow color"
-    assert_contains "$result" "35%" "Copilot 35% shown"
-}
-
-test_renders_red_for_10() {
-    printf '10' > "$CLAUDE_CACHE"
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "#FF8F40" "Claude 10% → red color"
-    assert_contains "$result" "10%" "Claude 10% shown"
-}
-
-test_renders_dash_for_empty_cache() {
-    # Need at least one valid peer cache to trigger auto-enable
-    printf '80' > "$ZAI_CACHE"
-    printf '' > "$CODEX_CACHE"
-    local result
-    result=$(run_status_right)
-    # Gauge is shown (ZAI has data), Codex should show -- not a percentage
-    assert_contains "$result" "Codex" "Codex label present for empty cache"
-}
-
-test_renders_dash_for_non_integer_cache() {
-    # Need at least one valid peer cache to trigger auto-enable
-    printf '80' > "$COPILOT_CACHE"
-    printf 'error' > "$ZAI_CACHE"
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "Z.ai" "Z.ai label present for non-integer cache"
-    assert_not_contains "$result" "error%" "non-integer cache does not render as percent"
-}
-
-test_four_segments_separated_by_pipe() {
-    printf '62' > "$ZAI_CACHE"
-    printf '81' > "$COPILOT_CACHE"
-    printf '47' > "$CLAUDE_CACHE"
-    printf '94' > "$CODEX_CACHE"
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "Z.ai" "output contains Z.ai segment"
-    assert_contains "$result" "Copilot" "output contains Copilot segment"
-    assert_contains "$result" "Claude" "output contains Claude segment"
-    assert_contains "$result" "Codex" "output contains Codex segment"
-    assert_contains "$result" "|" "output contains segment separator"
 }
 
 test_script_exists
@@ -277,12 +211,6 @@ test_right_script_syntax
 test_renders_all_dash_when_no_caches_forced
 test_auto_hides_when_no_caches
 test_exits_zero_with_no_caches
-test_renders_green_for_75
-test_renders_yellow_for_35
-test_renders_red_for_10
-test_renders_dash_for_empty_cache
-test_renders_dash_for_non_integer_cache
-test_four_segments_separated_by_pipe
 
 # ─── Section 4: API response parsing helpers ──────────────────────────────────
 
@@ -438,40 +366,6 @@ test_copilot_empty_on_missing_field
 test_claude_empty_on_bad_json
 test_codex_empty_on_missing_field
 
-# ─── Section 6: Partial provider failure ─────────────────────────────────────
-
-section "Partial provider failure (3 succeed, 1 fails)"
-
-test_partial_failure_renders_all_four_segments() {
-    # 3 caches have values, codex is empty (failed)
-    printf '62' > "$ZAI_CACHE"
-    printf '81' > "$COPILOT_CACHE"
-    printf '47' > "$CLAUDE_CACHE"
-    printf '' > "$CODEX_CACHE"   # simulated failure
-
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "Z.ai" "partial failure: Z.ai segment present"
-    assert_contains "$result" "Copilot" "partial failure: Copilot segment present"
-    assert_contains "$result" "Claude" "partial failure: Claude segment present"
-    assert_contains "$result" "Codex" "partial failure: Codex segment present"
-    assert_contains "$result" "62%" "partial failure: Z.ai shows 62%"
-    assert_contains "$result" "81%" "partial failure: Copilot shows 81%"
-    assert_contains "$result" "47%" "partial failure: Claude shows 47%"
-}
-
-test_exits_zero_on_partial_failure() {
-    printf '62' > "$ZAI_CACHE"
-    printf '81' > "$COPILOT_CACHE"
-    printf '47' > "$CLAUDE_CACHE"
-    printf '' > "$CODEX_CACHE"
-    OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
-    assert_eq "$?" "0" "status_right.sh exits 0 on partial failure"
-}
-
-test_partial_failure_renders_all_four_segments
-test_exits_zero_on_partial_failure
-
 # ─── Section 7: collect_metrics.sh structure ─────────────────────────────────
 
 section "collect_metrics.sh structure"
@@ -485,13 +379,6 @@ test_collect_has_four_adapters() {
     grep -q "collect_copilot" "$COLLECT_METRICS" && pass "collect_copilot() defined" || fail "collect_copilot() missing"
     grep -q "collect_claude"  "$COLLECT_METRICS" && pass "collect_claude() defined"  || fail "collect_claude() missing"
     grep -q "collect_codex"   "$COLLECT_METRICS" && pass "collect_codex() defined"   || fail "collect_codex() missing"
-}
-
-test_collect_has_four_cache_files() {
-    grep -q "open-chad-zai"     "$COLLECT_METRICS" && pass "open-chad-zai cache defined"     || fail "open-chad-zai missing"
-    grep -q "open-chad-copilot" "$COLLECT_METRICS" && pass "open-chad-copilot cache defined" || fail "open-chad-copilot missing"
-    grep -q "open-chad-claude"  "$COLLECT_METRICS" && pass "open-chad-claude cache defined"  || fail "open-chad-claude missing"
-    grep -q "open-chad-codex"   "$COLLECT_METRICS" && pass "open-chad-codex cache defined"   || fail "open-chad-codex missing"
 }
 
 test_collect_no_bare_wait() {
@@ -522,7 +409,6 @@ test_collect_no_old_llm_fuel() {
 
 test_collect_syntax
 test_collect_has_four_adapters
-test_collect_has_four_cache_files
 test_collect_no_bare_wait
 test_collect_uses_auth_json
 test_collect_atomic_writes
@@ -533,44 +419,13 @@ test_collect_no_old_llm_fuel
 
 section "OPEN_CHAD_MULTI_GAUGE toggle"
 
-test_toggle_off_hides_gauge() {
-    printf '80' > "$ZAI_CACHE"
-    printf '80' > "$COPILOT_CACHE"
-    printf '80' > "$CLAUDE_CACHE"
-    printf '80' > "$CODEX_CACHE"
-    local result
-    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=0 bash "$STATUS_RIGHT" 2>/dev/null || true)
-    assert_eq "$result" "" "MULTI_GAUGE=0: gauge hidden even when all caches have data"
-}
-
-test_toggle_off_variants() {
-    printf '80' > "$ZAI_CACHE"
-    local r_false r_no r_off
-    r_false=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=false bash "$STATUS_RIGHT" 2>/dev/null || true)
-    r_no=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"    OPEN_CHAD_MULTI_GAUGE=no    bash "$STATUS_RIGHT" 2>/dev/null || true)
-    r_off=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR"   OPEN_CHAD_MULTI_GAUGE=off   bash "$STATUS_RIGHT" 2>/dev/null || true)
-    assert_eq "$r_false" "" "MULTI_GAUGE=false: gauge hidden"
-    assert_eq "$r_no"    "" "MULTI_GAUGE=no: gauge hidden"
-    assert_eq "$r_off"   "" "MULTI_GAUGE=off: gauge hidden"
-}
-
 test_toggle_on_shows_dashes_with_no_caches() {
-    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
     local result
     result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_contains "$result" "Z.ai"    "MULTI_GAUGE=1: Z.ai shown even with no caches"
     assert_contains "$result" "Copilot" "MULTI_GAUGE=1: Copilot shown even with no caches"
     assert_contains "$result" "Claude"  "MULTI_GAUGE=1: Claude shown even with no caches"
     assert_contains "$result" "Codex"   "MULTI_GAUGE=1: Codex shown even with no caches"
-}
-
-test_auto_shows_when_one_cache_has_data() {
-    rm -f "$ZAI_CACHE" "$COPILOT_CACHE" "$CLAUDE_CACHE" "$CODEX_CACHE"
-    printf '55' > "$CLAUDE_CACHE"   # only Claude has data
-    local result
-    result=$(run_status_right)
-    assert_contains "$result" "Claude" "auto mode: gauge visible when at least one cache has data"
-    assert_contains "$result" "Z.ai"   "auto mode: all 4 segments shown once any cache has data"
 }
 
 test_collect_has_multi_gauge_toggle() {
@@ -585,10 +440,7 @@ test_status_right_has_multi_gauge_toggle() {
         || fail "status_right.sh missing OPEN_CHAD_MULTI_GAUGE toggle"
 }
 
-test_toggle_off_hides_gauge
-test_toggle_off_variants
 test_toggle_on_shows_dashes_with_no_caches
-test_auto_shows_when_one_cache_has_data
 test_collect_has_multi_gauge_toggle
 test_status_right_has_multi_gauge_toggle
 

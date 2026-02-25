@@ -22,44 +22,98 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
 
 ## Installation
 
+**Fresh Ubuntu install (two commands):**
+
 ```bash
-cd ~/dev
-git clone https://github.com/JRedeker/open-chad.git
-cd open-chad
-./install.sh
+git clone https://github.com/JRedeker/open-chad.git && cd open-chad && bash install.sh
 ```
 
-This will:
-1. Symlink `bin/open-chad` to `~/.local/bin/`.
-2. Update your `~/.tmux.conf` to source the ayu-dark tmux theme.
-3. Install ADV (Advance) spec-driven development plugin.
-4. Install `omp` (opencode-model-preferences) model-routing TUI.
-5. Sync OpenCode agent files, slash commands, and global instruction files.
-6. Suggest adding `alias oc='open-chad'` to your `.zshrc`.
+On an interactive TTY this launches a guided wizard. For non-interactive / CI use:
+
+```bash
+bash install.sh --yes
+```
+
+### Wizard steps
+
+| Step | What it does |
+|------|--------------|
+| 1. System deps | Installs `git`, `curl`, `tmux`, Node 20, `pnpm` via apt (silent, logged) |
+| 2. Claude auth | Step-by-step OAuth onboarding instructions for OpenCode |
+| 3. Dev bundles | Multi-select: Python (uv), Go, Rust — install only what you need |
+| 4. MCP servers | Wires `context7`, `grep-app`, `lgrep` (enabled) + `firecrawl`, `brave-web-search` (disabled) into `opencode.json` |
+| 5. Plugins | Installs ADV spec-driven dev plugin and morph fast-apply plugin |
+| 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
+| 7. Windows Terminal | Optional copy-paste keybinding setup instructions |
+
+### Non-interactive flags
+
+```bash
+# Skip specific wizard steps
+bash install.sh --yes --skip-deps --skip-auth --skip-bundles
+bash install.sh --yes --skip-mcp --skip-adv --skip-morph
+
+# Select bundles non-interactively
+bash install.sh --yes --bundles python,go
+
+# Skip environment pre-flight check
+bash install.sh --yes --no-env-check
+
+# Legacy opt-out flags (still supported)
+bash install.sh --no-adv
+bash install.sh --no-omp
+bash install.sh --no-opencode-setup
+```
 
 ### Prerequisites
 
 | Tool | Required | Notes |
 |------|----------|-------|
 | `bash` | Yes | 4.0+ |
-| `git` | Yes | For cloning ADV and tmux config |
+| `git` | Yes | Cloning and update command |
 | `tmux` | Yes | 3.2+ recommended |
 | `node` / `npm` | Yes | For JSON config merging |
-| `pnpm` | Yes (ADV) | `npm install -g pnpm` to install |
-| `go` | Yes (omp) | 1.16+ — `go install` used for omp |
+| `pnpm` | Auto-installed | Via npm if missing |
 | `opencode` | Yes | Install from https://opencode.ai |
-| `jq` | Yes | Used by metrics collector for JSON parsing — not required by render path |
+| `jq` | Optional | Used by metrics collector; not required by render path |
+| Ubuntu/Debian | Yes | Linux only; `/proc` metrics; apt bootstrapping |
 
-### What gets installed
+### What gets installed (v1.0)
 
-- `~/.local/bin/open-chad` — symlink to the launcher
-- `~/.local/bin/omp` — opencode-model-preferences binary
-- `~/dev/oc-plugins/advance/` — ADV spec-driven dev plugin (cloned from GitHub)
-- `~/.config/opencode/agents/` — agent markdown files (scout, refine, librarian, explore)
-- `~/.config/opencode/command/adv-*.md` — ADV slash commands (synced from checkout)
-- `~/.config/opencode/instructions/` — global instruction files (shell_strategy, mcp-tools, worktree-guide, lbp)
-- `~/.config/opencode/themes/ayu-dark.json` — ayu-dark color theme
-- `~/.config/opencode/opencode.json` — ADV plugin path, instruction paths, and theme merged in (additive only)
+| Component | Path | Notes |
+|-----------|------|-------|
+| Launcher | `~/.local/bin/open-chad` | Symlink |
+| tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
+| ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
+| morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
+| Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore |
+| Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp |
+| Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |
+| Theme | `~/.config/opencode/themes/ayu-dark.json` | ayu-dark color theme |
+| opencode.json | `~/.config/opencode/opencode.json` | Plugin paths, MCP servers, instructions (additive merge) |
+| Install state | `~/.config/opencode/open-chad.json` | Selected bundles, timestamps |
+| Install log | `~/.config/opencode/open-chad-install.log` | Timestamped wizard log |
+
+### Updating
+
+```bash
+open-chad update
+```
+
+Requires a git-cloned install (errors clearly if run from a tarball/zip). Runs `git pull --ff-only` then re-applies all setup modules using your persisted bundle selections.
+
+### Re-running install (idempotent)
+
+`install.sh` is safe to re-run. It will re-sync config, pull latest plugins, and merge opencode.json without duplicating existing entries.
+
+### Windows Terminal
+
+The wizard (step 7) prints optional keybinding setup for copy-paste in WSL. To enable it manually, add to your Windows Terminal `settings.json`:
+
+```json
+{ "command": "copy", "keys": "ctrl+c" },
+{ "command": "paste", "keys": "ctrl+v" }
+```
 
 ### Opt-out flags
 
@@ -76,17 +130,6 @@ This will:
 # Skip everything new (tmux + symlink only)
 ./install.sh --no-adv --no-omp --no-opencode-setup
 ```
-
-### Re-running install (idempotent)
-
-`install.sh` is safe to re-run. It will:
-- Re-create the `open-chad` symlink (replacing any stale one)
-- Skip the tmux theme if already present
-- `git pull` the ADV checkout instead of re-cloning
-- Re-run `pnpm install + build` in the ADV plugin directory
-- Skip `omp` re-install if the same version is current (`go install` is idempotent)
-- Re-sync agent, command, instruction, and theme files (overwrites with latest bundle)
-- Re-merge opencode.json without duplicating existing entries
 
 ## Usage
 

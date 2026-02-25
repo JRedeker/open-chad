@@ -20,6 +20,14 @@ if [ "${1:-}" = "discord" ]; then
     exec bash "$LIB_DIR/discord/setup.sh" "${@:-}"
 fi
 
+# ─── Update subcommand routing ───────────────────────────────────────────────
+# Handle: open-chad update — pulls latest changes and re-runs setup modules
+
+if [ "${1:-}" = "update" ]; then
+    shift
+    exec bash "$LIB_DIR/update.sh" "${@:-}"
+fi
+
 usage() {
     cat <<EOF
 Usage: open-chad [OPTIONS] <project-dir|args...>
@@ -29,6 +37,7 @@ Options:
   -h, --help   Show this help
 
 Commands:
+  update           Pull latest open-chad changes and re-run setup
   discord enable   Enable Discord Rich Presence (first-run wizard)
   discord disable  Disable Discord Rich Presence
   discord status   Show Discord Rich Presence status

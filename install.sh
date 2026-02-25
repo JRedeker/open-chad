@@ -1,33 +1,83 @@
 #!/usr/bin/env bash
-# open-chad: Installation script
+# open-chad: Installation script (v1.0)
+#
+# Usage:
+#   bash install.sh                    — interactive wizard (TTY detected)
+#   bash install.sh --yes              — non-interactive, accept all defaults
+#   bash install.sh --no-adv           — skip ADV plugin
+#   bash install.sh --no-omp           — skip omp (model preferences)
+#   bash install.sh --bundles "python" — pre-select language bundles
+#
+# What it does:
+#   1. Pre-flight environment checks (Ubuntu/Debian, git, disk space)
+#   2. Symlink bin/open-chad -> ~/.local/bin/open-chad
+#   3. Tmux theme integration -> ~/.tmux.conf
+#   4. Delegate to lib/wizard.sh (interactive) or run silently (--yes/no-TTY)
 
-set -euo pipefail
+set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ─── Colors ──────────────────────────────────────────────────────────────────
 C_SAGE="\e[38;5;107m"
 C_GOLD="\e[38;5;186m"
 C_CORAL="\e[38;5;173m"
 C_RESET="\e[0m"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# ─── Flag parsing (manual while/case — getopts doesn't support long flags) ────
+# ─── Flag parsing ─────────────────────────────────────────────────────────────
+YES_MODE=0
 NO_ADV=0
 NO_OMP=0
 NO_OPENCODE_SETUP=0
+NO_ENV_CHECK=0
+BUNDLES=""
+WIZARD_EXTRA_FLAGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --no-adv)             NO_ADV=1;             shift ;;
-        --no-omp)             NO_OMP=1;             shift ;;
-        --no-opencode-setup)  NO_OPENCODE_SETUP=1;  shift ;;
+        --yes|-y)
+            YES_MODE=1
+            WIZARD_EXTRA_FLAGS+=("--yes")
+            shift
+            ;;
+        --no-adv)
+            NO_ADV=1
+            WIZARD_EXTRA_FLAGS+=("--skip-adv")
+            shift
+            ;;
+        --no-omp)
+            NO_OMP=1
+            shift
+            ;;
+        --no-opencode-setup)
+            NO_OPENCODE_SETUP=1
+            shift
+            ;;
+        --no-env-check)
+            NO_ENV_CHECK=1
+            shift
+            ;;
+        --bundles)
+            BUNDLES="$2"
+            WIZARD_EXTRA_FLAGS+=("--bundles" "$2")
+            shift 2
+            ;;
+        --verbose)
+            WIZARD_EXTRA_FLAGS+=("--verbose")
+            shift
+            ;;
         --help|-h)
             echo "Usage: install.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --no-adv              Skip ADV (Advance) plugin install"
-            echo "  --no-omp              Skip omp (opencode-model-preferences) install"
-            echo "  --no-opencode-setup   Skip all OpenCode config changes"
-            echo "  --help                Show this help"
+            echo "  --yes / -y             Non-interactive mode (accept all defaults)"
+            echo "  --no-adv               Skip ADV (Advance) plugin install"
+            echo "  --no-omp               Skip omp (opencode-model-preferences) install"
+            echo "  --no-opencode-setup    Skip all OpenCode config changes"
+            echo "  --bundles <list>       Pre-select language bundles: 'python go rust'"
+            echo "  --verbose              Show verbose output"
+            echo "  --no-env-check         Skip pre-flight environment checks"
+            echo "  --help                 Show this help"
             exit 0
             ;;
         *)
@@ -37,7 +87,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${C_SAGE}Starting open-chad installation...${C_RESET}"
+echo -e "${C_SAGE}open-chad v1.0 — installer starting...${C_RESET}"
 
 # ─── 0. Set up dedicated cache directory ──────────────────────────────────────
 # Creates $OPEN_CHAD_CACHE_DIR (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
@@ -45,32 +95,25 @@ echo -e "${C_SAGE}Starting open-chad installation...${C_RESET}"
 source "$SCRIPT_DIR/lib/opencode_env.sh"
 echo -e "Cache directory: ${C_GOLD}$OPEN_CHAD_CACHE_DIR${C_RESET}"
 
-BIN_PATH="$SCRIPT_DIR/bin/open-chad"
+# ─── 1. Pre-flight checks ─────────────────────────────────────────────────────
+if [ "$NO_ENV_CHECK" -eq 0 ]; then
+    echo ""
+    if ! bash "$SCRIPT_DIR/lib/check_environment.sh"; then
+        echo -e "${C_CORAL}Pre-flight checks failed. Fix the issues above and re-run install.sh${C_RESET}" >&2
+        exit 1
+    fi
+fi
 
-# ─── 1. Verify hard dependencies ──────────────────────────────────────────────
+# ─── 2. Node.js check (hard dependency for json_merge.sh) ────────────────────
 if ! command -v node &>/dev/null; then
     echo -e "${C_CORAL}ERROR: node is required but was not found in PATH.${C_RESET}" >&2
-    echo -e "${C_CORAL}       Install Node.js: https://nodejs.org/${C_RESET}" >&2
+    echo -e "${C_CORAL}       Run first: bash lib/setup_ubuntu_deps.sh${C_RESET}" >&2
+    echo -e "${C_CORAL}       Or:  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -${C_RESET}" >&2
     exit 1
 fi
 
-echo -n "Checking dependencies... "
-if ! command -v tmux &>/dev/null; then
-    echo -e "${C_CORAL}WARNING: tmux not found. open-chad will fallback to direct execution.${C_RESET}"
-else
-    # Simple version check (we need 3.2+ for extended keys and some format arrays)
-    tmux_ver=$(tmux -V | awk '{print $2}')
-    echo -n "tmux $tmux_ver found. "
-fi
-
-if ! command -v opencode &>/dev/null; then
-    echo -e "${C_CORAL}WARNING: opencode not found in PATH.${C_RESET}"
-else
-    echo -n "opencode found. "
-fi
-echo -e "${C_SAGE}[OK]${C_RESET}"
-
-# ─── 2. Setup symlink ─────────────────────────────────────────────────────────
+# ─── 3. Setup symlink ─────────────────────────────────────────────────────────
+BIN_PATH="$SCRIPT_DIR/bin/open-chad"
 DEST_DIR="$HOME/.local/bin"
 DEST_BIN="$DEST_DIR/open-chad"
 
@@ -78,11 +121,10 @@ mkdir -p "$DEST_DIR"
 if [ -L "$DEST_BIN" ] || [ -f "$DEST_BIN" ]; then
     rm -f "$DEST_BIN"
 fi
-
 ln -s "$BIN_PATH" "$DEST_BIN"
 echo -e "Symlinked ${C_GOLD}bin/open-chad${C_RESET} -> ${C_GOLD}$DEST_BIN${C_RESET}"
 
-# ─── 3. Tmux theme integration ────────────────────────────────────────────────
+# ─── 4. Tmux theme integration ────────────────────────────────────────────────
 TMUX_CONF="$HOME/.tmux.conf"
 THEME_CONF="$SCRIPT_DIR/lib/theme.conf"
 SOURCE_CMD="source-file $THEME_CONF"
@@ -99,32 +141,30 @@ else
     echo -e "Created ${C_GOLD}$TMUX_CONF${C_RESET} with theme source"
 fi
 
-# ─── 4. ADV setup ─────────────────────────────────────────────────────────────
-if [ "$NO_ADV" -eq 0 ]; then
-    echo -e "\n${C_SAGE}[Step 1/3] Setting up ADV (Advance) plugin...${C_RESET}"
-    bash "$SCRIPT_DIR/lib/setup_adv.sh"
-else
-    echo -e "${C_CORAL}Skipping ADV setup (--no-adv)${C_RESET}"
-fi
+# ─── 5. Route to wizard or silent mode ────────────────────────────────────────
+echo ""
 
-# ─── 5. omp setup ─────────────────────────────────────────────────────────────
-if [ "$NO_OMP" -eq 0 ]; then
-    echo -e "\n${C_SAGE}[Step 2/3] Installing omp (opencode-model-preferences)...${C_RESET}"
-    bash "$SCRIPT_DIR/lib/setup_omp.sh"
-else
-    echo -e "${C_CORAL}Skipping omp setup (--no-omp)${C_RESET}"
-fi
+# Determine if we have a TTY and should run the interactive wizard
+_has_tty=0
+[ -t 0 ] && [ -t 1 ] && _has_tty=1
 
-# ─── 6. OpenCode config setup ─────────────────────────────────────────────────
-if [ "$NO_OPENCODE_SETUP" -eq 0 ]; then
-    echo -e "\n${C_SAGE}[Step 3/3] Configuring OpenCode environment...${C_RESET}"
-    bash "$SCRIPT_DIR/lib/setup_opencode.sh"
+if [ "$_has_tty" -eq 1 ] && [ "$YES_MODE" -eq 0 ]; then
+    # Interactive TTY: run the full wizard
+    echo -e "${C_SAGE}Starting interactive installation wizard...${C_RESET}"
+    echo ""
+    exec bash "$SCRIPT_DIR/lib/wizard.sh" "${WIZARD_EXTRA_FLAGS[@]}"
 else
-    echo -e "${C_CORAL}Skipping OpenCode setup (--no-opencode-setup)${C_RESET}"
-fi
+    # Non-interactive (--yes or piped): run silently with defaults
+    if [ "$YES_MODE" -eq 0 ]; then
+        echo -e "${C_GOLD}No TTY detected — running in non-interactive mode.${C_RESET}"
+    fi
 
-# ─── Done ─────────────────────────────────────────────────────────────────────
-echo -e "\n${C_SAGE}Installation complete!${C_RESET}"
-echo -e "Make sure ${C_GOLD}$DEST_DIR${C_RESET} is in your PATH."
-echo -e "Recommended alias for your .zshrc/.bashrc:"
-echo -e "  ${C_GOLD}alias oc='open-chad'${C_RESET}\n"
+    WIZARD_ARGS=("--yes")
+    WIZARD_ARGS+=("${WIZARD_EXTRA_FLAGS[@]}")
+
+    # Apply legacy --no-* flags that weren't already in WIZARD_EXTRA_FLAGS
+    [ "$NO_ADV" -eq 1 ]            && WIZARD_ARGS+=("--skip-adv")
+    [ "$NO_OPENCODE_SETUP" -eq 1 ] && WIZARD_ARGS+=("--skip-mcp" "--skip-morph")
+
+    exec bash "$SCRIPT_DIR/lib/wizard.sh" "${WIZARD_ARGS[@]}"
+fi

@@ -1,10 +1,10 @@
 {
   "name": "open-chad",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Retro tmux launcher for OpenCode AI coding sessions",
   "private": true,
   "scripts": {
-    "test": "bash tests/install_test.sh && bash tests/llm_fuel_test.sh && bash tests/discord_sanitizer_test.sh && bash tests/discord_setup_test.sh"
+    "test": "bash tests/install_test.sh && bash tests/llm_fuel_test.sh && bash tests/animation_test.sh && bash tests/session_title_test.sh && bash tests/discord_sanitizer_test.sh && bash tests/discord_setup_test.sh && bash tests/installer_validation_test.sh && bash tests/integration_test.sh"
   },
   "dependencies": {
     "@xhayper/discord-rpc": "^1.3.1"

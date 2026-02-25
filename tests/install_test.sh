@@ -180,6 +180,9 @@ test_setup_opencode_syncs_agents() {
     assert_file_exists "$TMP_HOME/.config/opencode/agents/librarian.md"
     assert_file_exists "$TMP_HOME/.config/opencode/agents/refine.md"
     assert_file_exists "$TMP_HOME/.config/opencode/agents/explore.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/agents/build.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/agents/general.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/agents/plan.md"
     teardown_tmp_env
 }
 
@@ -193,6 +196,8 @@ test_setup_opencode_syncs_instructions() {
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/mcp-tools.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/worktree-guide.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/lbp.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/instructions/identity.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/instructions/rules.yaml"
     teardown_tmp_env
 }
 
@@ -326,8 +331,8 @@ section "install.sh — idempotency (tmux theme + symlink)"
 test_install_symlink_idempotent() {
     setup_tmp_env
     # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup > /dev/null 2>&1 || true
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup > /dev/null 2>&1 || true
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
     assert_symlink "$TMP_HOME/.local/bin/open-chad"
     teardown_tmp_env
 }
@@ -337,8 +342,8 @@ test_install_tmux_theme_not_duplicated() {
     # Create existing tmux.conf
     echo "# existing config" > "$TMP_HOME/.tmux.conf"
 
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup > /dev/null 2>&1 || true
-    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup > /dev/null 2>&1 || true
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
+    HOME="$TMP_HOME" bash "$REPO_DIR/install.sh" --yes --no-adv --no-omp --no-opencode-setup --no-env-check > /dev/null 2>&1 || true
 
     # Theme source should appear exactly once
     local count
@@ -427,6 +432,110 @@ test_opencode_env_fallback_without_xdg
 test_opencode_env_exports_var
 test_opencode_env_override_respected
 test_opencode_env_idempotent
+
+# ─── Section: MCP Nested Object Regression (R2 finding) ──────────────────────
+# Regression guard: verify json_merge.sh correctly merges two mcp server objects
+# without dropping existing servers. A naive top-level Object.assign would
+# overwrite the entire mcp key, losing previously registered servers.
+
+section "MCP Nested Object Regression (json_merge)"
+
+test_json_merge_mcp_nested_objects() {
+    if ! command -v node &>/dev/null; then
+        skip "test_json_merge_mcp_nested_objects (node not found)"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_json="$tmp_dir/opencode.json"
+
+    # Step 1: Merge first MCP server
+    echo '{}' > "$tmp_json"
+    bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" \
+        '{"mcp":{"context7":{"type":"local","command":["npx","-y","context7-mcp"],"enabled":true}}}' \
+        2>/dev/null
+
+    # Step 2: Merge second MCP server (should ADD, not REPLACE)
+    bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" \
+        '{"mcp":{"grep-app":{"type":"local","command":["npx","-y","grep-app-mcp"],"enabled":true}}}' \
+        2>/dev/null
+
+    # Step 3: Verify BOTH servers are present
+    local has_context7 has_grep_app
+    has_context7=$(node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp_json','utf8'));
+process.exit((c.mcp && c.mcp['context7']) ? 0 : 1);
+" 2>/dev/null && echo "yes" || echo "no")
+
+    has_grep_app=$(node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp_json','utf8'));
+process.exit((c.mcp && c.mcp['grep-app']) ? 0 : 1);
+" 2>/dev/null && echo "yes" || echo "no")
+
+    [ "$has_context7" = "yes" ] && \
+        pass "MCP merge: context7 preserved after adding grep-app" || \
+        fail "MCP merge: context7 DROPPED after adding grep-app (regression!)"
+
+    [ "$has_grep_app" = "yes" ] && \
+        pass "MCP merge: grep-app added successfully alongside context7" || \
+        fail "MCP merge: grep-app not found after merge"
+
+    # Step 4: Verify merged JSON is valid
+    node -e "
+const fs=require('fs');
+JSON.parse(fs.readFileSync('$tmp_json','utf8'));
+" 2>/dev/null && \
+        pass "MCP merged JSON is valid JSON" || \
+        fail "MCP merged JSON is invalid (corrupted by merge)"
+
+    rm -rf "$tmp_dir"
+}
+
+test_json_merge_mcp_five_servers() {
+    if ! command -v node &>/dev/null; then
+        skip "test_json_merge_mcp_five_servers (node not found)"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_json="$tmp_dir/opencode.json"
+    echo '{}' > "$tmp_json"
+
+    # Simulate setup_mcp.sh: merge all 5 servers sequentially
+    local servers=(
+        '{"mcp":{"context7":{"type":"local","command":["npx","-y","context7"],"enabled":true}}}'
+        '{"mcp":{"grep-app":{"type":"local","command":["npx","-y","grep-app"],"enabled":true}}}'
+        '{"mcp":{"lgrep":{"type":"local","command":["npx","-y","lgrep"],"enabled":true}}}'
+        '{"mcp":{"firecrawl":{"type":"local","command":["npx","-y","firecrawl"],"enabled":false}}}'
+        '{"mcp":{"brave-web-search":{"type":"local","command":["npx","-y","brave"],"enabled":false}}}'
+    )
+
+    for patch in "${servers[@]}"; do
+        bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" "$patch" 2>/dev/null
+    done
+
+    # Verify all 5 are present
+    local count
+    count=$(node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp_json','utf8'));
+const servers=Object.keys(c.mcp||{});
+process.stdout.write(String(servers.length));
+" 2>/dev/null)
+
+    [ "$count" = "5" ] && \
+        pass "All 5 MCP servers present after sequential merge (got: $count)" || \
+        fail "Expected 5 MCP servers after sequential merge, got: $count"
+
+    rm -rf "$tmp_dir"
+}
+
+test_json_merge_mcp_nested_objects
+test_json_merge_mcp_five_servers
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 
