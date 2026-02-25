@@ -133,13 +133,14 @@ _install_python_bundle() {
     done
 
     # Wire pyrefly as LSP in opencode.json
+    # Schema: lsp.<name>.command (array), lsp.<name>.extensions (array)
+    # The key name must match the LSP server name, not the language name.
     if command -v pyrefly &>/dev/null || [ -f "$HOME/.local/bin/pyrefly" ]; then
-        _pyrefly_path="${HOME}/.local/bin/pyrefly"
         step "Wiring pyrefly LSP into $OPENCODE_JSON"
         mkdir -p "$OPENCODE_CONFIG_DIR"
         [ -f "$OPENCODE_JSON" ] || echo '{}' > "$OPENCODE_JSON"
         bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-            "{\"lsp\":{\"python\":{\"command\":\"$_pyrefly_path\",\"args\":[\"server\"]}}}" \
+            '{"lsp":{"pyrefly":{"command":["pyrefly","lsp"],"extensions":[".py",".pyi"]}}}' \
             >> "$INSTALL_LOG" 2>&1 || warn "Could not wire pyrefly LSP"
         ok "pyrefly LSP wired into opencode.json"
     else
@@ -223,16 +224,10 @@ _install_go_bundle() {
         fi
     fi
 
-    # Add Go to PATH in shell profile if not already there
-    _go_path_entry='export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"'
-    for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
-        if [ -f "$profile" ] && ! grep -q "usr/local/go/bin" "$profile"; then
-            echo "" >> "$profile"
-            echo "# Go (added by open-chad)" >> "$profile"
-            echo "$_go_path_entry" >> "$profile"
-            ok "Added Go PATH to $profile"
-        fi
-    done
+    # Add ~/.local/bin to PATH in shell profile via centralized helper (idempotent)
+    bash "$REPO_DIR/lib/setup_shell_profile.sh" || true
+    # Also ensure Go bins are in PATH for this session
+    export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
 
     log "Go bundle complete"
 }

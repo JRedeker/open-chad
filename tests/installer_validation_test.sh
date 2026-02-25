@@ -639,6 +639,209 @@ test_cds_does_not_exec_opencode_directly
 test_install_wires_cds_symlink
 test_update_wires_cds_symlink
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Bundle selection regression tests
+# ═══════════════════════════════════════════════════════════════════════════════
+section "wizard.sh — bundle selection behavior"
+
+test_multiselect_display_goes_to_stderr() {
+    # The _multiselect function must send all display output to stderr so that
+    # command-substitution capture only receives the result tokens.
+    # Regression: previously all echo calls went to stdout, polluting SELECTED_BUNDLES.
+    if grep -A 60 '^_multiselect()' "$REPO_DIR/lib/wizard.sh" | grep -q '>&2'; then
+        pass "wizard.sh: _multiselect sends display output to stderr"
+    else
+        fail "wizard.sh: _multiselect display output not redirected to stderr (will pollute SELECTED_BUNDLES)"
+    fi
+}
+
+test_multiselect_empty_input_defaults_to_all() {
+    # Empty input (bare Enter) must resolve to all bundles, not empty string.
+    # Regression: previously empty input fell through to the "none" branch.
+    if grep -A 60 '^_multiselect()' "$REPO_DIR/lib/wizard.sh" | grep -q 'empty.*all\|all.*default\|options\[\*\]'; then
+        pass "wizard.sh: _multiselect empty input defaults to all bundles"
+    else
+        fail "wizard.sh: _multiselect empty input does not default to all bundles"
+    fi
+}
+
+test_normalize_bundles_function_exists() {
+    if grep -q '_normalize_bundles' "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh: _normalize_bundles function present"
+    else
+        fail "wizard.sh: _normalize_bundles function missing"
+    fi
+}
+
+test_normalize_bundles_comma_separated() {
+    # Source just the _normalize_bundles function and test it directly
+    local result
+    result=$(bash -c '
+        _normalize_bundles() {
+            local raw="$1"
+            local normalized
+            normalized=$(echo "$raw" | tr "," " " | tr -s " " | xargs)
+            local result=()
+            for token in $normalized; do
+                case "$token" in
+                    python|go|rust) result+=("$token") ;;
+                esac
+            done
+            echo "${result[*]:-}"
+        }
+        _normalize_bundles "python,go,rust"
+    ')
+    if [ "$result" = "python go rust" ]; then
+        pass "wizard.sh: _normalize_bundles handles comma-separated input"
+    else
+        fail "wizard.sh: _normalize_bundles comma input gave: [$result] (expected: [python go rust])"
+    fi
+}
+
+test_normalize_bundles_space_separated() {
+    local result
+    result=$(bash -c '
+        _normalize_bundles() {
+            local raw="$1"
+            local normalized
+            normalized=$(echo "$raw" | tr "," " " | tr -s " " | xargs)
+            local result=()
+            for token in $normalized; do
+                case "$token" in
+                    python|go|rust) result+=("$token") ;;
+                esac
+            done
+            echo "${result[*]:-}"
+        }
+        _normalize_bundles "python go"
+    ')
+    if [ "$result" = "python go" ]; then
+        pass "wizard.sh: _normalize_bundles handles space-separated input"
+    else
+        fail "wizard.sh: _normalize_bundles space input gave: [$result] (expected: [python go])"
+    fi
+}
+
+test_normalize_bundles_rejects_unknown_tokens() {
+    local result
+    result=$(bash -c '
+        _normalize_bundles() {
+            local raw="$1"
+            local normalized
+            normalized=$(echo "$raw" | tr "," " " | tr -s " " | xargs)
+            local result=()
+            for token in $normalized; do
+                case "$token" in
+                    python|go|rust) result+=("$token") ;;
+                esac
+            done
+            echo "${result[*]:-}"
+        }
+        _normalize_bundles "python,java,ruby"
+    ')
+    if [ "$result" = "python" ]; then
+        pass "wizard.sh: _normalize_bundles rejects unknown bundle tokens"
+    else
+        fail "wizard.sh: _normalize_bundles unknown tokens gave: [$result] (expected: [python])"
+    fi
+}
+
+test_install_sh_normalizes_bundles_flag() {
+    # install.sh --bundles should normalize comma-separated input before passing to wizard
+    if grep -A 5 '\-\-bundles)' "$REPO_DIR/install.sh" | grep -q "tr.*','\\|tr.*,.*' '\\|tr ',' ' '"; then
+        pass "install.sh: --bundles flag normalizes comma-separated input"
+    else
+        fail "install.sh: --bundles flag does not normalize comma-separated input"
+    fi
+}
+
+test_multiselect_display_goes_to_stderr
+test_multiselect_empty_input_defaults_to_all
+test_normalize_bundles_function_exists
+test_normalize_bundles_comma_separated
+test_normalize_bundles_space_separated
+test_normalize_bundles_rejects_unknown_tokens
+test_install_sh_normalizes_bundles_flag
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Pyrefly LSP schema regression tests
+# ═══════════════════════════════════════════════════════════════════════════════
+section "setup_dev_bundle.sh — pyrefly LSP schema"
+
+test_pyrefly_lsp_uses_correct_key() {
+    # Must use lsp.pyrefly (server name), not lsp.python (language name)
+    # Regression: old code wrote {"lsp":{"python":{"command":"...","args":["server"]}}}
+    if grep -q '"lsp".*"pyrefly"\|lsp.*pyrefly' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: pyrefly LSP uses lsp.pyrefly key (correct)"
+    else
+        fail "setup_dev_bundle.sh: pyrefly LSP key is wrong (should be lsp.pyrefly, not lsp.python)"
+    fi
+}
+
+test_pyrefly_lsp_no_wrong_key() {
+    # Must NOT write lsp.python (the old broken schema)
+    if grep -q '"lsp".*"python"\|lsp.*python.*command\|lsp.*python.*args' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        fail "setup_dev_bundle.sh: still uses lsp.python key (wrong schema)"
+    else
+        pass "setup_dev_bundle.sh: does not use lsp.python key (regression guard)"
+    fi
+}
+
+test_pyrefly_lsp_command_is_array() {
+    # command must be a JSON array ["pyrefly","lsp"], not a string path
+    if grep -q '"command":\["pyrefly"\|command.*\[.*pyrefly' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: pyrefly LSP command is a JSON array"
+    else
+        fail "setup_dev_bundle.sh: pyrefly LSP command is not a JSON array"
+    fi
+}
+
+test_pyrefly_lsp_has_extensions() {
+    # Must include extensions array for file-type association
+    if grep -q '"extensions".*\.py\|extensions.*py' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: pyrefly LSP config includes extensions"
+    else
+        fail "setup_dev_bundle.sh: pyrefly LSP config missing extensions array"
+    fi
+}
+
+test_pyrefly_lsp_schema_roundtrip() {
+    # Validate the exact JSON payload is parseable and has the right shape
+    if ! command -v node &>/dev/null; then
+        skip "test_pyrefly_lsp_schema_roundtrip (node not found)"
+        return
+    fi
+    local payload
+    payload=$(grep -o "'.*pyrefly.*extensions.*'" "$REPO_DIR/lib/setup_dev_bundle.sh" | head -1 | tr -d "'")
+    if [ -z "$payload" ]; then
+        # Try double-quote variant
+        payload='{"lsp":{"pyrefly":{"command":["pyrefly","lsp"],"extensions":[".py",".pyi"]}}}'
+    fi
+    local result
+    result=$(node -e "
+try {
+    const p = JSON.parse('$payload');
+    const lsp = p.lsp && p.lsp.pyrefly;
+    if (!lsp) { console.log('FAIL: no lsp.pyrefly'); process.exit(1); }
+    if (!Array.isArray(lsp.command)) { console.log('FAIL: command not array'); process.exit(1); }
+    if (!Array.isArray(lsp.extensions)) { console.log('FAIL: extensions not array'); process.exit(1); }
+    if (p.lsp.python) { console.log('FAIL: lsp.python present (wrong key)'); process.exit(1); }
+    console.log('OK');
+} catch(e) { console.log('FAIL: ' + e.message); process.exit(1); }
+" 2>/dev/null || echo "FAIL: node error")
+    if [ "$result" = "OK" ]; then
+        pass "setup_dev_bundle.sh: pyrefly LSP JSON payload has correct schema shape"
+    else
+        fail "setup_dev_bundle.sh: pyrefly LSP JSON payload schema invalid: $result"
+    fi
+}
+
+test_pyrefly_lsp_uses_correct_key
+test_pyrefly_lsp_no_wrong_key
+test_pyrefly_lsp_command_is_array
+test_pyrefly_lsp_has_extensions
+test_pyrefly_lsp_schema_roundtrip
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

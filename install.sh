@@ -58,8 +58,9 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --bundles)
-            BUNDLES="$2"
-            WIZARD_EXTRA_FLAGS+=("--bundles" "$2")
+            # Normalize: accept comma-separated or space-separated
+            BUNDLES=$(echo "$2" | tr ',' ' ' | tr -s ' ' | xargs)
+            WIZARD_EXTRA_FLAGS+=("--bundles" "$BUNDLES")
             shift 2
             ;;
         --verbose)

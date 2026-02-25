@@ -156,22 +156,30 @@ _multiselect() {
         return 0
     fi
 
-    echo -e "  ${C_ACCENT}Select bundles to install:${C_RESET} (space to toggle, Enter to confirm)"
-    echo -e "  ${C_COMMENT}Type the numbers separated by spaces, e.g. '1 2' for Python and Go:${C_RESET}"
-    echo ""
+    # All display output goes to stderr so command-substitution capture only gets the result
+    echo -e "  ${C_ACCENT}Select bundles to install:${C_RESET} (Enter = all, 0 = none)" >&2
+    echo -e "  ${C_COMMENT}Type numbers separated by spaces, e.g. '1 2' for Python and Go:${C_RESET}" >&2
+    echo "" >&2
     for i in "${!options[@]}"; do
-        echo -e "    ${C_TYPE}[$((i+1))]${C_RESET} ${options[$i]}"
+        echo -e "    ${C_TYPE}[$((i+1))]${C_RESET} ${options[$i]}" >&2
     done
-    echo -e "    ${C_COMMENT}[0]${C_RESET} None (skip all bundles)"
-    echo ""
-    echo -ne "  ${C_ACCENT}?${C_RESET} Your selection: "
+    echo -e "    ${C_COMMENT}[0]${C_RESET} None (skip all bundles)" >&2
+    echo "" >&2
+    echo -ne "  ${C_ACCENT}?${C_RESET} Your selection [default: all]: " >&2
     local answer
     read -r answer
     _log "BUNDLE SELECTION INPUT: $answer"
 
-    if [[ "$answer" == "0" ]] || [[ -z "$answer" ]]; then
+    if [[ "$answer" == "0" ]]; then
         _log "BUNDLES SELECTED: (none)"
         echo ""
+        return 0
+    fi
+
+    # Empty input = select all (default)
+    if [[ -z "$answer" ]]; then
+        _log "BUNDLES SELECTED: all (default)"
+        echo "${options[*]}"
         return 0
     fi
 
@@ -227,6 +235,10 @@ else
     }
     ok "Core dependencies installed"
 fi
+
+# Wire shell profile (idempotent — safe to call even if already done)
+info "Wiring ~/.local/bin into shell profile..."
+bash "$REPO_DIR/lib/setup_shell_profile.sh" || true
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -252,10 +264,26 @@ _step_banner 3 "$TOTAL_STEPS" "Developer Language Bundles"
 
 SELECTED_BUNDLES=""
 
+# Normalize bundle input: accept comma-separated or space-separated, strip extras
+_normalize_bundles() {
+    local raw="$1"
+    # Replace commas with spaces, collapse whitespace, filter to known tokens
+    local normalized
+    normalized=$(echo "$raw" | tr ',' ' ' | tr -s ' ' | xargs)
+    local result=()
+    for token in $normalized; do
+        case "$token" in
+            python|go|rust) result+=("$token") ;;
+            *) _log "WARN: unknown bundle token ignored: $token" ;;
+        esac
+    done
+    echo "${result[*]:-}"
+}
+
 if [ "$SKIP_BUNDLES" -eq 1 ]; then
     skip "dev bundles (--skip-bundles)"
 elif [ -n "$PRESELECT_BUNDLES" ]; then
-    SELECTED_BUNDLES="$PRESELECT_BUNDLES"
+    SELECTED_BUNDLES=$(_normalize_bundles "$PRESELECT_BUNDLES")
     ok "Pre-selected bundles: $SELECTED_BUNDLES"
     _log "PRE-SELECTED BUNDLES: $SELECTED_BUNDLES"
 else
@@ -396,22 +424,31 @@ fi
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Fallback: OpenCode prompt block
+# Post-install verification prompt
 # ═══════════════════════════════════════════════════════════════════════════════
+_VERIFICATION_DOC="${OPENCODE_CONFIG_DIR}/instructions/post_install_verification.md"
+
 if [ "$YES_MODE" -eq 0 ]; then
     echo ""
     echo -e "${C_COMMENT}──────────────────────────────────────────────────────${C_RESET}"
-    echo -e "${C_ACCENT}Fallback: Paste into OpenCode to verify setup${C_RESET}"
+    echo -e "${C_ACCENT}Verify your setup in OpenCode${C_RESET}"
     echo -e "${C_COMMENT}──────────────────────────────────────────────────────${C_RESET}"
     echo ""
     echo -e "  ${C_FG}Once you launch OpenCode, paste this prompt to verify everything works:${C_RESET}"
     echo ""
-    echo -e "  ${C_COMMENT}┌─────────────────────────────────────────────────────────────┐${C_RESET}"
-    echo -e "  ${C_COMMENT}│ Hello! Please confirm:                                       │${C_RESET}"
-    echo -e "  ${C_COMMENT}│ 1. You can see this message (auth works)                     │${C_RESET}"
-    echo -e "  ${C_COMMENT}│ 2. Run: /adv-status (ADV plugin works)                      │${C_RESET}"
-    echo -e "  ${C_COMMENT}│ 3. Run: lgrep_search q=\"hello world\"  (lgrep MCP works)     │${C_RESET}"
-    echo -e "  ${C_COMMENT}└─────────────────────────────────────────────────────────────┘${C_RESET}"
+    echo -e "  ${C_COMMENT}┌─────────────────────────────────────────────────────────────────┐${C_RESET}"
+    echo -e "  ${C_COMMENT}│ Hello! I just installed open-chad. Please run through this       │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ checklist and confirm each item works:                           │${C_RESET}"
+    echo -e "  ${C_COMMENT}│                                                                  │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 1. AUTH — You can read this message (Claude API auth works)      │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 2. ADV  — Run: /adv-status                                      │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 3. MCP  — Run: lgrep_search(q=\"hello world\", path=\".\")          │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 4. MORPH — Confirm morph_edit tool is in your tool list         │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 5. THEME — Confirm ayu-dark theme is active                     │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 6. AGENTS — Confirm scout, refine, librarian, explore available │${C_RESET}"
+    echo -e "  ${C_COMMENT}└─────────────────────────────────────────────────────────────────┘${C_RESET}"
+    echo ""
+    echo -e "  ${C_COMMENT}Full verification guide: ${C_TYPE}$_VERIFICATION_DOC${C_RESET}"
     echo ""
 fi
 
