@@ -1,6 +1,6 @@
 ---
 description: General-purpose agent for researching complex questions and executing multi-step implementation tasks. Use for tasks that require reading, writing, searching, and running commands across multiple files and directories.
-mode: primary
+mode: subagent
 temperature: 0.3
 tools:
   bash: true

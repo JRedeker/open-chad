@@ -1,6 +1,6 @@
 ---
 description: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Understands code meaning and structure.
-mode: primary
+mode: subagent
 temperature: 0.2
 tools:
   # === BLOCKED: All write tools ===

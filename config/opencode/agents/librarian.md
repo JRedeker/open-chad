@@ -1,6 +1,6 @@
 ---
 description: Documentation and code example researcher - finds API docs, library references, and real-world patterns
-mode: primary
+mode: subagent
 temperature: 0.3
 hidden: false
 tools:
