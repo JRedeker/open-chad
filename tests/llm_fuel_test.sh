@@ -13,6 +13,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 STATUS_LEFT="$REPO_DIR/lib/status_left.sh"
 STATUS_RIGHT="$REPO_DIR/lib/status_right.sh"
+STATUS_RESOURCES="$REPO_DIR/lib/status_resources.sh"
 COLLECT_METRICS="$REPO_DIR/lib/collect_metrics.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 
@@ -196,7 +197,12 @@ test_renders_all_dash_when_no_caches_forced() {
 test_auto_hides_when_no_caches() {
     local result
     result=$(run_status_right)
-    assert_eq "$result" "" "auto mode: empty output when no cache files exist"
+    # Accent edges always render; gauge labels should be absent with no cache data
+    assert_not_contains "$result" "Z.ai"    "auto mode: Z.ai label hidden when no cache files"
+    assert_not_contains "$result" "Copilot" "auto mode: Copilot label hidden when no cache files"
+    assert_not_contains "$result" "Claude"  "auto mode: Claude label hidden when no cache files"
+    assert_not_contains "$result" "Codex"   "auto mode: Codex label hidden when no cache files"
+    assert_contains "$result" "▐" "auto mode: accent edges always present"
 }
 
 test_exits_zero_with_no_caches() {
@@ -443,6 +449,61 @@ test_status_right_has_multi_gauge_toggle() {
 test_toggle_on_shows_dashes_with_no_caches
 test_collect_has_multi_gauge_toggle
 test_status_right_has_multi_gauge_toggle
+
+# ─── Section 9: status_resources.sh ─────────────────────────────────────────
+
+section "status_resources.sh"
+
+test_resources_syntax() {
+    bash -n "$STATUS_RESOURCES" 2>/dev/null \
+        && pass "status_resources.sh syntax OK" \
+        || fail "status_resources.sh syntax error"
+}
+
+test_resources_output_with_cache() {
+    local tmp_dir result
+    tmp_dir=$(mktemp -d)
+    printf '42 67 1.23' > "$tmp_dir/metrics"
+    result=$(OPEN_CHAD_CACHE_DIR="$tmp_dir" bash "$STATUS_RESOURCES" 2>/dev/null || true)
+    rm -rf "$tmp_dir"
+    assert_contains "$result" "CPU 42%"   "resources: CPU value rendered"
+    assert_contains "$result" "RAM 67%"   "resources: RAM value rendered"
+    assert_contains "$result" "Load 1.23" "resources: Load value rendered"
+}
+
+test_resources_empty_when_no_cache() {
+    local tmp_dir result
+    tmp_dir=$(mktemp -d)
+    # No metrics file written
+    result=$(OPEN_CHAD_CACHE_DIR="$tmp_dir" bash "$STATUS_RESOURCES" 2>/dev/null || true)
+    rm -rf "$tmp_dir"
+    assert_eq "$result" "" "resources: empty output when no cache file"
+}
+
+test_resources_uses_open_chad_cache_dir() {
+    grep -q 'OPEN_CHAD_CACHE_DIR' "$STATUS_RESOURCES" \
+        && pass "status_resources.sh uses OPEN_CHAD_CACHE_DIR" \
+        || fail "status_resources.sh does not reference OPEN_CHAD_CACHE_DIR"
+}
+
+test_resources_sources_env() {
+    grep -q 'opencode_env.sh' "$STATUS_RESOURCES" \
+        && pass "status_resources.sh sources opencode_env.sh" \
+        || fail "status_resources.sh does not source opencode_env.sh"
+}
+
+test_resources_reads_metrics_file() {
+    grep -q 'metrics' "$STATUS_RESOURCES" \
+        && pass "status_resources.sh reads metrics cache file" \
+        || fail "status_resources.sh does not reference metrics file"
+}
+
+test_resources_syntax
+test_resources_output_with_cache
+test_resources_empty_when_no_cache
+test_resources_uses_open_chad_cache_dir
+test_resources_sources_env
+test_resources_reads_metrics_file
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# open-chad: System resources renderer for tmux status-right (Row 0)
-# Reads CPU%, RAM%, load from /tmp/open-chad-metrics (written by collect_metrics.sh)
+# open-chad: System resources renderer for tmux status bar (Row 1)
+# Reads CPU%, RAM%, load from $OPEN_CHAD_CACHE_DIR/metrics (written by collect_metrics.sh)
 # Output: tmux-formatted string in comment gray, matching clock/date style
 # No external tool dependencies (no jq, no curl — plain bash read)
 
 set -euo pipefail
 
-CACHE="${OPEN_CHAD_CACHE_DIR:-/tmp}/open-chad-metrics"
+# Resolve cache dir consistently (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
+# shellcheck source=opencode_env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
+
+CACHE="${OPEN_CHAD_CACHE_DIR}/metrics"
 
 [ -f "$CACHE" ] || exit 0
 
-read -r cpu ram load < "$CACHE" 2>/dev/null || exit 0
+read -r cpu ram load < "$CACHE" 2>/dev/null || true
 
 [ -z "${cpu:-}" ] && exit 0
 

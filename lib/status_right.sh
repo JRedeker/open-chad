@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # open-chad: Row 1 right-side renderer
-# Displays per-provider LLM fuel gauges
-# Format: Z.ai 100% | Copilot 0% | Claude 89% | Codex 100%
+# Displays system resources + per-provider LLM fuel gauges as one unit.
+# Format: CPU 42% | RAM 67% | Load 1.23 | Z.ai 100% | Copilot 0% | Claude 89% | Codex 100% ▐▐▐▐
 # Reads from cache only — no disk or DB work (fast, safe for tmux callbacks)
 # No external tool dependencies in render path (no jq, no curl)
 #
@@ -78,10 +78,21 @@ _multi_gauge_enabled() {
     esac
 }
 
-# --- Multi-provider gauge ---
-sep='#[fg=#1B1F29] | '
+# --- System resources (CPU / RAM / Load) ---
+sep='#[fg=#1B1F29] │ '
 
-if _multi_gauge_enabled; then
+_render_resources() {
+    local cache="${OPEN_CHAD_CACHE_DIR}/metrics"
+    [ -f "$cache" ] || return 0
+    local cpu ram load
+    read -r cpu ram load < "$cache" 2>/dev/null || true
+    [ -z "${cpu:-}" ] && return 0
+    printf '#[fg=#626d7a]CPU %s%%%s#[fg=#626d7a]RAM %s%%%s#[fg=#626d7a]Load %s' \
+        "$cpu" "$sep" "$ram" "$sep" "$load"
+}
+
+# --- Multi-provider gauge ---
+_render_gauges() {
     _render_provider "Z.ai"    "${OPEN_CHAD_CACHE_DIR}/zai"
     printf '%s' "$sep"
     _render_provider "Copilot" "${OPEN_CHAD_CACHE_DIR}/copilot"
@@ -89,5 +100,20 @@ if _multi_gauge_enabled; then
     _render_provider "Claude"  "${OPEN_CHAD_CACHE_DIR}/claude"
     printf '%s' "$sep"
     _render_provider "Codex"   "${OPEN_CHAD_CACHE_DIR}/codex"
-    printf ' #[fg=#FF8F40]▐#[fg=#59C2FF]▐#[fg=#E6B450]▐#[fg=#AAD94C]▐'
+}
+
+# --- Compose right block as one unit ---
+resources=$(_render_resources)
+gauges_enabled=0
+_multi_gauge_enabled && gauges_enabled=1 || true
+
+if [ -n "$resources" ] && [ "$gauges_enabled" -eq 1 ]; then
+    printf '%s%s' "$resources" "$sep"
+    _render_gauges
+elif [ -n "$resources" ]; then
+    printf '%s' "$resources"
+elif [ "$gauges_enabled" -eq 1 ]; then
+    _render_gauges
 fi
+
+printf ' #[fg=#FF8F40]▐#[fg=#59C2FF]▐#[fg=#E6B450]▐#[fg=#AAD94C]▐'
