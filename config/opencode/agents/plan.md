@@ -1,6 +1,6 @@
 ---
 description: Planning and architecture agent — produces structured plans, technical designs, and task breakdowns before implementation begins. Use when a task is complex enough to warrant upfront design.
-mode: subagent
+mode: primary
 temperature: 0.4
 tools:
   # === BLOCKED: No writes during planning ===

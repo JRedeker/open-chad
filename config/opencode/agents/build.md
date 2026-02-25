@@ -1,6 +1,6 @@
 ---
 description: Build and CI agent — runs builds, tests, linters, and type checkers. Use when you need to verify correctness, run a test suite, check for type errors, or diagnose a failing build.
-mode: subagent
+mode: primary
 temperature: 0.1
 tools:
   # === BLOCKED: Destructive write tools ===
