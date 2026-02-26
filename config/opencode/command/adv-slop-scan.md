@@ -25,6 +25,7 @@ Parse `$ARGUMENTS` for options:
 | `--json` | Output in JSON format | Text format |
 | `--verbose` | Show detailed scan progress | Off |
 | `--timeout N` | Sub-agent timeout in seconds | 120 |
+| `--max-parallel N` | Max concurrent Phase 2 sub-agents (1–9) | 4 |
 | `--include-untracked` | Include untracked git files | Off |
 | `<path>` | Limit scan to specific directory | `.` (all) |
 
@@ -33,8 +34,9 @@ Parse `$ARGUMENTS` for options:
 2. Extract `--json` → set `OUTPUT_FORMAT` to `json`
 3. Extract `--verbose` → set `VERBOSE` to `true`
 4. Extract `--timeout N` → set `TIMEOUT` to N (default: 120)
-5. Extract `--include-untracked` → set `INCLUDE_UNTRACKED` to `true`
-6. Remaining non-flag argument → set `SCAN_PATH`
+5. Extract `--max-parallel N` → set `MAX_PARALLEL` to N clamped to 1–9 (default: 4)
+6. Extract `--include-untracked` → set `INCLUDE_UNTRACKED` to `true`
+7. Remaining non-flag argument → set `SCAN_PATH`
 
 ---
 
@@ -115,6 +117,7 @@ Stop execution.
 
 SCOPE: <N> files in <SCAN_PATH>
 PHASE: <1 | 2 | Both>
+MAX_PARALLEL: <N> (Phase 2 concurrency cap)
 OPTIONS: <flags enabled>
 
 ============================================================
@@ -318,13 +321,25 @@ Findings: <M>
 
 ### Sub-Agent Architecture and Work Distribution
 
-Spawn up to 9 parallel sub-agents, one per smell category. 
+Phase 2 uses **wave-based scheduling** with a concurrency cap of `MAX_PARALLEL` (default: 4).
+All 9 scanner categories are preserved, but only `MAX_PARALLEL` sub-agents run concurrently.
+Remaining scanners queue into subsequent waves.
+
+**Wave scheduling algorithm:**
+1. Build the full scanner list (9 categories).
+2. **Prune empty scanners**: If a scanner's batch logic yields 0 eligible files, skip it entirely (don't waste a slot).
+3. Sort remaining scanners by priority: scanners with more eligible files run first (maximize early coverage).
+4. Divide into waves of `MAX_PARALLEL` scanners each: `ceil(active_scanners / MAX_PARALLEL)` waves.
+5. Execute each wave: spawn all scanners in the wave concurrently, wait for all to complete (or timeout), then proceed to the next wave.
+6. Findings from earlier waves are available for deduplication in later waves.
 
 **FILE COVERAGE PROTOCOL**:
 - Divide the `SCAN_PATH` file list among scanners based on relevance (e.g., Performance Scanner gets files > 100 lines, Security Scanner gets `api/`, `auth/`, `db/` files).
 - For general categories (Quality, Hallucination, Structure), divide the remaining files into non-overlapping batches.
 - **Deduplication**: Each file SHALL be processed by at most 3 scanners to ensure coverage without excessive redundancy.
 - Track which files were assigned to which scanners in the orchestrator state.
+
+**Scanner definitions (9 categories):**
 
 | Scanner | Category | Focus | Batch Logic |
 |---------|----------|-------|-------------|
@@ -337,6 +352,14 @@ Spawn up to 9 parallel sub-agents, one per smell category.
 | AI-Specific Scanner | AI-* | Sycophantic code, context blindness, hallucinated reports | Newest files (git) |
 | Performance Scanner | PERF-* | N+1 queries, excessive renders, algorithmic inefficiency | Large files (>100 lines) |
 | Test Scanner | TEST-* | Magic numbers, assertion roulette, testing the mock | `tests/`, `__tests__/` |
+
+**Example wave assignment (MAX_PARALLEL=4, all 9 scanners eligible):**
+
+| Wave | Scanners |
+|------|----------|
+| Wave 1 | Quality, Structure, Hallucination, Maintainability |
+| Wave 2 | AI-Specific, Performance, Documentation, Dependency |
+| Wave 3 | Test |
 
 ### Sub-Agent Prompt Template
 
@@ -384,41 +407,61 @@ RETURN FORMAT:
 }
 ```
 
-### Sub-Agent Spawning
+### Sub-Agent Spawning (Wave Execution)
 
-Use the Task tool with `subagent_type: "explore"` for each scanner:
+Execute scanners in waves using the Task tool with `subagent_type: "explore"`.
+Within each wave, spawn all scanners concurrently (parallel tool calls in a single message).
+Wait for the entire wave to complete before starting the next.
 
 ```
-Spawning Phase 2 sub-agents with work-sharing...
-- Hallucination Scanner: Batch A (Files 1-20)
-- Structure Scanner: Batch B (Files 21-40)
-...
+Phase 2: MAX_PARALLEL=4, 9 scanners eligible, 3 waves
+
+Wave 1/3 — spawning 4 scanners...
+  [1/9] Quality Scanner: Batch A (Files 1-15)
+  [2/9] Structure Scanner: Batch B (Files 16-30)
+  [3/9] Hallucination Scanner: Batch C (Files 31-45)
+  [4/9] Maintainability Scanner: Batch D (Files 46-60)
+Wave 1/3 — complete (4/4 succeeded)
+
+Wave 2/3 — spawning 4 scanners...
+  [5/9] AI-Specific Scanner: newest 20 files
+  [6/9] Performance Scanner: 8 files >100 lines
+  [7/9] Documentation Scanner: 12 export-heavy files
+  [8/9] Dependency Scanner: 3 config files
+Wave 2/3 — complete (3/4 succeeded, 1 timeout)
+
+Wave 3/3 — spawning 1 scanner...
+  [9/9] Test Scanner: tests/ (5 files)
+Wave 3/3 — complete (1/1 succeeded)
 ```
 
-### Sub-Agent Timeout Handling
+### Timeout and Error Handling
 
 **Default timeout**: 120 seconds per sub-agent (override with `--timeout`).
+Timeouts and failures are handled **per-scanner within each wave** — they never block the next wave.
 
-**If sub-agent times out:**
-- Mark category as `TIMEOUT`
-- Proceed with available results
-- Note in report: `[!] <Category> Scanner: TIMEOUT`
+**Per-scanner timeout/failure:**
+- Mark the scanner as `TIMEOUT` or `FAILED`
+- Collect any partial results returned before the timeout
+- The wave completes when all scanners in it have finished or timed out
+- Proceed to the next wave regardless of failures in the current wave
 
-**If sub-agent fails (error/invalid response):**
-- Mark category as `INCOMPLETE`
-- Note in report: `[!] <Category> Scanner: FAILED - <reason>`
+**Per-wave reporting:**
+- After each wave completes, log: `Wave N/M: done (X/Y succeeded, Z timeout, W failed)`
+- Note failed scanners in the final report: `[!] <Category> Scanner: TIMEOUT` or `[!] <Category> Scanner: FAILED - <reason>`
 
-**If ALL sub-agents fail:**
+**If ALL scanners across ALL waves fail:**
 ```
 [!] Heuristic analysis failed - showing automatable findings only
 
 All Phase 2 scanners encountered errors:
-- Hallucination Scanner: <error>
-- Structure Scanner: <error>
+- Wave 1: Quality (TIMEOUT), Structure (TIMEOUT), ...
+- Wave 2: AI-Specific (FAILED), ...
 ...
 
 Suggestions:
-- Check system status and retry
+- Increase timeout: --timeout 300
+- Reduce concurrency: --max-parallel 2
 - Run with --phase 1 for automatable detection only
 ```
 
@@ -427,11 +470,13 @@ Suggestions:
 ```
 PHASE 2 COMPLETE
 ------------------------------------------------------------
-Sub-agents spawned: 9
-Work distribution: 100% file coverage achieved
-Successful: <N>
-Timed out: <N>
-Failed: <N>
+Concurrency: MAX_PARALLEL=<N>
+Waves executed: <W>
+Scanners total: <T> (eligible) / 9 (defined)
+  Skipped (no files): <S>
+  Successful: <N>
+  Timed out: <N>
+  Failed: <N>
 Total findings: <M>
 ```
 
@@ -550,7 +595,15 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
   },
   "phases": {
     "phase1": { "enabled": true, "findings": 5 },
-    "phase2": { "enabled": true, "findings": 10, "incomplete": ["Performance"] }
+    "phase2": {
+      "enabled": true,
+      "findings": 10,
+      "maxParallel": 4,
+      "waves": 3,
+      "scannersEligible": 9,
+      "scannersSkipped": 0,
+      "incomplete": ["Performance"]
+    }
   },
   "summary": {
     "total": 15,
@@ -600,13 +653,31 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
 [VERBOSE]   as any: 12 matches
 ...
 
-[VERBOSE] Phase 2: Spawning sub-agents...
-[VERBOSE]   Hallucination Scanner: started (15 files)
+[VERBOSE] Phase 2: MAX_PARALLEL=4, 9 scanners eligible, 3 waves
+[VERBOSE] Wave 1/3: spawning 4 scanners...
 [VERBOSE]   Quality Scanner: started (42 files)
-...
-[VERBOSE]   Hallucination Scanner: complete (2 findings, 8.3s)
+[VERBOSE]   Structure Scanner: started (38 files)
+[VERBOSE]   Hallucination Scanner: started (15 files)
+[VERBOSE]   Maintainability Scanner: started (42 files)
 [VERBOSE]   Quality Scanner: complete (5 findings, 12.1s)
-...
+[VERBOSE]   Hallucination Scanner: complete (2 findings, 8.3s)
+[VERBOSE]   Structure Scanner: complete (1 finding, 14.0s)
+[VERBOSE]   Maintainability Scanner: complete (3 findings, 11.5s)
+[VERBOSE] Wave 1/3: done (4/4 succeeded)
+[VERBOSE] Wave 2/3: spawning 4 scanners...
+[VERBOSE]   AI-Specific Scanner: started (20 files)
+[VERBOSE]   Performance Scanner: started (8 files)
+[VERBOSE]   Documentation Scanner: started (12 files)
+[VERBOSE]   Dependency Scanner: started (3 files)
+[VERBOSE]   Dependency Scanner: complete (0 findings, 3.2s)
+[VERBOSE]   Documentation Scanner: complete (2 findings, 9.8s)
+[VERBOSE]   Performance Scanner: TIMEOUT
+[VERBOSE]   AI-Specific Scanner: complete (1 finding, 18.4s)
+[VERBOSE] Wave 2/3: done (3/4 succeeded, 1 timeout)
+[VERBOSE] Wave 3/3: spawning 1 scanner...
+[VERBOSE]   Test Scanner: started (5 files)
+[VERBOSE]   Test Scanner: complete (0 findings, 6.1s)
+[VERBOSE] Wave 3/3: done (1/1 succeeded)
 
 [VERBOSE] Timing:
 [VERBOSE]   File enumeration: 0.2s
@@ -641,10 +712,10 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
 
 Now execute the slop scan.
 
-1. Parse arguments and validate
+1. Parse arguments and validate (including `MAX_PARALLEL` clamped to 1–9)
 2. Run pre-flight checks (git, yaml, files)
 3. If Phase 1 enabled: Run automatable detection
-4. If Phase 2 enabled: Spawn sub-agents for heuristic detection
+4. If Phase 2 enabled: Assign files to scanners, prune empty scanners, schedule waves of `MAX_PARALLEL` concurrent sub-agents
 5. Aggregate findings and generate report
 6. Output in requested format (text or JSON)
 
