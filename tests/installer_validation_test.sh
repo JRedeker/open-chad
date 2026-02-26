@@ -241,10 +241,72 @@ process.exit(enabled===false ? 0 : 1);
     done
 }
 
+test_mcp_vision_remote_schema() {
+    # Regression guard: context7/grep-app/lgrep/firecrawl must be type=remote
+    # pointing at Vision daemon ports — NOT type=local with a command array.
+    # A remote+command combo is invalid per opencode schema and causes startup failure.
+    if ! command -v node &>/dev/null; then
+        skip "test_mcp_vision_remote_schema (node not found)"
+        return
+    fi
+
+    local tmp="$TMP_DIR/mcp-schema"
+    mkdir -p "$tmp"
+
+    OPENCODE_CONFIG_DIR="$tmp" \
+    OPEN_CHAD_INSTALL_LOG="$TMP_DIR/test.log" \
+        bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
+
+    # Vision-managed servers: must be type=remote with expected url, no command
+    # Format: "server_name expected_url" (space-separated to avoid colon ambiguity)
+    local vision_servers=(
+        "context7 http://localhost:6276/mcp"
+        "grep-app http://localhost:6288/mcp"
+        "lgrep http://localhost:6285/mcp"
+        "firecrawl http://localhost:6281/mcp"
+    )
+
+    for entry in "${vision_servers[@]}"; do
+        local server="${entry%% *}"
+        local expected_url="${entry##* }"
+
+        # Must be type=remote
+        node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
+const s=(c.mcp&&c.mcp['$server'])||{};
+process.exit(s.type==='remote' ? 0 : 1);
+" 2>/dev/null && \
+            pass "setup_mcp: '$server' is type=remote (vision-managed)" || \
+            fail "setup_mcp: '$server' must be type=remote, got wrong type (regression: invalid schema)"
+
+        # Must have correct Vision url
+        node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
+const s=(c.mcp&&c.mcp['$server'])||{};
+process.exit(s.url==='$expected_url' ? 0 : 1);
+" 2>/dev/null && \
+            pass "setup_mcp: '$server' url=$expected_url" || \
+            fail "setup_mcp: '$server' url wrong (expected $expected_url)"
+
+        # Must NOT have a command field (remote+command is invalid schema)
+        node -e "
+const fs=require('fs');
+const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
+const s=(c.mcp&&c.mcp['$server'])||{};
+process.exit(s.command===undefined ? 0 : 1);
+" 2>/dev/null && \
+            pass "setup_mcp: '$server' has no command field (remote+command is invalid)" || \
+            fail "setup_mcp: '$server' must not have command field when type=remote (causes opencode startup failure)"
+    done
+}
+
 test_mcp_corrupted_json
 test_mcp_creates_json_if_missing
 test_mcp_all_servers_registered
 test_mcp_enabled_disabled_correctly
+test_mcp_vision_remote_schema
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # update.sh — no .git directory, diverged branch
@@ -934,15 +996,17 @@ test_wizard_wsl_ps1_script_written_to_cache_or_home
 
 # ─── Section: setup_shell_profile.sh — source after write ─────────────────────
 
-section "setup_shell_profile.sh — source profile in same session after PATH write"
+section "setup_shell_profile.sh — does NOT source user rc file (security)"
 
-test_setup_shell_profile_sources_after_write() {
-    # After writing the PATH block, setup_shell_profile.sh should source the
-    # rc file so the PATH is immediately available in the current session.
-    if grep -q "source.*_rc_file\|\. \"\$_rc_file\"\|source \"\$_rc_file\"" "$REPO_DIR/lib/setup_shell_profile.sh"; then
-        pass "setup_shell_profile.sh sources rc file after writing PATH block"
+test_setup_shell_profile_no_source_rc() {
+    # setup_shell_profile.sh must NOT source the user's rc file during install.
+    # Sourcing executes arbitrary user shell code (aliases, prompts, functions)
+    # in an installer context — a security risk. The direct export PATH handles
+    # immediate availability safely.
+    if grep -q 'source "\$_rc_file"' "$REPO_DIR/lib/setup_shell_profile.sh"; then
+        fail "setup_shell_profile.sh still sources user rc file (security risk)"
     else
-        fail "setup_shell_profile.sh does not source rc file after writing PATH block"
+        pass "setup_shell_profile.sh does not source user rc file (safe)"
     fi
 }
 
@@ -959,7 +1023,7 @@ test_setup_shell_profile_exports_path_directly() {
     fi
 }
 
-test_setup_shell_profile_sources_after_write
+test_setup_shell_profile_no_source_rc
 test_setup_shell_profile_exports_path_directly
 
 # ─── Section: Error message consistency across CRITICAL/HIGH fixes ─────────────
