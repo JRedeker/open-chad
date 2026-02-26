@@ -26,8 +26,9 @@ bin/
                             subcommands to dedicated handlers, then handles arg
                             parsing, animation, metrics bootstrap, tmux session
                             creation (oc-<epoch>-<pid>)
-  oc                        Short alias — forwards all args to openchad; also
-                            provides `oc attach` and `oc switch` session helpers
+  oc                        Short alias — resolves bare project names under
+                            ~/dev before forwarding to openchad; also provides
+                            `oc attach` and `oc switch` session helpers
   cds                       Date-stamped scratch directory launcher
   oc-list                   List active oc-* tmux sessions with window count and memory
   oc-killall                Kill all oc-* tmux sessions (--yes to skip confirmation)
@@ -519,7 +520,7 @@ The following migration fixes were applied in the v1.2 rename pass:
 | Component | Path | Notes |
 |-----------|------|-------|
 | Launcher | `~/.local/bin/openchad` | Symlink (canonical name) |
-| Short alias | `~/.local/bin/oc` | Forwards all args to openchad |
+| Short alias | `~/.local/bin/oc` | Resolves `oc <name>` to `~/dev/<name>`, forwards to openchad |
 | Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches openchad |
 | Session lister | `~/.local/bin/oc-list` | Lists active oc-* tmux sessions |
 | Session killer | `~/.local/bin/oc-killall` | Kills all oc-* tmux sessions |
