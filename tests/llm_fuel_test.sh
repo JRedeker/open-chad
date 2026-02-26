@@ -521,6 +521,56 @@ test_resources_uses_open_chad_cache_dir
 test_resources_sources_env
 test_resources_reads_metrics_file
 
+# ─── Section 10: active_providers robustness ────────────────────────────────
+
+section "active_providers robustness"
+
+test_malformed_active_providers_missing_key() {
+    local result
+    # Line with label but no cache_key — should be skipped gracefully
+    printf "Z.ai zai\nOrphanLabel\nClaude claude\n" > "$TMP_DIR/active_providers"
+    echo "75" > "$TMP_DIR/zai"
+    echo "50" > "$TMP_DIR/claude"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    assert_contains "$result" "Z.ai"   "malformed: Z.ai still rendered"
+    assert_contains "$result" "Claude"  "malformed: Claude still rendered"
+    # OrphanLabel should not appear (no cache_key → skipped by [ -z "$cache_key" ] guard)
+    assert_not_contains "$result" "OrphanLabel" "malformed: orphan label skipped"
+}
+
+test_active_providers_extra_whitespace() {
+    local result
+    # Extra trailing whitespace and blank lines
+    printf "Z.ai zai  \n\n  Claude claude\n" > "$TMP_DIR/active_providers"
+    echo "80" > "$TMP_DIR/zai"
+    echo "60" > "$TMP_DIR/claude"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    assert_contains "$result" "Z.ai"   "whitespace: Z.ai rendered despite trailing spaces"
+    assert_contains "$result" "Claude"  "whitespace: Claude rendered despite leading spaces"
+}
+
+test_end_to_end_provider_ordering() {
+    local result
+    # Config order: Codex first, then Z.ai — renderer should preserve this order
+    printf "Codex codex\nZ.ai zai\n" > "$TMP_DIR/active_providers"
+    echo "90" > "$TMP_DIR/codex"
+    echo "45" > "$TMP_DIR/zai"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    # Codex should appear before Z.ai in the output
+    local codex_pos zai_pos
+    codex_pos=$(echo "$result" | grep -bo "Codex" | head -1 | cut -d: -f1)
+    zai_pos=$(echo "$result" | grep -bo "Z.ai" | head -1 | cut -d: -f1)
+    if [ -n "$codex_pos" ] && [ -n "$zai_pos" ] && [ "$codex_pos" -lt "$zai_pos" ]; then
+        pass "ordering: Codex appears before Z.ai (config order preserved)"
+    else
+        fail "ordering: expected Codex before Z.ai, got codex_pos=$codex_pos zai_pos=$zai_pos"
+    fi
+}
+
+test_malformed_active_providers_missing_key
+test_active_providers_extra_whitespace
+test_end_to_end_provider_ordering
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
