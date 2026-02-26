@@ -15,7 +15,9 @@ tools:
   google_search: true
   webfetch: true
   fetch-mcp_*: true
-  firecrawl_*: true
+  firecrawl_firecrawl_scrape: true
+  firecrawl_firecrawl_crawl: true
+  firecrawl_firecrawl_check_crawl_status: true
   # Research tools - code search
   grep-app_*: true
   # Research tools - academic papers

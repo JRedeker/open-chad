@@ -36,8 +36,9 @@ tools:
   sentry_create_dsn: false
   sentry_update_issue: false
   sentry_update_project: false
-  firecrawl_firecrawl_agent: false
+  firecrawl_firecrawl_scrape: false
   firecrawl_firecrawl_crawl: false
+  firecrawl_firecrawl_check_crawl_status: false
   vision_vision_add: false
   vision_vision_remove: false
   vision_vision_init: false

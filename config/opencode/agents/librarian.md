@@ -34,11 +34,10 @@ tools:
   fetch-mcp_fetch_html: true
   fetch-mcp_fetch_txt: true
   fetch-mcp_fetch_json: true
-  # Firecrawl - scraping
+  # Firecrawl - scraping (slim: scrape, crawl, status only)
   firecrawl_firecrawl_scrape: true
-  firecrawl_firecrawl_search: true
-  firecrawl_firecrawl_map: true
-  firecrawl_firecrawl_extract: true
+  firecrawl_firecrawl_crawl: true
+  firecrawl_firecrawl_check_crawl_status: true
 ---
 
 You are the Librarian - a focused documentation and example researcher.

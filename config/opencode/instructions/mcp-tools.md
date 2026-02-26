@@ -43,13 +43,12 @@ When multiple tools could accomplish a task, use this guide to select the most a
 
 ## Web Scraping & Data Extraction
 
-**Primary: Firecrawl (`firecrawl`)**
+**Primary: Firecrawl (`firecrawl`) — always-on, no add needed**
 - Use `firecrawl_scrape` for single page content extraction
-- Use `firecrawl_search` when you need to find AND extract content
-- Use `firecrawl_extract` for structured data extraction with schemas
-- Use `firecrawl_map` to discover URLs on a site before scraping
+- Use `firecrawl_crawl` for multi-page crawl (async — returns job ID)
+- Use `firecrawl_check_crawl_status` to poll crawl job results
 
-**When to use over Kagi**: When you need the full page content, structured data, or to crawl multiple pages
+**When to use over Kagi**: When you need the full page content, structured data, or JS-rendered pages
 
 ## Simple URL Fetching
 
