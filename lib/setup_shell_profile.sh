@@ -87,12 +87,8 @@ EOF
 ok "PATH block written to $_rc_file"
 info "Reload with:  $_reload_cmd"
 
-# Source the rc file in the current session so PATH is immediately available.
-# This is a no-op if the script is run as a subprocess (subshell), but takes
-# effect when the caller does: source lib/setup_shell_profile.sh
-# shellcheck source=/dev/null
-source "$_rc_file" 2>/dev/null || true
-
-# Belt-and-suspenders: export PATH directly so this process benefits even
-# if sourcing is skipped or the rc file has syntax errors.
+# Export PATH directly so this process benefits immediately.
+# We intentionally do NOT source the user's rc file here — it may contain
+# arbitrary shell code (aliases, prompts, functions) that is unsafe to execute
+# in an installer context. The direct export achieves the same goal safely.
 export PATH="$HOME/.local/bin:$PATH"

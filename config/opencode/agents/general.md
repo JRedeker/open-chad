@@ -12,7 +12,7 @@ tools:
   write: true
   patch: true
   morph_edit: true
-  task: true
+  task: false
   todowrite: true
   lgrep_search: true
   lgrep_index: true
@@ -41,6 +41,21 @@ Research questions, implement features, fix bugs, and execute multi-step tasks t
 - Never break the build — verify before marking complete
 - Use `bash` for commands, `read`/`edit`/`write` for file operations
 
-## Output
+## Output Contract
 
-Report what you did, what you found, and any decisions you made. Include file paths and line numbers for all changes.
+**Never return an empty response.** Even on error or interruption, always emit at minimum:
+
+```
+STATUS: [done|error|partial]
+SUMMARY: {1-2 sentences describing what was accomplished or what failed}
+```
+
+If you complete work successfully, report:
+- What you did (file paths and line numbers for all changes)
+- What you found (key discoveries)
+- Any decisions you made and why
+
+If you encounter an error, report:
+- What failed and why
+- What was completed before the failure
+- What remains to be done

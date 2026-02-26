@@ -165,12 +165,15 @@ After recovery, re-run `bash install.sh` to re-apply MCP server wiring.
 
 ### Windows Terminal
 
-The wizard (step 8) prints optional keybinding setup for copy-paste in WSL. To enable it manually, add to your Windows Terminal `settings.json`:
+The wizard (step 9) offers optional keybinding setup for Shift+Enter and Ctrl+Backspace in WSL. On WSL, it generates `~/open-chad-keybindings.ps1` — copy it to your Windows home and run in PowerShell:
 
-```json
-{ "command": "copy", "keys": "ctrl+c" },
-{ "command": "paste", "keys": "ctrl+v" }
+```powershell
+cp ~/open-chad-keybindings.ps1 /mnt/c/Users/$USER/
+# Then in PowerShell:
+.\open-chad-keybindings.ps1
 ```
+
+On non-WSL systems, the wizard displays the JSON to add manually to your Windows Terminal `settings.json`.
 
 ### Opt-out flags
 

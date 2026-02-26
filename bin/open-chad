@@ -85,13 +85,15 @@ if [ "$NO_ANIM" -eq 0 ] && [ -t 1 ]; then
 fi
 
 # 2. Ensure metrics collector is running (singleton)
-# Use atomic mkdir as a lock to prevent duplicate starts under concurrent launches.
-# The lockdir is removed immediately after the collector is backgrounded so it
-# doesn't persist and block future restarts if the collector exits.
-_metrics_lockdir="${OPEN_CHAD_CACHE_DIR}/metrics.lock"
-if mkdir "$_metrics_lockdir" 2>/dev/null; then
+# Use atomic mkdir as a startup lock to prevent duplicate starts under concurrent
+# launches. Named metrics-start.lock (not metrics.lock) to avoid collision with
+# the collector's own PID-based lockfile at metrics.lock.
+# The lockdir is removed after a 2-second delay to close the race window between
+# nohup and the collector writing its PID lockfile.
+_metrics_startlock="${OPEN_CHAD_CACHE_DIR}/metrics-start.lock"
+if mkdir "$_metrics_startlock" 2>/dev/null; then
     nohup "$LIB_DIR/collect_metrics.sh" >/dev/null 2>&1 &
-    rmdir "$_metrics_lockdir" 2>/dev/null || true
+    (sleep 2; rmdir "$_metrics_startlock" 2>/dev/null || true) &
 fi
 
 # 3. Check for tmux dependency
