@@ -1,16 +1,86 @@
 #!/usr/bin/env bash
-# oc — Short alias for openchad
+# oc — Short alias for openchad, with session attach/switch helpers
 #
-# Forwards all arguments to openchad unchanged.
+# Forwards all arguments to openchad unchanged, plus provides:
+#   oc attach [session]  — attach to a named oc-* session (or pick interactively)
+#   oc switch            — numbered picker to switch between oc-* sessions
+#
 # Installed to ~/.local/bin/oc by install.sh.
 #
 # Usage: oc [OPTIONS] [project-dir]
 #        oc update | version | doctor | uninstall | discord | metrics | changelog
+#        oc attach [session-name]
+#        oc switch
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 OPENCHAD_BIN="$SCRIPT_DIR/openchad"
+
+# ─── oc-specific subcommands (not forwarded to openchad) ─────────────────────
+
+case "${1:-}" in
+    attach)
+        shift
+        _target="${1:-}"
+        if [ -n "$_target" ]; then
+            exec tmux attach-session -t "$_target"
+        fi
+        # No session specified — list oc-* sessions and attach to the only one,
+        # or prompt if multiple exist.
+        _sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^oc-' || true)
+        if [ -z "$_sessions" ]; then
+            echo "No active openchad sessions." >&2
+            exit 1
+        fi
+        _count=$(echo "$_sessions" | wc -l | tr -d ' ')
+        if [ "$_count" -eq 1 ]; then
+            exec tmux attach-session -t "$_sessions"
+        fi
+        # Multiple sessions — show numbered list and read choice
+        echo "Active openchad sessions:"
+        _i=1
+        while IFS= read -r _s; do
+            printf "  %d) %s\n" "$_i" "$_s"
+            _i=$((_i + 1))
+        done <<< "$_sessions"
+        printf "Attach to [1-%d]: " "$_count"
+        read -r _choice
+        _chosen=$(echo "$_sessions" | sed -n "${_choice}p")
+        if [ -z "$_chosen" ]; then
+            echo "Invalid choice." >&2
+            exit 1
+        fi
+        exec tmux attach-session -t "$_chosen"
+        ;;
+
+    switch)
+        shift
+        # Numbered picker — switch to a different oc-* session from within tmux
+        _sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^oc-' || true)
+        if [ -z "$_sessions" ]; then
+            echo "No active openchad sessions." >&2
+            exit 1
+        fi
+        _count=$(echo "$_sessions" | wc -l | tr -d ' ')
+        echo "Active openchad sessions:"
+        _i=1
+        while IFS= read -r _s; do
+            printf "  %d) %s\n" "$_i" "$_s"
+            _i=$((_i + 1))
+        done <<< "$_sessions"
+        printf "Switch to [1-%d]: " "$_count"
+        read -r _choice
+        _chosen=$(echo "$_sessions" | sed -n "${_choice}p")
+        if [ -z "$_chosen" ]; then
+            echo "Invalid choice." >&2
+            exit 1
+        fi
+        exec tmux switch-client -t "$_chosen"
+        ;;
+esac
+
+# ─── Forward everything else to openchad ─────────────────────────────────────
 
 if [[ -x "$OPENCHAD_BIN" ]]; then
     exec "$OPENCHAD_BIN" "$@"

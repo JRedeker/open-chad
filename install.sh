@@ -157,6 +157,8 @@ SOURCE_CMD="source-file $THEME_CONF"
 if [ -f "$TMUX_CONF" ]; then
     # Check for the OPEN-CHAD THEME marker to avoid duplicate source-file lines
     if ! grep -q 'OPEN-CHAD THEME' "$TMUX_CONF"; then
+        # Backup before modifying (git-safe: use .bak only in /tmp, not in repo)
+        cp "$TMUX_CONF" "/tmp/tmux.conf.openchad-backup.$$" 2>/dev/null || true
         printf "\n# OPEN-CHAD THEME\n%s\n" "$SOURCE_CMD" >> "$TMUX_CONF"
         echo -e "Added theme source to ${C_GOLD}$TMUX_CONF${C_RESET}"
     else
