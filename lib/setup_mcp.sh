@@ -2,10 +2,10 @@
 # lib/setup_mcp.sh — Wire MCP servers into ~/.config/opencode/opencode.json
 #
 # MCP servers configured:
-#   context7       (enabled)  — Library and API documentation
-#   grep-app       (enabled)  — Code search across GitHub
-#   lgrep          (enabled)  — Semantic local code search
-#   firecrawl      (disabled) — Web scraping (vision-managed; enable via vision_add)
+#   context7       (enabled)  — Library and API documentation (vision remote)
+#   grep-app       (enabled)  — Code search across GitHub (vision remote)
+#   lgrep          (enabled)  — Semantic local code search (vision remote)
+#   firecrawl      (disabled) — Web scraping (vision remote; enable via vision_add)
 #   brave-web-search (disabled) — Web search (requires BRAVE_API_KEY; key-required)
 #
 # NOTE: opencode.json has NO per-server tool restriction field. Tool filtering
@@ -114,12 +114,12 @@ _merge() {
 # ─── MCP server definitions ───────────────────────────────────────────────────
 step "Wiring MCP servers into $OPENCODE_JSON"
 
-# context7 — enabled — Library/API docs
+# context7 — enabled — Library/API docs (vision-managed remote)
 _merge "context7" '{
   "mcp": {
     "context7": {
-      "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+      "type": "remote",
+      "url": "http://localhost:6276/mcp",
       "enabled": true
     }
   }
@@ -127,12 +127,12 @@ _merge "context7" '{
 ok "context7 (enabled)"
 audit "context7 registered"
 
-# grep-app — enabled — Code search
+# grep-app — enabled — Code search (vision-managed remote)
 _merge "grep-app" '{
   "mcp": {
     "grep-app": {
-      "type": "local",
-      "command": ["npx", "-y", "@codarrior/grep-app-mcp@latest"],
+      "type": "remote",
+      "url": "http://localhost:6288/mcp",
       "enabled": true
     }
   }
@@ -140,12 +140,12 @@ _merge "grep-app" '{
 ok "grep-app (enabled)"
 audit "grep-app registered"
 
-# lgrep — enabled — Semantic local search
+# lgrep — enabled — Semantic local search (vision-managed remote)
 _merge "lgrep" '{
   "mcp": {
     "lgrep": {
-      "type": "local",
-      "command": ["npx", "-y", "@codarrior/lgrep-mcp@latest"],
+      "type": "remote",
+      "url": "http://localhost:6285/mcp",
       "enabled": true
     }
   }
@@ -158,8 +158,8 @@ audit "lgrep registered"
 _merge "firecrawl" '{
   "mcp": {
     "firecrawl": {
-      "type": "local",
-      "command": ["npx", "-y", "firecrawl-mcp@latest"],
+      "type": "remote",
+      "url": "http://localhost:6281/mcp",
       "enabled": false
     }
   }
