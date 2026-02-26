@@ -47,6 +47,30 @@ _copy_if_regular() {
     ok "$label: $(basename "$src")"
 }
 
+# Copy an agent file, stripping any `model:` frontmatter line.
+# Model preferences are user-managed via OMP — they must not be
+# shipped in bundled or upstream-synced agent definitions.
+_copy_agent() {
+    local src="$1"
+    local dest="$2"
+    local label="$3"
+
+    if [ -L "$src" ]; then
+        warn "$label skipped symlink source: $(basename "$src")"
+        return 0
+    fi
+    [ -f "$src" ] || return 0
+
+    # Copy then strip model: line from YAML frontmatter (between --- markers)
+    cp "$src" "$dest"
+    if grep -q '^model:' "$dest" 2>/dev/null; then
+        grep -v '^model:' "$dest" > "$dest.$$"
+        mv -f "$dest.$$" "$dest"
+        warn "$label: stripped 'model:' from $(basename "$src") (user-managed via OMP)"
+    fi
+    ok "$label: $(basename "$src")"
+}
+
 # ─── Flag parsing ─────────────────────────────────────────────────────────────
 SKIP_COMMANDS=0
 while [[ $# -gt 0 ]]; do
@@ -75,7 +99,7 @@ step "Syncing agent files -> $DEST_AGENTS_DIR"
 mkdir -p "$DEST_AGENTS_DIR"
 for src in "$BUNDLE_AGENTS_DIR"/*.md; do
     dest="$DEST_AGENTS_DIR/$(basename "$src")"
-    _copy_if_regular "$src" "$dest" "agent"
+    _copy_agent "$src" "$dest" "agent"
 done
 
 # ─── 2. Sync ADV command files ─────────────────────────────────────────────────
@@ -128,7 +152,7 @@ if [ -d "$ADV_AGENTS_DIR" ]; then
     step "Syncing ADV agents from $ADV_AGENTS_DIR -> $DEST_AGENTS_DIR"
     for src in "$ADV_AGENTS_DIR"/*.md; do
         dest="$DEST_AGENTS_DIR/$(basename "$src")"
-        _copy_if_regular "$src" "$dest" "agent (adv)"
+        _copy_agent "$src" "$dest" "agent (adv)"
     done
 fi
 

@@ -728,6 +728,91 @@ test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
 test_setup_opencode_syncs_adv_commands_opencode_layout
 test_setup_opencode_syncs_adv_commands_opencode_layout_agents
 
+# ─── Section 13b: No model: frontmatter in bundled/synced agents ─────────────
+
+section "Agent model: frontmatter — must not be shipped (user-managed via OMP)"
+
+# Bundled agent files must never contain model: in frontmatter.
+# Model preferences are user-configured via OMP, not pinned by openchad.
+test_bundled_agents_no_model_frontmatter() {
+    local found_model=0
+    for agent_file in "$REPO_DIR"/config/opencode/agents/*.md; do
+        if grep -q '^model:' "$agent_file" 2>/dev/null; then
+            fail "Bundled agent $(basename "$agent_file") contains 'model:' frontmatter (must be user-managed via OMP)"
+            found_model=1
+        fi
+    done
+    [ "$found_model" -eq 0 ] && pass "No bundled agents contain 'model:' frontmatter"
+}
+
+# setup_opencode.sh must strip model: from synced agent files, even when
+# the upstream ADV checkout ships agents with model: pinned.
+test_setup_opencode_strips_model_from_synced_agents() {
+    setup_tmp_env
+    # Create a fake ADV checkout with model: in its agent file
+    local fake_adv="$TMP_DIR/fake-adv"
+    mkdir -p "$fake_adv/.opencode/agents"
+    cat > "$fake_adv/.opencode/agents/adv-researcher.md" <<'AGENT'
+---
+description: Research agent
+mode: subagent
+model: google/gemini-3-flash-preview
+temperature: 0.10
+hidden: true
+tools:
+  read: true
+---
+You are a research agent.
+AGENT
+
+    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    ADV_CHECKOUT_DIR="$fake_adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+
+    local synced="$TMP_HOME/.config/opencode/agents/adv-researcher.md"
+    assert_file_exists "$synced"
+
+    if grep -q '^model:' "$synced" 2>/dev/null; then
+        fail "Synced adv-researcher.md still contains 'model:' after setup_opencode.sh (should be stripped)"
+    else
+        pass "setup_opencode.sh stripped 'model:' from upstream ADV agent"
+    fi
+
+    # Verify the rest of the frontmatter is intact
+    if grep -q '^description:' "$synced" 2>/dev/null && \
+       grep -q '^temperature:' "$synced" 2>/dev/null; then
+        pass "Non-model frontmatter preserved after stripping"
+    else
+        fail "setup_opencode.sh damaged non-model frontmatter during strip"
+    fi
+
+    teardown_tmp_env
+}
+
+# Bundled agents synced by setup_opencode.sh must also be model-free in destination
+test_setup_opencode_bundled_agents_no_model_in_dest() {
+    setup_tmp_env
+    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+
+    local found_model=0
+    for agent_file in "$TMP_HOME"/.config/opencode/agents/*.md; do
+        [ -f "$agent_file" ] || continue
+        if grep -q '^model:' "$agent_file" 2>/dev/null; then
+            fail "Synced agent $(basename "$agent_file") contains 'model:' in destination"
+            found_model=1
+        fi
+    done
+    [ "$found_model" -eq 0 ] && pass "No synced agents contain 'model:' in destination"
+
+    teardown_tmp_env
+}
+
+test_bundled_agents_no_model_frontmatter
+test_setup_opencode_strips_model_from_synced_agents
+test_setup_opencode_bundled_agents_no_model_in_dest
+
 # ─── Section 14: bin/openchad metrics collector atomic lockdir ───────────────
 
 section "bin/openchad — atomic mkdir lockdir for metrics collector"

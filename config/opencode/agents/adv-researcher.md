@@ -1,7 +1,6 @@
 ---
 description: Research agent for /adv-research - validates architectural decisions via Context7 and web search
 mode: subagent
-model: google/gemini-3-flash-preview
 temperature: 0.10
 hidden: true
 tools:
