@@ -47,7 +47,7 @@ bash install.sh --yes
 | 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
 | 7. Model prefs (omp) | Installs `omp` (opencode-model-preferences) via `go install`. Skipped gracefully if Go is not installed. |
 | 8. Zsh setup | Installs zsh + plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting) into `~/.zsh/plugins/`, adds managed block to `~/.zshrc` |
-| 9. Windows Terminal | Optional copy-paste keybinding setup instructions |
+| 9. Windows Terminal | Optional Shift+Enter / Ctrl+Backspace keybinding setup (generates `.ps1` on WSL) |
 
 ### Non-interactive flags
 

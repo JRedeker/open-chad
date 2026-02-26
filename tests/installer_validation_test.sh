@@ -994,7 +994,7 @@ test_wizard_wsl_generates_ps1_script
 test_wizard_wsl_ps1_script_has_correct_syntax
 test_wizard_wsl_ps1_script_written_to_cache_or_home
 
-# ─── Section: setup_shell_profile.sh — source after write ─────────────────────
+# ─── Section: setup_shell_profile.sh — no rc source (security) ────────────────
 
 section "setup_shell_profile.sh — does NOT source user rc file (security)"
 

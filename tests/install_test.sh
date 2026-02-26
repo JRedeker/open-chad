@@ -735,8 +735,10 @@ section "bin/open-chad — atomic mkdir lockdir for metrics collector"
 test_open_chad_uses_atomic_mkdir_for_metrics_singleton() {
     # Verify bin/open-chad uses mkdir-based atomic lock (not just pgrep)
     # for the metrics collector singleton guard.
+    # The startup lock is metrics-start.lock (distinct from the collector's
+    # own PID-based metrics.lock file to avoid dir/file collision).
     assert_contains "$REPO_DIR/bin/open-chad" "mkdir"
-    assert_contains "$REPO_DIR/bin/open-chad" "metrics.lock"
+    assert_contains "$REPO_DIR/bin/open-chad" "metrics-start.lock"
 }
 
 test_open_chad_metrics_lockdir_skips_start_when_locked() {
@@ -745,14 +747,14 @@ test_open_chad_metrics_lockdir_skips_start_when_locked() {
     local cache_dir="$TMP_DIR/cache"
     mkdir -p "$cache_dir"
     # Pre-create the lockdir to simulate a running collector
-    mkdir -p "$cache_dir/metrics.lock"
+    mkdir -p "$cache_dir/metrics-start.lock"
 
     # Extract and run just the metrics-start logic from bin/open-chad
     # by sourcing a minimal stub that exercises the lockdir guard
     local started=0
     _start_collector() { started=1; }
 
-    local lockdir="$cache_dir/metrics.lock"
+    local lockdir="$cache_dir/metrics-start.lock"
     if mkdir "$lockdir" 2>/dev/null; then
         _start_collector
         rmdir "$lockdir"
@@ -772,7 +774,7 @@ test_open_chad_metrics_lockdir_starts_when_not_locked() {
     local started=0
     _start_collector() { started=1; }
 
-    local lockdir="$cache_dir/metrics.lock"
+    local lockdir="$cache_dir/metrics-start.lock"
     if mkdir "$lockdir" 2>/dev/null; then
         _start_collector
         rmdir "$lockdir"
