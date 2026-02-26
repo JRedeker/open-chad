@@ -306,6 +306,18 @@ The metrics collector reads auth tokens from `~/.local/share/opencode/auth.json`
 
 If a token is missing or the API call fails, that provider's segment shows `--` — no crash, no effect on other providers.
 
+### Customizing the Provider Gauge
+
+By default, all 4 providers are shown. You can customize which providers appear in the gauge by adding a `providers` array to `~/.config/opencode/open-chad.json`:
+
+```json
+{
+  "providers": ["zai", "claude"]
+}
+```
+
+Valid provider IDs are: `zai`, `copilot`, `claude`, `codex`. The gauge will only render the providers you specify, in the order you specify them.
+
 ## Toggle: `OPEN_CHAD_MULTI_GAUGE`
 
 Controls whether the per-provider fuel gauge is shown in the status bar.

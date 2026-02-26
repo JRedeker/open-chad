@@ -111,15 +111,43 @@ _write_cache() {
 _has_any_provider_token() {
     [ -f "$AUTH_JSON" ] || return 1
     command -v jq >/dev/null 2>&1 || return 1
+    
+    # If active_providers exists, only check those tokens
+    local active_file="${OPEN_CHAD_CACHE_DIR}/active_providers"
+    local jq_filter
+    
+    if [ -f "$active_file" ]; then
+        local keys=()
+        while read -r _label cache_key; do
+            [ -z "$cache_key" ] && continue
+            case "$cache_key" in
+                zai)     keys+=('.["zai-coding-plan"].key') ;;
+                copilot) keys+=('.["github-copilot"].access') ;;
+                claude)  keys+=('.["anthropic"].access') ;;
+                codex)   keys+=('.["openai"].access') ;;
+            esac
+        done < "$active_file"
+        
+        if [ ${#keys[@]} -eq 0 ]; then
+            return 1
+        fi
+        
+        local joined_keys
+        joined_keys=$(IFS=,; echo "${keys[*]}")
+        jq_filter="[ $joined_keys ] | map(select(. != null and . != \"\")) | length"
+    else
+        jq_filter='
+            [
+              .["zai-coding-plan"].key,
+              .["github-copilot"].access,
+              .["anthropic"].access,
+              .["openai"].access
+            ] | map(select(. != null and . != "")) | length
+        '
+    fi
+    
     local count
-    count=$(jq -r '
-        [
-          .["zai-coding-plan"].key,
-          .["github-copilot"].access,
-          .["anthropic"].access,
-          .["openai"].access
-        ] | map(select(. != null and . != "")) | length
-    ' "$AUTH_JSON" 2>/dev/null) || return 1
+    count=$(jq -r "$jq_filter" "$AUTH_JSON" 2>/dev/null) || return 1
     [ "${count:-0}" -gt 0 ]
 }
 
@@ -134,6 +162,35 @@ _multi_gauge_enabled() {
             _has_any_provider_token
             ;;
     esac
+}
+
+# Update the active_providers cache file based on open-chad.json
+_update_active_providers() {
+    local config_file="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/open-chad.json"
+    local active_file="${OPEN_CHAD_CACHE_DIR}/active_providers"
+    local tmp="${active_file}.$$"
+    
+    local providers=""
+    if [ -f "$config_file" ] && command -v jq >/dev/null 2>&1; then
+        providers=$(jq -r '.providers[]?' "$config_file" 2>/dev/null || true)
+    fi
+    
+    if [ -z "$providers" ]; then
+        # Default to all 4
+        printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$tmp"
+    else
+        # Map configured IDs to labels
+        for p in $providers; do
+            case "$p" in
+                zai)     echo "Z.ai zai" >> "$tmp" ;;
+                copilot) echo "Copilot copilot" >> "$tmp" ;;
+                claude)  echo "Claude claude" >> "$tmp" ;;
+                codex)   echo "Codex codex" >> "$tmp" ;;
+            esac
+        done
+    fi
+    
+    mv -f "$tmp" "$active_file"
 }
 
 # Z.ai: GET /api/monitor/usage/quota/limit
@@ -263,24 +320,44 @@ collect_codex() {
 }
 
 collect_llm_providers() {
+    # Update active providers list first
+    _update_active_providers
+
     # Skip entirely if multi-gauge is disabled or no tokens configured
     if ! _multi_gauge_enabled; then
         return 0
     fi
 
-    # Run all 4 adapters in parallel with safe wait pattern
-    # (bare `wait` under set -euo pipefail propagates failures — use wait $pid || rc=$?)
-    local pid_zai pid_copilot pid_claude pid_codex
-    collect_zai     & pid_zai=$!
-    collect_copilot & pid_copilot=$!
-    collect_claude  & pid_claude=$!
-    collect_codex   & pid_codex=$!
+    local active_file="${OPEN_CHAD_CACHE_DIR}/active_providers"
+    local run_zai=0 run_copilot=0 run_claude=0 run_codex=0
+
+    if [ -f "$active_file" ]; then
+        while read -r _label cache_key; do
+            case "$cache_key" in
+                zai)     run_zai=1 ;;
+                copilot) run_copilot=1 ;;
+                claude)  run_claude=1 ;;
+                codex)   run_codex=1 ;;
+            esac
+        done < "$active_file"
+    else
+        run_zai=1; run_copilot=1; run_claude=1; run_codex=1
+    fi
+
+    # Run selected adapters in parallel with safe wait pattern
+    local pid_zai="" pid_copilot="" pid_claude="" pid_codex=""
+    
+    [ "$run_zai" -eq 1 ]     && { collect_zai     & pid_zai=$!; }
+    [ "$run_copilot" -eq 1 ] && { collect_copilot & pid_copilot=$!; }
+    [ "$run_claude" -eq 1 ]  && { collect_claude  & pid_claude=$!; }
+    [ "$run_codex" -eq 1 ]   && { collect_codex   & pid_codex=$!; }
 
     local rc_zai=0 rc_copilot=0 rc_claude=0 rc_codex=0
-    wait "$pid_zai"     || rc_zai=$?
-    wait "$pid_copilot" || rc_copilot=$?
-    wait "$pid_claude"  || rc_claude=$?
-    wait "$pid_codex"   || rc_codex=$?
+    
+    [ -n "$pid_zai" ]     && { wait "$pid_zai"     || rc_zai=$?; }
+    [ -n "$pid_copilot" ] && { wait "$pid_copilot" || rc_copilot=$?; }
+    [ -n "$pid_claude" ]  && { wait "$pid_claude"  || rc_claude=$?; }
+    [ -n "$pid_codex" ]   && { wait "$pid_codex"   || rc_codex=$?; }
 
     # Log failures to stderr (debug only — not printed in normal operation)
     [ "$rc_zai"     -ne 0 ] && printf 'open-chad: collect_zai failed (rc=%s)\n'     "$rc_zai"     >&2 || true

@@ -187,6 +187,8 @@ run_status_right_force() {
 
 test_renders_all_dash_when_no_caches_forced() {
     local result
+    # Mock active_providers to include all 4
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(run_status_right_force)
     assert_contains "$result" "Z.ai" "force-on: Z.ai label shown even with no caches"
     assert_contains "$result" "Copilot" "force-on: Copilot label shown even with no caches"
@@ -196,6 +198,7 @@ test_renders_all_dash_when_no_caches_forced() {
 
 test_auto_hides_when_no_caches() {
     local result
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(run_status_right)
     # Accent edges always render; gauge labels should be absent with no cache data
     assert_not_contains "$result" "Z.ai"    "auto mode: Z.ai label hidden when no cache files"
@@ -206,8 +209,19 @@ test_auto_hides_when_no_caches() {
 }
 
 test_exits_zero_with_no_caches() {
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
     assert_eq "$?" "0" "status_right.sh exits 0 with no caches"
+}
+
+test_renders_subset_of_providers() {
+    local result
+    printf "Z.ai zai\nClaude claude\n" > "$TMP_DIR/active_providers"
+    result=$(run_status_right_force)
+    assert_contains "$result" "Z.ai" "subset: Z.ai label shown"
+    assert_contains "$result" "Claude" "subset: Claude label shown"
+    assert_not_contains "$result" "Copilot" "subset: Copilot label hidden"
+    assert_not_contains "$result" "Codex" "subset: Codex label hidden"
 }
 
 test_script_exists
@@ -217,6 +231,7 @@ test_right_script_syntax
 test_renders_all_dash_when_no_caches_forced
 test_auto_hides_when_no_caches
 test_exits_zero_with_no_caches
+test_renders_subset_of_providers
 
 # ─── Section 4: API response parsing helpers ──────────────────────────────────
 
@@ -427,6 +442,7 @@ section "OPEN_CHAD_MULTI_GAUGE toggle"
 
 test_toggle_on_shows_dashes_with_no_caches() {
     local result
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_contains "$result" "Z.ai"    "MULTI_GAUGE=1: Z.ai shown even with no caches"
     assert_contains "$result" "Copilot" "MULTI_GAUGE=1: Copilot shown even with no caches"
