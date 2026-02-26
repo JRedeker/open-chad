@@ -368,6 +368,51 @@ test_oc_killall_only_kills_oc_prefix
 test_oc_killall_does_not_kill_all_sessions
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Rename regression: openchad/oc alias
+# ═══════════════════════════════════════════════════════════════════════════════
+
+section "rename regression — openchad/oc alias"
+
+test_oc_list_does_not_reference_old_binary() {
+    # oc-list should not reference 'open-chad' as a binary (comments OK)
+    if grep -qE 'exec open-chad|command -v open-chad|bin/open-chad' "$OC_LIST_BIN"; then
+        fail "bin/oc-list still references old 'open-chad' binary"
+    else
+        pass "bin/oc-list does not reference old 'open-chad' binary"
+    fi
+}
+
+test_oc_killall_does_not_reference_old_binary() {
+    # oc-killall should not reference 'open-chad' as a binary (comments OK)
+    if grep -qE 'exec open-chad|command -v open-chad|bin/open-chad' "$OC_KILLALL_BIN"; then
+        fail "bin/oc-killall still references old 'open-chad' binary"
+    else
+        pass "bin/oc-killall does not reference old 'open-chad' binary"
+    fi
+}
+
+test_oc_alias_exists() {
+    local oc_bin
+    oc_bin="$(dirname "$OC_LIST_BIN")/oc"
+    if [ -f "$oc_bin" ] && [ -x "$oc_bin" ]; then
+        pass "bin/oc alias exists and is executable"
+    else
+        fail "bin/oc alias missing or not executable"
+    fi
+}
+
+test_oc_alias_references_openchad() {
+    local oc_bin
+    oc_bin="$(dirname "$OC_LIST_BIN")/oc"
+    grep -q 'openchad' "$oc_bin" 2>/dev/null && pass "bin/oc references openchad" || fail "bin/oc does not reference openchad"
+}
+
+test_oc_list_does_not_reference_old_binary
+test_oc_killall_does_not_reference_old_binary
+test_oc_alias_exists
+test_oc_alias_references_openchad
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 

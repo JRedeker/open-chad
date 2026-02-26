@@ -247,6 +247,41 @@ assert_contains "$TMP_HOME/.profile" "BEGIN open-chad" "unknown shell: falls bac
 
 teardown_tmp_home
 
+# ─── Completion wiring regression ─────────────────────────────────────────────
+
+section "Completion files exist"
+
+test_bash_completion_exists() {
+    local comp_file="$REPO_DIR/completion/openchad.bash"
+    [ -f "$comp_file" ] && pass "completion/openchad.bash exists" || fail "completion/openchad.bash missing"
+}
+
+test_zsh_completion_exists() {
+    local comp_file="$REPO_DIR/completion/_openchad.zsh"
+    [ -f "$comp_file" ] && pass "completion/_openchad.zsh exists" || fail "completion/_openchad.zsh missing"
+}
+
+test_bash_completion_covers_openchad_and_oc() {
+    local comp_file="$REPO_DIR/completion/openchad.bash"
+    grep -q 'complete.*openchad' "$comp_file" 2>/dev/null && pass "bash completion registers openchad" || fail "bash completion missing openchad registration"
+    grep -q 'complete.*\boc\b' "$comp_file" 2>/dev/null && pass "bash completion registers oc" || fail "bash completion missing oc registration"
+}
+
+test_zsh_completion_covers_subcommands() {
+    local comp_file="$REPO_DIR/completion/_openchad.zsh"
+    grep -q 'update\|version\|doctor\|uninstall' "$comp_file" 2>/dev/null && pass "zsh completion lists subcommands" || fail "zsh completion missing subcommands"
+}
+
+test_setup_shell_profile_wires_bash_completion() {
+    grep -q 'openchad.bash\|completion' "$HELPER" && pass "setup_shell_profile.sh wires completions" || fail "setup_shell_profile.sh does not wire completions"
+}
+
+test_bash_completion_exists
+test_zsh_completion_exists
+test_bash_completion_covers_openchad_and_oc
+test_zsh_completion_covers_subcommands
+test_setup_shell_profile_wires_bash_completion
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""

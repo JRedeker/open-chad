@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/cds_test.sh — Unit tests for bin/cds
 # Tests: default date, explicit date, directory creation, launch target,
-#        help flag, missing open-chad fallback, idempotent dir creation
+#        help flag, missing openchad fallback, idempotent dir creation
 #
 # Usage: bash tests/cds_test.sh
 # Exit code: number of failed tests (0 = all passed)
@@ -67,14 +67,23 @@ test_cds_has_set_euo() {
     grep -q 'set -euo pipefail' "$CDS_BIN" && pass "bin/cds uses set -euo pipefail" || fail "bin/cds missing set -euo pipefail"
 }
 
-test_cds_launches_open_chad() {
-    grep -q 'open-chad' "$CDS_BIN" && pass "bin/cds references open-chad" || fail "bin/cds does not reference open-chad"
+test_cds_launches_openchad() {
+    grep -q 'openchad' "$CDS_BIN" && pass "bin/cds references openchad" || fail "bin/cds does not reference openchad"
+}
+
+test_cds_does_not_reference_old_name() {
+    # bin/cds should not reference the old hyphenated name as a binary
+    if grep -qE 'exec open-chad|command -v open-chad|bin/open-chad' "$CDS_BIN"; then
+        fail "bin/cds still references old 'open-chad' binary name"
+    else
+        pass "bin/cds does not reference old 'open-chad' binary name"
+    fi
 }
 
 test_cds_does_not_launch_raw_opencode() {
-    # Should not exec opencode directly — must go through open-chad
+    # Should not exec opencode directly — must go through openchad
     if grep -qE '^[[:space:]]*exec opencode' "$CDS_BIN"; then
-        fail "bin/cds execs opencode directly (should use open-chad)"
+        fail "bin/cds execs opencode directly (should use openchad)"
     else
         pass "bin/cds does not exec opencode directly"
     fi
@@ -83,7 +92,8 @@ test_cds_does_not_launch_raw_opencode() {
 test_cds_has_shebang
 test_cds_syntax_ok
 test_cds_has_set_euo
-test_cds_launches_open_chad
+test_cds_launches_openchad
+test_cds_does_not_reference_old_name
 test_cds_does_not_launch_raw_opencode
 
 # ─── Section 2: --help flag ───────────────────────────────────────────────────
@@ -117,21 +127,21 @@ test_cds_help_output_mentions_date
 section "bin/cds — scratch directory creation"
 
 # We test directory creation by sourcing just the mkdir/cd logic, not the exec.
-# We do this by running cds with a fake open-chad that exits 0 immediately.
+# We do this by running cds with a fake openchad that exits 0 immediately.
 
 _run_cds_with_fake_launcher() {
     local date_arg="${1:-}"
     local fake_bin="$TMP_DIR/fake_bin"
     mkdir -p "$fake_bin"
 
-    # Fake open-chad: just exits 0 without doing anything
-    cat > "$fake_bin/open-chad" <<'EOF'
+    # Fake openchad: just exits 0 without doing anything
+    cat > "$fake_bin/openchad" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-    chmod +x "$fake_bin/open-chad"
+    chmod +x "$fake_bin/openchad"
 
-    # Run cds with PATH pointing to our fake open-chad
+    # Run cds with PATH pointing to our fake openchad
     # We also override HOME so scratch lands in our temp dir
     if [ -n "$date_arg" ]; then
         HOME="$TMP_DIR/home" PATH="$fake_bin:$PATH" bash "$CDS_BIN" "$date_arg" 2>/dev/null
@@ -175,20 +185,20 @@ test_cds_idempotent_dir_creation
 
 section "bin/cds — launch target resolution"
 
-test_cds_prefers_sibling_open_chad() {
-    # The sibling bin/open-chad should be preferred over PATH lookup.
+test_cds_prefers_sibling_openchad() {
+    # The sibling bin/openchad should be preferred over PATH lookup.
     # Verify the script checks for a sibling binary first.
     grep -q 'SCRIPT_DIR' "$CDS_BIN" && pass "bin/cds uses SCRIPT_DIR for sibling lookup" || fail "bin/cds missing SCRIPT_DIR sibling lookup"
 }
 
 test_cds_falls_back_to_path() {
-    # Verify there is a PATH fallback (command -v open-chad or similar)
-    grep -q 'command -v open-chad' "$CDS_BIN" && pass "bin/cds has PATH fallback for open-chad" || fail "bin/cds missing PATH fallback"
+    # Verify there is a PATH fallback (command -v openchad or similar)
+    grep -q 'command -v openchad' "$CDS_BIN" && pass "bin/cds has PATH fallback for openchad" || fail "bin/cds missing PATH fallback"
 }
 
-test_cds_errors_if_no_open_chad() {
+test_cds_errors_if_no_openchad() {
     setup_tmp_env
-    # Run cds with an empty PATH and no sibling (copy cds to a temp location without open-chad sibling)
+    # Run cds with an empty PATH and no sibling (copy cds to a temp location without openchad sibling)
     local isolated_bin="$TMP_DIR/isolated/cds"
     mkdir -p "$(dirname "$isolated_bin")"
     cp "$CDS_BIN" "$isolated_bin"
@@ -198,49 +208,49 @@ test_cds_errors_if_no_open_chad() {
     local rc=0
     output=$(HOME="$TMP_DIR/home" PATH="/usr/bin:/bin" bash "$isolated_bin" 2>&1) || rc=$?
     if [ "$rc" -ne 0 ]; then
-        pass "cds exits non-zero when open-chad not found"
+        pass "cds exits non-zero when openchad not found"
     else
-        fail "cds should exit non-zero when open-chad not found"
+        fail "cds should exit non-zero when openchad not found"
     fi
-    assert_contains "$output" "ERROR" "cds prints ERROR when open-chad not found"
+    assert_contains "$output" "ERROR" "cds prints ERROR when openchad not found"
     teardown_tmp_env
 }
 
-test_cds_prefers_sibling_open_chad
+test_cds_prefers_sibling_openchad
 test_cds_falls_back_to_path
-test_cds_errors_if_no_open_chad
+test_cds_errors_if_no_openchad
 
 # ─── Section 5: launch passes scratch dir as argument ─────────────────────────
 
-section "bin/cds — passes scratch dir to open-chad"
+section "bin/cds — passes scratch dir to openchad"
 
 test_cds_passes_scratch_dir_to_launcher() {
     setup_tmp_env
     local today
     today=$(date +%Y-%m-%d)
 
-    # Copy cds to an isolated directory so its sibling lookup finds our fake open-chad
+    # Copy cds to an isolated directory so its sibling lookup finds our fake openchad
     local isolated_dir="$TMP_DIR/isolated_bin"
     mkdir -p "$isolated_dir"
     cp "$CDS_BIN" "$isolated_dir/cds"
     chmod +x "$isolated_dir/cds"
 
-    # Fake open-chad placed as sibling: records its arguments to a file
-    cat > "$isolated_dir/open-chad" <<EOF
+    # Fake openchad placed as sibling: records its arguments to a file
+    cat > "$isolated_dir/openchad" <<EOF
 #!/usr/bin/env bash
-echo "\$@" > "$TMP_DIR/open_chad_args"
+echo "\$@" > "$TMP_DIR/openchad_args"
 exit 0
 EOF
-    chmod +x "$isolated_dir/open-chad"
+    chmod +x "$isolated_dir/openchad"
 
     HOME="$TMP_DIR/home" bash "$isolated_dir/cds" 2>/dev/null || true
 
-    if [ -f "$TMP_DIR/open_chad_args" ]; then
+    if [ -f "$TMP_DIR/openchad_args" ]; then
         local args
-        args=$(cat "$TMP_DIR/open_chad_args")
-        assert_contains "$args" "scratch/$today" "cds passes scratch dir to open-chad"
+        args=$(cat "$TMP_DIR/openchad_args")
+        assert_contains "$args" "scratch/$today" "cds passes scratch dir to openchad"
     else
-        fail "cds did not invoke open-chad (args file not created)"
+        fail "cds did not invoke openchad (args file not created)"
     fi
     teardown_tmp_env
 }
