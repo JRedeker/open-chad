@@ -1,13 +1,15 @@
 # AGENTS.md — Developer & Agent Reference
 
-Internal reference for AI agents and human developers working on open-chad.
+Internal reference for AI agents and human developers working on openchad.
 For user-facing documentation, see [README.md](README.md).
 
 ---
 
 ## Project Overview
 
-**open-chad** is a tmux-powered command center for [OpenCode](https://github.com/opencode-ai/opencode). It wraps each OpenCode session in an isolated tmux session with a themed two-row status bar, boot animation, live LLM quota gauges, system metrics, and optional Discord Rich Presence.
+**openchad** is a tmux-powered command center for [OpenCode](https://github.com/opencode-ai/opencode). It wraps each OpenCode session in an isolated tmux session with a themed two-row status bar, boot animation, live LLM quota gauges, system metrics, and optional Discord Rich Presence.
+
+> **Note:** The canonical command is `openchad` (one word). The short alias `oc` is also installed. The old hyphenated name `open-chad` is no longer used as a command — stale aliases and symlinks are auto-cleaned by `install.sh` and `openchad update`.
 
 - **Repo**: `https://github.com/JRedeker/open-chad.git`
 - **Branch**: `trunk` (default), remote `origin`
@@ -20,12 +22,22 @@ For user-facing documentation, see [README.md](README.md).
 
 ```
 bin/
-  open-chad                 Entrypoint — arg parsing, animation, metrics bootstrap,
-                            tmux session creation (oc-<epoch>-<pid>)
+  openchad                  Entrypoint — thin dispatcher (case statement) routes
+                            subcommands to dedicated handlers, then handles arg
+                            parsing, animation, metrics bootstrap, tmux session
+                            creation (oc-<epoch>-<pid>)
+  oc                        Short alias — forwards all args to openchad; also
+                            provides `oc attach` and `oc switch` session helpers
+  cds                       Date-stamped scratch directory launcher
+  oc-list                   List active oc-* tmux sessions with window count and memory
+  oc-killall                Kill all oc-* tmux sessions (--yes to skip confirmation)
 
 lib/
   opencode_env.sh           Cache dir setup (XDG_RUNTIME_DIR/open-chad or /tmp fallback).
                             Sourced by most scripts. Exports OPEN_CHAD_CACHE_DIR.
+  symlink_manifest.sh       Single source of truth for all managed ~/.local/bin symlinks.
+                            MANAGED_SYMLINKS associative array consumed by install.sh,
+                            update.sh, doctor, uninstall, and installer tests.
   animation.sh              Boot animation — centered logo, 6-frame color cycling,
                             typewriter subtitle, project context. True-color ANSI.
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
@@ -35,15 +47,24 @@ lib/
                             for custom layouts; Row 1 uses status_right.sh which includes
                             resources inline alongside LLM gauges.
   status_left.sh            Row 1 left — renders worktree / branch for current pane
-  status_right.sh           Row 1 right — renders CPU%, RAM%, Load + 4-provider LLM fuel
-                            gauges as one unit. OPEN_CHAD_MULTI_GAUGE toggle supported.
+  status_right.sh           Row 1 right — renders CPU%, RAM%, Load + dynamic provider
+                            LLM fuel gauges. Reads active_providers cache file for
+                            provider list/order. OPEN_CHAD_MULTI_GAUGE toggle supported.
   title_parser.sh           Parses ADV state strings (emoji + repo + changeId) for
                             structured tmux display in window name area
   collect_metrics.sh        Singleton background daemon — writes system metrics and
-                            per-provider LLM quota to cache files every 30s.
-                            PID-locked, parallel API calls, atomic writes.
+                            per-provider LLM quota to cache files every 30s. Reads
+                            provider config from open-chad.json, writes active_providers
+                            cache. PID-locked, parallel API calls, atomic writes.
   json_merge.sh             Idempotent additive JSON merge (Node.js). Arrays deduped,
                             scalars only added if not present, nested objects recursed.
+  openchad_version.sh       `openchad version` handler — git describe or hardcoded fallback
+  openchad_doctor.sh        `openchad doctor` handler — validates symlinks, tmux theme,
+                            cache dir, legacy open-chad migration (symlinks + aliases)
+  openchad_uninstall.sh     `openchad uninstall` handler — removes managed symlinks,
+                            tmux theme block, shell profile blocks via manifest
+  openchad_metrics.sh       `openchad metrics` handler — show/log/export system metrics
+  openchad_changelog.sh     `openchad changelog` handler — git log since last tag
   setup_adv.sh              ADV plugin installer (pnpm)
   setup_omp.sh              Model preferences TUI installer (go build)
   setup_opencode.sh         OpenCode config/agent/theme sync
@@ -55,7 +76,7 @@ lib/
     taglines.sh             Rotating tagline selector with no-repeat guard
     SETUP.md                User-facing Discord setup guide
 
-  Installer (v1.0):
+  Installer (v1.1):
   check_environment.sh      Pre-flight: OS (Ubuntu/Debian), git, 500MB disk, conflicts.
                             Called by install.sh and update.sh before any changes.
   setup_ubuntu_deps.sh      Silent apt bootstrap — core tools + language toolchain prereqs.
@@ -72,6 +93,8 @@ lib/
                             Pyrefly wired as LSP. Persists selectedBundles to
                             ~/.config/opencode/open-chad.json under installer key.
   setup_opencode_auth.sh    Step-by-step Claude OAuth onboarding. --check, --no-wait flags.
+  setup_shell_profile.sh    Wires ~/.local/bin PATH export and shell completions into
+                            rc files. Backs up rc file before modifying.
   setup_zsh_plugins.sh      Zsh + plugin setup — installs zsh via apt, clones
                             romkatv/powerlevel10k, zsh-users/zsh-autosuggestions,
                             zdharma-continuum/fast-syntax-highlighting into
@@ -79,18 +102,17 @@ lib/
                             block to ~/.zshrc (plugin order: p10k → autosuggestions →
                             fast-syntax-highlighting). Opt-in chsh prompt in interactive
                             mode. Called by wizard.sh (Step 8) and update.sh (non-fatal).
-  update.sh                 `open-chad update` backend: git pull --ff-only, re-runs all
-                            setup modules. .git detection + releases URL. Diverged branch
-                            recovery guide (reset --hard / stash / rebase).
+  update.sh                 `openchad update` backend: git pull --ff-only, re-runs all
+                            setup modules, repairs symlinks via manifest, removes stale
+                            open-chad aliases/PATH from rc files. .git detection +
+                            releases URL. Diverged branch recovery guide.
   wizard.sh                 Interactive 9-step install wizard. YES_MODE for CI/--yes.
                             Logs to ~/.config/opencode/open-chad-install.log. Flags:
                             --yes, --skip-deps/auth/bundles/mcp/adv/morph/omp/zsh, --verbose.
 
-bin/
-  open-chad                 Main launcher — animation, metrics bootstrap, tmux session
-  cds                       Date-stamped scratch directory launcher
-  oc-list                   List active oc-* tmux sessions with window count and memory
-  oc-killall                Kill all oc-* tmux sessions (--yes to skip confirmation)
+completion/
+  openchad.bash             Bash completion for openchad and oc subcommands
+  _openchad.zsh             Zsh completion for openchad and oc subcommands
 
 config/
   opencode/
@@ -106,15 +128,25 @@ config/
                             shell_strategy, worktree-guide)
     themes/ayu-dark.json    OpenCode color theme
 
+Makefile                    Project task runner — install, test, verify, update, clean, uninstall
+
 tests/
   animation_test.sh         39 tests — centering math, palette, phases, regression guards
   session_title_test.sh     31 tests — SQLite correlation, no-fallback, filtering, format
-  llm_fuel_test.sh          50 tests — gauge rendering, API parsing, toggle, edge cases
-  install_test.sh           104 tests — idempotency, flags, file creation, MCP regression
-  installer_validation_test.sh  82 tests — error paths, wizard flags, MCP schema/enabled/disabled,
-                            dev bundle config persistence
+  llm_fuel_test.sh          72 tests — gauge rendering, API parsing, toggle, dynamic providers,
+                            active_providers robustness, ordering
+  install_test.sh           131 tests — idempotency, flags, file creation, MCP regression,
+                            openchad/oc symlinks, manifest, rename regression
+  installer_validation_test.sh  115 tests — error paths, wizard flags, MCP schema/enabled/disabled,
+                            dev bundle config, subcommand routing, handler files
   discord_sanitizer_test.sh 34 tests — sanitizer pattern matching
   discord_setup_test.sh     20 tests — setup wizard, config read/write
+  cds_test.sh               19 tests — date-stamped scratch dir launcher, openchad reference
+  integration_test.sh       11 tests — end-to-end installer flow
+  installer_robustness_test.sh  24 tests — scenario-driven robustness
+  setup_zsh_test.sh         32 tests — zsh plugin setup, managed .zshrc block
+  shell_profile_test.sh     33 tests — shell profile PATH wiring, completions
+  oc_sessions_test.sh       33 tests — oc-list, oc-killall, rename regression
 
 docs/
   STATUS_BAR_IMPLEMENTATION.md   Implementation examples for status bar data sources
@@ -204,19 +236,22 @@ status_resources.sh (called by tmux every 5s)
 
 ```
 collect_metrics.sh (singleton, every 30s, parallel)
+  ├─ reads ~/.config/opencode/open-chad.json → providers array
+  ├─ writes $OPEN_CHAD_CACHE_DIR/active_providers (label + cache_key per line)
   ├─ Z.ai API → $OPEN_CHAD_CACHE_DIR/zai (integer 0-100)
   ├─ GitHub Copilot API → $OPEN_CHAD_CACHE_DIR/copilot
   ├─ Anthropic API → $OPEN_CHAD_CACHE_DIR/claude
   └─ OpenAI API → $OPEN_CHAD_CACHE_DIR/codex
 
 status_right.sh (called by tmux every 5s)
-  └─ reads 4 cache files → tmux format string with color thresholds
+  ├─ reads $OPEN_CHAD_CACHE_DIR/active_providers for provider list/order
+  └─ reads per-provider cache files → tmux format string with color thresholds
 ```
 
 ### Session Title Correlation
 
 ```
-bin/open-chad creates tmux session: "oc-<epoch_seconds>-<pid>"
+bin/openchad creates tmux session: "oc-<epoch_seconds>-<pid>"
 
 session_title.sh (called by tmux every 5s)
   ├─ extracts epoch from session name via regex
@@ -232,7 +267,7 @@ session_title.sh (called by tmux every 5s)
 ### Discord Rich Presence
 
 ```
-bin/open-chad (on launch, fire-and-forget)
+bin/openchad (on launch, fire-and-forget)
   └─ update.sh (rate-limited, 15s cooldown via lockfile mtime)
        ├─ reads config from ~/.config/opencode/open-chad.json
        ├─ checks discordPresence.enabled
@@ -264,7 +299,8 @@ Permissions: `0700` (owner-only). Created on first source.
 |------|---------|--------|--------|
 | `metrics` | `CPU% RAM% LOAD` (space-separated) | `collect_metrics.sh` | `status_resources.sh` |
 | `metrics.lock` | PID of running collector | `collect_metrics.sh` | `collect_metrics.sh` (singleton guard) |
-| `metrics-start.lock` | Atomic mkdir startup lock | `bin/open-chad` | `bin/open-chad` (prevents duplicate collector starts) |
+| `metrics-start.lock` | Atomic mkdir startup lock | `bin/openchad` | `bin/openchad` (prevents duplicate collector starts) |
+| `active_providers` | `Label cache_key` per line | `collect_metrics.sh` | `status_right.sh` (dynamic gauge rendering) |
 | `zai` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `copilot` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `claude` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
@@ -316,20 +352,20 @@ bash tests/oc_sessions_test.sh
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 104 | Idempotency, flags, file creation, MCP regression, oc-list/oc-killall symlinks |
-| `llm_fuel_test.sh` | 62 | Gauge rendering, API parsing, toggle, edge cases |
+| `install_test.sh` | 131 | Idempotency, flags, file creation, MCP regression, openchad/oc symlinks, manifest |
+| `llm_fuel_test.sh` | 72 | Gauge rendering, API parsing, toggle, dynamic providers, active_providers robustness |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
-| `installer_validation_test.sh` | 82 | Error paths, wizard flags, MCP schema/enabled/disabled, bundle config |
+| `installer_validation_test.sh` | 115 | Error paths, wizard flags, MCP schema/enabled/disabled, bundle config, subcommand routing |
 | `discord_sanitizer_test.sh` | 34 | Sanitizer pattern matching |
 | `discord_setup_test.sh` | 20 | Setup wizard, config read/write |
-| `cds_test.sh` | 18 | Date-stamped scratch dir launcher |
+| `cds_test.sh` | 19 | Date-stamped scratch dir launcher, openchad reference |
 | `integration_test.sh` | 11 | End-to-end installer flow |
 | `installer_robustness_test.sh` | 24 | Scenario-driven robustness |
 | `setup_zsh_test.sh` | 32 | Zsh plugin setup, managed .zshrc block |
-| `shell_profile_test.sh` | 27 | Shell profile PATH wiring |
-| `oc_sessions_test.sh` | 29 | oc-list and oc-killall behavior |
-| **Total** | **513** | |
+| `shell_profile_test.sh` | 33 | Shell profile PATH wiring, completions |
+| `oc_sessions_test.sh` | 33 | oc-list, oc-killall, rename regression |
+| **Total** | **594** | |
 
 ### Testing conventions
 
@@ -366,7 +402,7 @@ Auth tokens are read from `~/.local/share/opencode/auth.json`.
 
 ### Session isolation
 
-Each `open-chad` invocation creates a unique tmux session: `oc-<epoch_seconds>-<pid>`. If one OpenCode instance crashes, others are unaffected. The epoch is embedded in the session name to enable timestamp-based correlation with the OpenCode SQLite DB.
+Each `openchad` invocation creates a unique tmux session: `oc-<epoch_seconds>-<pid>`. If one OpenCode instance crashes, others are unaffected. The epoch is embedded in the session name to enable timestamp-based correlation with the OpenCode SQLite DB.
 
 ### No fallback in session title
 
@@ -419,15 +455,15 @@ The following security fixes were applied in the v1.1 hardening pass:
 
 | ID | Script | Fix |
 |----|--------|-----|
-| CVE-001 | `bin/open-chad`, `lib/discord/update.sh` | Discord lockfile moved from `/tmp` to `$OPEN_CHAD_CACHE_DIR` (user-private). Legacy `/tmp/discord-rpc.lock*` cleaned up on startup with symlink-safe deletion guards. |
+| CVE-001 | `bin/openchad`, `lib/discord/update.sh` | Discord lockfile moved from `/tmp` to `$OPEN_CHAD_CACHE_DIR` (user-private). Legacy `/tmp/discord-rpc.lock*` cleaned up on startup with symlink-safe deletion guards. |
 | CVE-002 | `lib/setup_dev_bundle.sh` | Go tarball SHA256 verified before `sudo rm -rf /usr/local/go`. Requires `sha256sum`; aborts on mismatch or missing checksum file. |
 | CVE-003 | `lib/setup_mcp.sh` | Removed silent `opencode.json` auto-wipe in `--yes` mode. Invalid JSON now exits with `ERROR:` + recovery instructions. See README for recovery procedure. |
 | CVE-004 | `lib/setup_opencode.sh` | Symlink sources rejected during agent/instruction/theme file copy. Symlinks are skipped with a `WARN:` message. |
-| CVE-005 | `bin/open-chad` | Discord `update.sh` stderr now logged to `$OPEN_CHAD_CACHE_DIR/discord.log` (0600) instead of `/dev/null`. |
+| CVE-005 | `bin/openchad` | Discord `update.sh` stderr now logged to `$OPEN_CHAD_CACHE_DIR/discord.log` (0600) instead of `/dev/null`. |
 | ISSUE-006 | `install.sh`, `lib/update.sh` | Symlink creation changed to atomic `ln -sfn`. Source existence validated before linking. |
 | ISSUE-008 | `lib/wizard.sh` | Install log created with `install -m 0600` for atomic secure creation. |
 | ISSUE-009 | `lib/setup_mcp.sh` | Node.js invocations use `process.argv` file inputs (not interpolated strings) for path safety. |
-| ISSUE-010 | `bin/open-chad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir (`metrics-start.lock`). Renamed from `metrics.lock` to avoid collision with the collector's own PID lockfile. Lockdir removed after 2s delay to close the race window. |
+| ISSUE-010 | `bin/openchad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir (`metrics-start.lock`). Renamed from `metrics.lock` to avoid collision with the collector's own PID lockfile. Lockdir removed after 2s delay to close the race window. |
 | ISSUE-011 | `lib/setup_dev_bundle.sh` | Go fallback version updated to `go1.26.0` with maintenance comment. |
 | ISSUE-012 | `lib/check_environment.sh` | Non-fatal `python3` presence check added with `apt install python3` hint. |
 | ISSUE-013 | `lib/setup_dev_bundle.sh` | `_persist_bundles` moved to after failure checks — failed installs no longer persist as selected. |
@@ -436,6 +472,19 @@ The following security fixes were applied in the v1.1 hardening pass:
 | ISSUE-018 | `lib/setup_shell_profile.sh` | Exports PATH directly after writing block for immediate availability. Does NOT source the user's rc file (security: avoids executing arbitrary user shell code in installer context). |
 | ISSUE-019 | `lib/collect_metrics.sh` | `find` cleanup wrapped in `timeout 5` to prevent hangs on slow filesystems. |
 | ISSUE-021 | `lib/setup_shell_profile.sh` | Heredoc changed from `<<'EOF'` to `<<EOF` with `\$HOME` for explicit intent. |
+
+### Rename migration (v1.2)
+
+The following migration fixes were applied in the v1.2 rename pass:
+
+| ID | Script | Fix |
+|----|--------|-----|
+| RENAME-001 | `bin/openchad` | Renamed from `bin/open-chad`. Thin dispatcher routes subcommands via `case` statement to dedicated handler scripts. |
+| RENAME-002 | `bin/oc` | New short alias. Forwards all args to openchad; adds `oc attach` and `oc switch` session helpers. |
+| RENAME-003 | `lib/symlink_manifest.sh` | New. Single source of truth for all managed `~/.local/bin` symlinks. Consumed by install.sh, update.sh, doctor, uninstall, and tests. |
+| RENAME-004 | `install.sh`, `lib/update.sh` | Auto-removes stale `alias oc='open-chad'` and `export PATH=.../open-chad/bin` from `~/.zshrc`, `~/.bashrc`, `~/.bash_profile`. Also removes stale `open-chad` symlink from `~/.local/bin`. |
+| RENAME-005 | `lib/openchad_doctor.sh` | Detects stale `oc` alias in shell rc files and warns with remediation instructions. |
+| RENAME-006 | `lib/collect_metrics.sh`, `lib/status_right.sh` | Dynamic provider configuration. Collector reads `providers` array from `open-chad.json`, writes `active_providers` cache. Renderer reads cache for dynamic gauge rendering. |
 
 ### Behavioral changes in `--yes` mode
 

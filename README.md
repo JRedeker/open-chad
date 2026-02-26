@@ -8,7 +8,7 @@ Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, 
 
 ![openchad screenshot](Screenshot.png)
 
-> **Migration note:** The command was renamed from `open-chad` to `openchad` (one word, like opencode). The short alias `oc` still works. Run `openchad doctor` to check for stale `open-chad` symlinks.
+> **Migration note:** The command was renamed from `open-chad` to `openchad` (one word, like opencode). The short alias `oc` still works. Running `openchad update` or `bash install.sh` auto-removes stale `alias oc='open-chad'` and `PATH` entries from your shell rc files. Run `openchad doctor` to check for any remaining legacy references.
 
 ## Features
 
