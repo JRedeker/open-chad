@@ -145,4 +145,4 @@ elif [ "$gauges_enabled" -eq 1 ]; then
     _render_gauges
 fi
 
-printf ' #[fg=#FF8F40]▐#[fg=#59C2FF]▐#[fg=#E6B450]▐#[fg=#AAD94C]▐'
+printf ' #[fg=#00D7AF]▐#[fg=#FF5FD7]▐#[fg=#D7AF5F]▐#[fg=#5FAFFF]▐'
