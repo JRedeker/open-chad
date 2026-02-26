@@ -1,4 +1,4 @@
-# open-chad
+# openchad
 
 A retro tmux launcher and orchestrator for [OpenCode](https://github.com/opencode-ai/opencode).
 
@@ -6,12 +6,14 @@ Designed for developers who run 5-10+ concurrent OpenCode sessions and need inst
 
 Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, beautiful developer experience. Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
 
-![open-chad screenshot](Screenshot.png)
+![openchad screenshot](Screenshot.png)
+
+> **Migration note:** The command was renamed from `open-chad` to `openchad` (one word, like opencode). The short alias `oc` still works. Run `openchad doctor` to check for stale `open-chad` symlinks.
 
 ## Features
 
 - **Boot Animation**: Centered, color-cycling OPEN CHAD logo with typewriter subtitle and contextual launch sequence. Dynamically adapts to terminal size (skippable via `--no-anim`).
-- **`cds` Scratch Launcher**: `cds [date]` creates `~/scratch/YYYY-MM-DD` and launches open-chad there. Ideal for quick throwaway sessions. Accepts an optional explicit date (`cds 2026-01-15`).
+- **`cds` Scratch Launcher**: `cds [date]` creates `~/scratch/YYYY-MM-DD` and launches openchad there. Ideal for quick throwaway sessions. Accepts an optional explicit date (`cds 2026-01-15`).
 - **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
 - **Smart Context Bar**: 
   - Left: repo name + branch.
@@ -83,12 +85,15 @@ bash install.sh --no-opencode-setup
 | `jq` | Optional | Used by metrics collector; not required by render path |
 | Ubuntu/Debian | Yes | Linux only; `/proc` metrics; apt bootstrapping |
 
-### What gets installed (v1.0)
+### What gets installed
 
 | Component | Path | Notes |
 |-----------|------|-------|
-| Launcher | `~/.local/bin/open-chad` | Symlink |
-| Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches open-chad |
+| Launcher | `~/.local/bin/openchad` | Symlink (canonical name) |
+| Short alias | `~/.local/bin/oc` | Forwards all args to openchad |
+| Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches openchad |
+| Session lister | `~/.local/bin/oc-list` | Lists active oc-* tmux sessions |
+| Session killer | `~/.local/bin/oc-killall` | Kills all oc-* tmux sessions |
 | tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
 | ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
@@ -117,6 +122,10 @@ source ~/.bashrc   # bash
 source ~/.zshrc    # zsh
 ```
 
+Shell completions for `openchad` and `oc` are also wired automatically:
+- **bash**: `completion/openchad.bash` is sourced in `~/.bashrc`
+- **zsh**: `completion/_openchad.zsh` is added to `fpath` in `~/.zshrc`
+
 ### Post-install verification
 
 After launching OpenCode, paste the verification prompt from `~/.config/opencode/instructions/post_install_verification.md` to confirm auth, ADV plugin, lgrep MCP, morph plugin, theme, and agents are all working. The wizard prints this prompt at the end of installation.
@@ -124,7 +133,8 @@ After launching OpenCode, paste the verification prompt from `~/.config/opencode
 ### Updating
 
 ```bash
-open-chad update
+openchad update
+# or: oc update
 ```
 
 Requires a git-cloned install (errors clearly if run from a tarball/zip). Runs `git pull --ff-only` then re-applies all setup modules using your persisted bundle selections.
@@ -195,31 +205,83 @@ On non-WSL systems, the wizard displays the JSON to add manually to your Windows
 
 ```bash
 # Launch OpenCode in current directory with animation
+openchad
+# or use the short alias:
 oc
 
 # Launch in specific directory
+openchad ~/dev/my-project
 oc ~/dev/my-project
 
 # Skip the boot animation
+openchad --no-anim
 oc --no-anim
 
-# Create ~/scratch/YYYY-MM-DD and launch open-chad there
+# Create ~/scratch/YYYY-MM-DD and launch openchad there
 cds
 
 # Use a specific date for the scratch directory
 cds 2026-01-15
 
-# List all running open-chad sessions with window count and memory usage
+# List all running openchad sessions with window count and memory usage
 oc-list
 
-# Kill all open-chad sessions (prompts for confirmation; use --yes to skip)
+# Kill all openchad sessions (prompts for confirmation; use --yes to skip)
 oc-killall
 oc-killall --yes
 ```
 
+### Subcommands
+
+```bash
+# Show version
+openchad version
+
+# Validate install health (symlinks, tmux theme, cache dir, legacy migration)
+openchad doctor
+
+# Pull latest changes and re-run setup
+openchad update
+
+# Remove symlinks and shell profile blocks
+openchad uninstall
+
+# Show system metrics
+openchad metrics
+openchad metrics log      # append timestamped reading to history
+openchad metrics export   # print as JSON
+
+# Show git log since last tag
+openchad changelog
+openchad changelog latest  # show last tag release notes
+
+# Manage Discord Rich Presence
+openchad discord enable
+openchad discord disable
+openchad discord status
+```
+
+### Session helpers (via `oc`)
+
+```bash
+# Attach to a named session (or pick interactively if multiple exist)
+oc attach
+oc attach oc-1700000000-12345
+
+# Numbered picker to switch between sessions (from within tmux)
+oc switch
+```
+
 ## Architecture
 
-- `bin/open-chad`: Main entrypoint. Handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
+- `bin/openchad`: Main entrypoint. Thin dispatcher — routes subcommands to dedicated handlers, then handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
+- `bin/oc`: Short alias. Forwards all args to openchad; also provides `oc attach` and `oc switch` session helpers.
+- `lib/symlink_manifest.sh`: Single source of truth for all managed `~/.local/bin` symlinks. Consumed by install.sh, update.sh, doctor, and uninstall.
+- `lib/openchad_version.sh`: `openchad version` handler — prints version from git tag or hardcoded fallback.
+- `lib/openchad_doctor.sh`: `openchad doctor` handler — validates symlinks, tmux theme, cache dir, legacy migration.
+- `lib/openchad_uninstall.sh`: `openchad uninstall` handler — removes symlinks and shell profile blocks via manifest.
+- `lib/openchad_metrics.sh`: `openchad metrics` handler — show/log/export system metrics from cache files.
+- `lib/openchad_changelog.sh`: `openchad changelog` handler — git log since last tag.
 - `lib/animation.sh`: Pure bash boot animation. Dynamically centers on screen, cycles the logo through the ayu-dark palette, and typewriter-renders the subtitle. Uses true-color ANSI sequences.
 - `lib/collect_metrics.sh`: Singleton daemon. Writes `$OPEN_CHAD_CACHE_DIR/metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `$OPEN_CHAD_CACHE_DIR/zai`, `$OPEN_CHAD_CACHE_DIR/copilot`, `$OPEN_CHAD_CACHE_DIR/claude`, `$OPEN_CHAD_CACHE_DIR/codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
 - `lib/status_left.sh`: Fast tmux `#()` renderer (Row 1 left). Shows worktree name and current git branch for the active pane. No external dependencies.
@@ -227,6 +289,9 @@ oc-killall --yes
 - `lib/status_resources.sh`: Standalone Row 0 resource renderer (CPU/RAM/Load only). Available for custom tmux layouts; Row 1 uses `status_right.sh` which includes resources inline.
 - `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV state strings (emoji + repo + changeId) for structured display in the window name area.
 - `lib/theme.conf`: Sourced by `~/.tmux.conf`. Defines the 2-row ayu-dark status bar layout.
+- `completion/openchad.bash`: Bash completion for `openchad` and `oc`.
+- `completion/_openchad.zsh`: Zsh completion for `openchad` and `oc`.
+- `Makefile`: Project task runner — `make install`, `make test`, `make update`, `make uninstall`.
 
 ## LLM Provider Auth
 
@@ -261,7 +326,7 @@ export OPEN_CHAD_MULTI_GAUGE=1
 export OPEN_CHAD_MULTI_GAUGE=0
 ```
 
-The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and `status_left.sh` (hides the segment when disabled).
+The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and `status_right.sh` (hides the segment when disabled).
 
 ## License
 
