@@ -40,6 +40,7 @@ Research questions, implement features, fix bugs, and execute multi-step tasks t
 - Leave the codebase better than you found it
 - Never break the build — verify before marking complete
 - Use `bash` for commands, `read`/`edit`/`write` for file operations
+- **NEVER** read ADV state files directly (`~/.local/share/opencode/plugins/advance/**`). Always use `adv_change_show`, `adv_task_show`, `adv_task_list`, etc. If a direct read fails, stop and use the ADV tools — do not retry with a different path.
 
 ## Output Contract
 

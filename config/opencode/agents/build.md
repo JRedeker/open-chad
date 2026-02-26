@@ -47,3 +47,25 @@ ERRORS:
 - Always use timeout for long-running commands (max 5 minutes)
 - Never push to remote — local verification only
 - Never install packages unless explicitly told to (use existing deps)
+
+## ADV State Access Policy
+
+**NEVER** read ADV state files directly using `read`, `bash cat`, `ls`, or any filesystem tool. This includes any path matching:
+- `~/.local/share/opencode/plugins/advance/**/change.json`
+- `~/.local/share/opencode/plugins/advance/**/proposal.md`
+- `~/.local/share/opencode/plugins/advance/**/agenda.jsonl`
+- `~/.local/share/opencode/plugins/advance/**/wisdom.jsonl`
+- `~/.local/share/opencode/plugins/advance/**/handoff.json`
+
+**ALWAYS** use the ADV MCP tools instead:
+
+| You want | Use this tool |
+|----------|---------------|
+| Change details + tasks | `adv_change_show` |
+| A specific task + its changeId | `adv_task_show` |
+| Tasks ready to work | `adv_task_ready` |
+| All tasks for a change | `adv_task_list` |
+| List all active changes | `adv_change_list` |
+| Validate a change | `adv_change_validate` |
+
+If a direct read attempt fails (file not found, wrong path), **do not retry with a different path**. Stop and call `adv_change_show` instead.
