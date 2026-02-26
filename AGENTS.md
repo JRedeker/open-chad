@@ -457,7 +457,7 @@ The following security fixes were applied in the v1.1 hardening pass:
 |----|--------|-----|
 | CVE-001 | `bin/openchad`, `lib/discord/update.sh` | Discord lockfile moved from `/tmp` to `$OPEN_CHAD_CACHE_DIR` (user-private). Legacy `/tmp/discord-rpc.lock*` cleaned up on startup with symlink-safe deletion guards. |
 | CVE-002 | `lib/setup_dev_bundle.sh` | Go tarball SHA256 verified before `sudo rm -rf /usr/local/go`. Requires `sha256sum`; aborts on mismatch or missing checksum file. |
-| CVE-003 | `lib/setup_mcp.sh` | Removed silent `opencode.json` auto-wipe in `--yes` mode. Invalid JSON now exits with `ERROR:` + recovery instructions. See README for recovery procedure. |
+| CVE-003 | `lib/setup_mcp.sh` | Removed silent `opencode.json` auto-wipe in `--yes` mode. Invalid JSON now exits with `ERROR:` + recovery instructions. See [Recovering from opencode.json conflicts](#recovering-from-opencodejson-conflicts). |
 | CVE-004 | `lib/setup_opencode.sh` | Symlink sources rejected during agent/instruction/theme file copy. Symlinks are skipped with a `WARN:` message. |
 | CVE-005 | `bin/openchad` | Discord `update.sh` stderr now logged to `$OPEN_CHAD_CACHE_DIR/discord.log` (0600) instead of `/dev/null`. |
 | ISSUE-006 | `install.sh`, `lib/update.sh` | Symlink creation changed to atomic `ln -sfn`. Source existence validated before linking. |
@@ -493,6 +493,152 @@ The following migration fixes were applied in the v1.2 rename pass:
 ### New environment requirements
 
 - **python3**: `check_environment.sh` now warns (non-fatal) if `python3` is missing. Required for `session_title.sh` SQLite lookup. Install with: `sudo apt install python3`
+
+---
+
+## Installer Reference
+
+> Moved from README.md — this is the single source of truth for installer internals.
+> User-facing install instructions remain in [README.md](README.md).
+
+### Prerequisites
+
+| Tool | Required | Notes |
+|------|----------|-------|
+| `bash` | Yes | 4.0+ |
+| `git` | Yes | Cloning and update command |
+| `tmux` | Yes | 3.2+ recommended |
+| `node` / `npm` | Yes | For JSON config merging |
+| `pnpm` | Auto-installed | Via npm if missing |
+| `opencode` | Yes | Install from https://opencode.ai |
+| `jq` | Optional | Used by metrics collector; not required by render path |
+| Ubuntu/Debian | Yes | Linux only; `/proc` metrics; apt bootstrapping |
+
+### What gets installed
+
+| Component | Path | Notes |
+|-----------|------|-------|
+| Launcher | `~/.local/bin/openchad` | Symlink (canonical name) |
+| Short alias | `~/.local/bin/oc` | Forwards all args to openchad |
+| Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches openchad |
+| Session lister | `~/.local/bin/oc-list` | Lists active oc-* tmux sessions |
+| Session killer | `~/.local/bin/oc-killall` | Kills all oc-* tmux sessions |
+| tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
+| ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
+| morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
+| Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore, adv-researcher |
+| Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp, post_install_verification |
+| Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |
+| Theme | `~/.config/opencode/themes/ayu-dark.json` | ayu-dark color theme |
+| opencode.json | `~/.config/opencode/opencode.json` | Plugin paths, MCP servers, instructions (additive merge) |
+| Install state | `~/.config/opencode/open-chad.json` | Selected bundles, timestamps |
+| Install log | `~/.config/opencode/open-chad-install.log` | Timestamped wizard log |
+
+### Non-interactive / CI flags
+
+```bash
+# Skip specific wizard steps
+bash install.sh --yes --skip-deps --skip-auth --skip-bundles
+bash install.sh --yes --skip-mcp --skip-adv --skip-morph
+bash install.sh --yes --skip-omp --skip-zsh
+
+# Select bundles non-interactively (comma or space separated, both work)
+bash install.sh --yes --bundles python,go
+bash install.sh --yes --bundles "python go rust web"
+
+# Skip environment pre-flight check
+bash install.sh --yes --no-env-check
+
+# Legacy opt-out flags (still supported)
+bash install.sh --no-adv
+bash install.sh --no-omp
+bash install.sh --no-opencode-setup
+
+# Skip everything new (tmux + symlink only)
+bash install.sh --no-adv --no-omp --no-opencode-setup
+```
+
+### Shell support (bash + zsh)
+
+The installer automatically detects your active shell (`$SHELL`) and writes an idempotent `~/.local/bin` PATH export to the correct rc file:
+
+| Shell | Target file |
+|-------|-------------|
+| `bash` | `~/.bashrc` |
+| `zsh` | `~/.zshrc` |
+| other / unknown | `~/.profile` |
+
+The block is guarded by `# BEGIN open-chad` / `# END open-chad` markers — re-running the installer never duplicates it.
+
+Shell completions for `openchad` and `oc` are also wired automatically:
+- **bash**: `completion/openchad.bash` is sourced in `~/.bashrc`
+- **zsh**: `completion/_openchad.zsh` is added to `fpath` in `~/.zshrc`
+
+### Recovering from opencode.json conflicts
+
+If `setup_mcp.sh` exits with an error about invalid or unparseable `opencode.json`, it will **not** automatically overwrite your config. This is intentional — silent auto-recovery was removed (CVE-003) to prevent data loss.
+
+**Option A — Restore from git backup (recommended):**
+```bash
+git checkout ~/.config/opencode/opencode.json
+```
+
+**Option B — Manual config merge:**
+```bash
+node -e "JSON.parse(require('fs').readFileSync('~/.config/opencode/opencode.json','utf8'))"
+# Fix any syntax errors shown, then re-run:
+bash install.sh
+```
+
+**Option C — Clean reinstall (last resort):**
+```bash
+cp ~/.config/opencode/opencode.json ~/.config/opencode/opencode.json.bak
+rm ~/.config/opencode/opencode.json
+bash install.sh
+```
+
+### Windows Terminal (WSL)
+
+The wizard (step 9) offers optional keybinding setup for Shift+Enter and Ctrl+Backspace in WSL. On WSL, it generates `~/open-chad-keybindings.ps1` — copy it to your Windows home and run in PowerShell:
+
+```powershell
+cp ~/open-chad-keybindings.ps1 /mnt/c/Users/$USER/
+# Then in PowerShell:
+.\open-chad-keybindings.ps1
+```
+
+On non-WSL systems, the wizard displays the JSON to add manually to your Windows Terminal `settings.json`.
+
+### Provider gauge customization
+
+By default, all 4 providers are shown. Customize which providers appear by adding a `providers` array to `~/.config/opencode/open-chad.json`:
+
+```json
+{
+  "providers": ["zai", "claude"]
+}
+```
+
+Valid provider IDs: `zai`, `copilot`, `claude`, `codex`. The gauge renders only the providers you specify, in the order you specify them.
+
+### `OPEN_CHAD_MULTI_GAUGE` toggle
+
+Controls whether the per-provider fuel gauge is shown in the status bar.
+
+| Value | Behavior |
+|-------|----------|
+| unset / `auto` | Show gauge only if at least one provider cache file has valid data (default) |
+| `1` / `true` / `yes` / `on` | Always show gauge (all segments, unknown providers show `--`) |
+| `0` / `false` / `no` / `off` | Never show gauge |
+
+Set in your shell profile or `~/.tmux.conf`:
+
+```bash
+export OPEN_CHAD_MULTI_GAUGE=1   # Always show
+export OPEN_CHAD_MULTI_GAUGE=0   # Never show
+```
+
+The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and `status_right.sh` (hides the segment when disabled).
 
 ---
 

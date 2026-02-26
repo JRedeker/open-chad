@@ -1,314 +1,149 @@
 # openchad
 
-A retro tmux launcher and orchestrator for [OpenCode](https://github.com/opencode-ai/opencode).
+**A context engineering platform for AI-assisted development.** One install gives you a complete environment where every layer — agents, rules, tools, specs, and instructions — is designed to shape what your AI sees, what it can do, and how it behaves.
 
-Designed for developers who run 5-10+ concurrent OpenCode sessions and need instant visual context when switching tabs.
+For developers who run multiple concurrent AI coding sessions and want everything configured out of the box.
 
-Inspired by [NvChad](https://github.com/NvChad/NvChad) and its focus on a fast, beautiful developer experience. Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
+Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvChad](https://github.com/NvChad/NvChad). Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
 
 ![openchad screenshot](Screenshot.png)
 
-> **Migration note:** The command was renamed from `open-chad` to `openchad` (one word, like opencode). The short alias `oc` still works. Running `openchad update` or `bash install.sh` auto-removes stale `alias oc='open-chad'` and `PATH` entries from your shell rc files. Run `openchad doctor` to check for any remaining legacy references.
+---
 
-## Features
+## Context Engineering, Out of the Box
 
-- **Boot Animation**: Centered, color-cycling OPEN CHAD logo with typewriter subtitle and contextual launch sequence. Dynamically adapts to terminal size (skippable via `--no-anim`).
-- **`cds` Scratch Launcher**: `cds [date]` creates `~/scratch/YYYY-MM-DD` and launches openchad there. Ideal for quick throwaway sessions. Accepts an optional explicit date (`cds 2026-01-15`).
-- **Unified ayu-dark Monitor**: Transforms tmux into a 2-row display using the ayu-dark palette (green, gold, blue, orange).
-- **Smart Context Bar**: 
-  - Left: repo name + branch.
-  - Row 2 left: LLM fuel gauge + ADV window title parser (extracts `EMOJI REPO CHANGE_ID` into structured zones).
-  - Row 2 right: live CPU%, RAM%, and load average.
-- **LLM Fuel Gauge**: Displays per-provider quota remaining as `Z.ai 62% | Copilot 81% | Claude 47% | Codex 94%` in the tmux status bar. Each provider segment is color-coded: green ≥50%, yellow 20–49%, red <20%. Unknown or failed providers show `--` in gray. Updated live every 30s via background collector.
-- **Shared System Metrics**: Background singleton collector tracks CPU%, RAM%, Load Avg, and LLM fuel across all sessions with near-zero overhead.
-- **Crash Isolation**: Wraps every OpenCode instance in an isolated tmux session (`oc-<timestamp>-<pid>`) to prevent WSL/terminal cascade failures.
+AI coding tools are only as good as the context they operate in. openchad ships a complete context engineering stack so your agents start every session with the right knowledge, the right tools, and the right constraints — no manual wiring required.
 
-## Installation
+### Layered Instructions & Rules
+A priority-ranked rule system (25 rules, conflict resolution by priority) governs every agent interaction. Layered instruction files — identity, coding conventions, shell strategy, tool selection guides, TDD policy — are injected into every session automatically. Your agents follow your standards from the first prompt.
 
-**Fresh Ubuntu install (two commands):**
+### Scoped Agent Orchestration
+Eight specialized agents — **scout**, **build**, **refine**, **plan**, **explore**, **librarian**, **general**, and **adv-researcher** — each with explicitly scoped tool access. Scout is read-only. Plan blocks all writes. Refine has full access but is scope-locked to one objective. The right agent gets the right tools and nothing more.
 
-```bash
-git clone https://github.com/JRedeker/open-chad.git && cd open-chad && bash install.sh
-```
+### Spec-Driven Development (ADV)
+The [ADV plugin](https://github.com/Sharper-Flow/Advance) turns requirements into enforceable specs. A 6-gate quality workflow — research → prep → implementation → review → harden → signoff — ensures changes are validated against specs before archive. Accumulated wisdom carries forward across changes.
 
-On an interactive TTY this launches a guided wizard. For non-interactive / CI use:
+### Pre-Wired Tool Ecosystem
+MCP servers for documentation lookup ([Context7](https://context7.com)), code search ([grep.app](https://grep.app)), semantic codebase search ([lgrep](https://github.com/Sharper-Flow/lgrep)), and web scraping (Firecrawl) are configured and ready. Agents can reach external knowledge without you wiring anything. Add or remove servers dynamically at runtime.
 
-```bash
-bash install.sh --yes
-```
+### Project Context via AGENTS.md
+Each project gets an `AGENTS.md` that documents architecture, conventions, data flow, and design decisions. Agents read it automatically — so they understand your codebase structure, not just the code.
 
-### Wizard steps
+---
 
-| Step | What it does |
-|------|--------------|
-| 1. System deps | Installs `git`, `curl`, `tmux`, Node 20, `pnpm` via apt (silent, logged) |
-| 2. Claude auth | Step-by-step OAuth onboarding instructions for OpenCode |
-| 3. Dev bundles | Multi-select: Python (uv), Go, Rust, Web (TS/JS) — press Enter to install all (default), 0 for none |
-| 4. MCP servers | Wires `context7`, `grep-app`, `lgrep` (enabled) + `firecrawl`, `brave-web-search` (disabled) into `opencode.json` |
-| 5. Plugins | Installs ADV spec-driven dev plugin and morph fast-apply plugin |
-| 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
-| 7. Model prefs (omp) | Installs `omp` (opencode-model-preferences) via `go install`. Skipped gracefully if Go is not installed. |
-| 8. Zsh setup | Installs zsh + plugins (powerlevel10k, zsh-autosuggestions, fast-syntax-highlighting) into `~/.zsh/plugins/`, adds managed block to `~/.zshrc` |
-| 9. Windows Terminal | Optional Shift+Enter / Ctrl+Backspace keybinding setup (generates `.ps1` on WSL) |
+## What Else You Get
 
-### Non-interactive flags
+### Zsh Shell Environment
+Installs zsh with [Powerlevel10k](https://github.com/romkatv/powerlevel10k), [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions), and [fast-syntax-highlighting](https://github.com/zdharma-continuum/fast-syntax-highlighting) — configured and ready. Shell completions for all openchad commands included.
 
-```bash
-# Skip specific wizard steps
-bash install.sh --yes --skip-deps --skip-auth --skip-bundles
-bash install.sh --yes --skip-mcp --skip-adv --skip-morph
-bash install.sh --yes --skip-omp --skip-zsh
+### Live LLM Fuel Gauges
+See remaining quota for Z.ai, GitHub Copilot, Claude, and OpenAI Codex directly in your tmux status bar. Color-coded: green ≥50%, yellow 20–49%, red <20%. Updated every 30 seconds.
 
-# Select bundles non-interactively (comma or space separated, both work)
-bash install.sh --yes --bundles python,go
-bash install.sh --yes --bundles "python go rust web"
+### Crash-Isolated Sessions
+Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). If one crashes, the rest are unaffected. Run 5, 10, or 20+ concurrent sessions without cascade failures.
 
-# Skip environment pre-flight check
-bash install.sh --yes --no-env-check
+### Themed tmux Dashboard
+Two-row ayu-dark status bar with repo/branch context, session titles correlated from OpenCode's database, live system metrics (CPU, RAM, load), and a retro boot animation.
 
-# Legacy opt-out flags (still supported)
-bash install.sh --no-adv
-bash install.sh --no-omp
-bash install.sh --no-opencode-setup
-```
+### Discord Rich Presence
+Optional — show your current project and a rotating tagline in Discord. All dynamic input is sanitized (no paths, tokens, or secrets transmitted).
 
-### Prerequisites
+---
 
-| Tool | Required | Notes |
-|------|----------|-------|
-| `bash` | Yes | 4.0+ |
-| `git` | Yes | Cloning and update command |
-| `tmux` | Yes | 3.2+ recommended |
-| `node` / `npm` | Yes | For JSON config merging |
-| `pnpm` | Auto-installed | Via npm if missing |
-| `opencode` | Yes | Install from https://opencode.ai |
-| `jq` | Optional | Used by metrics collector; not required by render path |
-| Ubuntu/Debian | Yes | Linux only; `/proc` metrics; apt bootstrapping |
+## Install
 
-### What gets installed
-
-| Component | Path | Notes |
-|-----------|------|-------|
-| Launcher | `~/.local/bin/openchad` | Symlink (canonical name) |
-| Short alias | `~/.local/bin/oc` | Forwards all args to openchad |
-| Scratch launcher | `~/.local/bin/cds` | Symlink — creates `~/scratch/<date>` and launches openchad |
-| Session lister | `~/.local/bin/oc-list` | Lists active oc-* tmux sessions |
-| Session killer | `~/.local/bin/oc-killall` | Kills all oc-* tmux sessions |
-| tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
-| ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev |
-| morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
-| Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore, adv-researcher |
-| Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp, post_install_verification |
-| Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |
-| Theme | `~/.config/opencode/themes/ayu-dark.json` | ayu-dark color theme |
-| opencode.json | `~/.config/opencode/opencode.json` | Plugin paths, MCP servers, instructions (additive merge) |
-| Install state | `~/.config/opencode/open-chad.json` | Selected bundles, timestamps |
-| Install log | `~/.config/opencode/open-chad-install.log` | Timestamped wizard log |
-
-### Shell support (bash + zsh)
-
-The installer automatically detects your active shell (`$SHELL`) and writes an idempotent `~/.local/bin` PATH export to the correct rc file:
-
-| Shell | Target file |
-|-------|-------------|
-| `bash` | `~/.bashrc` |
-| `zsh` | `~/.zshrc` |
-| other / unknown | `~/.profile` |
-
-The block is guarded by `# BEGIN open-chad` / `# END open-chad` markers — re-running the installer never duplicates it. After install, reload your shell:
+Two commands on a fresh Ubuntu/Debian system:
 
 ```bash
-source ~/.bashrc   # bash
-source ~/.zshrc    # zsh
+git clone https://github.com/JRedeker/open-chad.git && cd open-chad
+bash install.sh
 ```
 
-Shell completions for `openchad` and `oc` are also wired automatically:
-- **bash**: `completion/openchad.bash` is sourced in `~/.bashrc`
-- **zsh**: `completion/_openchad.zsh` is added to `fpath` in `~/.zshrc`
+The interactive wizard walks you through 9 steps:
 
-### Post-install verification
+| Step | What happens |
+|------|-------------|
+| 1 | System dependencies (git, curl, tmux, Node 20, pnpm) |
+| 2 | OpenCode OAuth onboarding |
+| 3 | Dev language bundles — Python (uv), Go, Rust, Web (TS/JS) |
+| 4 | MCP servers wired into opencode.json |
+| 5 | ADV + morph plugins installed |
+| 6 | Agents, instructions, theme, slash commands synced |
+| 7 | Model preferences TUI (`omp`) |
+| 8 | Zsh + plugins configured |
+| 9 | Windows Terminal keybindings (WSL only) |
 
-After launching OpenCode, paste the verification prompt from `~/.config/opencode/instructions/post_install_verification.md` to confirm auth, ADV plugin, lgrep MCP, morph plugin, theme, and agents are all working. The wizard prints this prompt at the end of installation.
+For CI or unattended installs: `bash install.sh --yes`
 
-### Updating
+After install, reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and you're ready.
+
+### Update
 
 ```bash
 openchad update
-# or: oc update
 ```
 
-Requires a git-cloned install (errors clearly if run from a tarball/zip). Runs `git pull --ff-only` then re-applies all setup modules using your persisted bundle selections.
+Pulls latest changes and re-runs all setup modules. Safe to run anytime.
 
-### Re-running install (idempotent)
+### Verify
 
-`install.sh` is safe to re-run. It will re-sync config, pull latest plugins, and merge opencode.json without duplicating existing entries.
+After launching OpenCode, paste the verification prompt from `~/.config/opencode/instructions/post_install_verification.md` to confirm everything is wired correctly.
 
-### Recovering from opencode.json conflicts
-
-If `setup_mcp.sh` exits with an error about invalid or unparseable `opencode.json`, it will **not** automatically overwrite your config. This is intentional — silent auto-recovery was removed (CVE-003) to prevent data loss.
-
-**Recovery options (choose one):**
-
-**Option A — Restore from git backup (recommended):**
-```bash
-# If opencode.json is tracked in a dotfiles repo:
-git checkout ~/.config/opencode/opencode.json
-```
-
-**Option B — Manual config merge:**
-```bash
-# Validate the file:
-node -e "JSON.parse(require('fs').readFileSync('~/.config/opencode/opencode.json','utf8'))"
-# Fix any syntax errors shown, then re-run:
-bash install.sh
-```
-
-**Option C — Clean reinstall (last resort):**
-```bash
-# Back up first, then remove and reinstall:
-cp ~/.config/opencode/opencode.json ~/.config/opencode/opencode.json.bak
-rm ~/.config/opencode/opencode.json
-bash install.sh
-```
-
-After recovery, re-run `bash install.sh` to re-apply MCP server wiring.
-
-### Windows Terminal
-
-The wizard (step 9) offers optional keybinding setup for Shift+Enter and Ctrl+Backspace in WSL. On WSL, it generates `~/open-chad-keybindings.ps1` — copy it to your Windows home and run in PowerShell:
-
-```powershell
-cp ~/open-chad-keybindings.ps1 /mnt/c/Users/$USER/
-# Then in PowerShell:
-.\open-chad-keybindings.ps1
-```
-
-On non-WSL systems, the wizard displays the JSON to add manually to your Windows Terminal `settings.json`.
-
-### Opt-out flags
+### Uninstall
 
 ```bash
-# Skip ADV plugin install (keep existing ADV setup)
-./install.sh --no-adv
-
-# Skip omp install
-./install.sh --no-omp
-
-# Skip all OpenCode config changes (agents, commands, instructions, opencode.json)
-./install.sh --no-opencode-setup
-
-# Skip everything new (tmux + symlink only)
-./install.sh --no-adv --no-omp --no-opencode-setup
+openchad uninstall
 ```
+
+Removes symlinks and shell profile blocks. Your OpenCode config and plugins are left intact.
+
+### Upgrading from `open-chad`
+
+The command was renamed from `open-chad` to `openchad`. Running `openchad update` or `bash install.sh` auto-cleans stale aliases and PATH entries. Run `openchad doctor` to verify.
+
+---
 
 ## Usage
 
 ```bash
-# Launch OpenCode in current directory with animation
-openchad
-# or use the short alias:
-oc
+openchad                        # Launch in current directory
+openchad ~/dev/my-project       # Launch in specific directory
+openchad --no-anim              # Skip boot animation
 
-# Launch in specific directory
-openchad ~/dev/my-project
-oc ~/dev/my-project
+oc                              # Short alias (same as openchad)
+oc attach                       # Attach to a running session
+oc switch                       # Pick a session to switch to
 
-# Skip the boot animation
-openchad --no-anim
-oc --no-anim
+cds                             # Create ~/scratch/YYYY-MM-DD and launch there
+cds 2026-01-15                  # Specific date
 
-# Create ~/scratch/YYYY-MM-DD and launch openchad there
-cds
-
-# Use a specific date for the scratch directory
-cds 2026-01-15
-
-# List all running openchad sessions with window count and memory usage
-oc-list
-
-# Kill all openchad sessions (prompts for confirmation; use --yes to skip)
-oc-killall
-oc-killall --yes
+oc-list                         # List all running sessions
+oc-killall                      # Kill all sessions (--yes to skip prompt)
 ```
 
 ### Subcommands
 
 ```bash
-# Show version
-openchad version
-
-# Validate install health (symlinks, tmux theme, cache dir, legacy migration)
-openchad doctor
-
-# Pull latest changes and re-run setup
-openchad update
-
-# Remove symlinks and shell profile blocks
-openchad uninstall
-
-# Show system metrics
-openchad metrics
-openchad metrics log      # append timestamped reading to history
-openchad metrics export   # print as JSON
-
-# Show git log since last tag
-openchad changelog
-openchad changelog latest  # show last tag release notes
-
-# Manage Discord Rich Presence
-openchad discord enable
-openchad discord disable
-openchad discord status
+openchad version                # Show version
+openchad doctor                 # Validate install health
+openchad update                 # Pull latest + re-run setup
+openchad uninstall              # Remove openchad
+openchad metrics                # Show system metrics
+openchad metrics log            # Append timestamped reading to history
+openchad metrics export         # Print as JSON
+openchad changelog              # Git log since last tag
+openchad changelog latest       # Show last tag release notes
+openchad discord enable         # Turn on Discord Rich Presence
+openchad discord status         # Check Discord status
 ```
 
-### Session helpers (via `oc`)
+---
 
-```bash
-# Attach to a named session (or pick interactively if multiple exist)
-oc attach
-oc attach oc-1700000000-12345
+## Configuration
 
-# Numbered picker to switch between sessions (from within tmux)
-oc switch
-```
+### LLM Provider Gauge
 
-## Architecture
-
-- `bin/openchad`: Main entrypoint. Thin dispatcher — routes subcommands to dedicated handlers, then handles arg parsing, animation trigger, metrics collector bootstrap, and tmux session isolation.
-- `bin/oc`: Short alias. Forwards all args to openchad; also provides `oc attach` and `oc switch` session helpers.
-- `lib/symlink_manifest.sh`: Single source of truth for all managed `~/.local/bin` symlinks. Consumed by install.sh, update.sh, doctor, and uninstall.
-- `lib/openchad_version.sh`: `openchad version` handler — prints version from git tag or hardcoded fallback.
-- `lib/openchad_doctor.sh`: `openchad doctor` handler — validates symlinks, tmux theme, cache dir, legacy migration.
-- `lib/openchad_uninstall.sh`: `openchad uninstall` handler — removes symlinks and shell profile blocks via manifest.
-- `lib/openchad_metrics.sh`: `openchad metrics` handler — show/log/export system metrics from cache files.
-- `lib/openchad_changelog.sh`: `openchad changelog` handler — git log since last tag.
-- `lib/animation.sh`: Pure bash boot animation. Dynamically centers on screen, cycles the logo through the ayu-dark palette, and typewriter-renders the subtitle. Uses true-color ANSI sequences.
-- `lib/collect_metrics.sh`: Singleton daemon. Writes `$OPEN_CHAD_CACHE_DIR/metrics` (CPU/RAM/load) every 30s. Writes 4 per-provider LLM quota cache files every 30s: `$OPEN_CHAD_CACHE_DIR/zai`, `$OPEN_CHAD_CACHE_DIR/copilot`, `$OPEN_CHAD_CACHE_DIR/claude`, `$OPEN_CHAD_CACHE_DIR/codex`. Each file contains a plain integer 0–100 (remaining %), or is empty when the provider is unavailable. Auth tokens are read from `~/.local/share/opencode/auth.json` at runtime. Uses PID locks and safe parallel background jobs (`wait $pid || rc=$?`).
-- `lib/status_left.sh`: Fast tmux `#()` renderer (Row 1 left). Shows worktree name and current git branch for the active pane. No external dependencies.
-- `lib/status_right.sh`: Fast tmux `#()` renderer (Row 1 right). Reads system metrics cache (`$OPEN_CHAD_CACHE_DIR/metrics`) and 4 per-provider LLM quota cache files. Renders CPU/RAM/Load + LLM fuel gauges as one unit. No jq, no curl — plain bash.
-- `lib/status_resources.sh`: Standalone Row 0 resource renderer (CPU/RAM/Load only). Available for custom tmux layouts; Row 1 uses `status_right.sh` which includes resources inline.
-- `lib/title_parser.sh`: Fast tmux `#()` renderer. Parses ADV state strings (emoji + repo + changeId) for structured display in the window name area.
-- `lib/theme.conf`: Sourced by `~/.tmux.conf`. Defines the 2-row ayu-dark status bar layout.
-- `completion/openchad.bash`: Bash completion for `openchad` and `oc`.
-- `completion/_openchad.zsh`: Zsh completion for `openchad` and `oc`.
-- `Makefile`: Project task runner — `make install`, `make test`, `make update`, `make uninstall`.
-
-## LLM Provider Auth
-
-The metrics collector reads auth tokens from `~/.local/share/opencode/auth.json` at runtime. Each provider uses a specific key path:
-
-| Provider | auth.json key | API endpoint |
-|----------|--------------|--------------|
-| Z.ai | `zai-coding-plan.key` | `api.z.ai/api/monitor/usage/quota/limit` |
-| GitHub Copilot | `github-copilot.access` | `api.github.com/copilot_internal/user` |
-| Claude (Anthropic) | `anthropic.access` | `api.anthropic.com/api/oauth/usage` |
-| OpenAI Codex | `openai.access` | `chatgpt.com/backend-api/wham/usage` |
-
-If a token is missing or the API call fails, that provider's segment shows `--` — no crash, no effect on other providers.
-
-### Customizing the Provider Gauge
-
-By default, all 4 providers are shown. You can customize which providers appear in the gauge by adding a `providers` array to `~/.config/opencode/open-chad.json`:
+The fuel gauge auto-detects providers from your auth tokens in `~/.local/share/opencode/auth.json`. To show only specific providers, add to `~/.config/opencode/open-chad.json`:
 
 ```json
 {
@@ -316,29 +151,41 @@ By default, all 4 providers are shown. You can customize which providers appear 
 }
 ```
 
-Valid provider IDs are: `zai`, `copilot`, `claude`, `codex`. The gauge will only render the providers you specify, in the order you specify them.
+Valid IDs: `zai`, `copilot`, `claude`, `codex`.
 
-## Toggle: `OPEN_CHAD_MULTI_GAUGE`
+To disable the gauge entirely: `export OPEN_CHAD_MULTI_GAUGE=0`
 
-Controls whether the per-provider fuel gauge is shown in the status bar.
+### Re-running Install
 
-| Value | Behavior |
-|-------|----------|
-| unset / `auto` | Show gauge only if at least one provider cache file has valid data (default) |
-| `1` / `true` / `yes` / `on` | Always show gauge (all 4 segments, unknown providers show `--`) |
-| `0` / `false` / `no` / `off` | Never show gauge |
+`install.sh` is idempotent — safe to re-run anytime. It re-syncs config, pulls latest plugins, and merges opencode.json without duplicating entries.
 
-Set in your shell profile or `~/.tmux.conf`:
+---
 
-```bash
-# Always show (even on a fresh install with no tokens):
-export OPEN_CHAD_MULTI_GAUGE=1
+## Troubleshooting
 
-# Never show:
-export OPEN_CHAD_MULTI_GAUGE=0
-```
+| Problem | Fix |
+|---------|-----|
+| `openchad: command not found` | Reload shell: `source ~/.zshrc` or `source ~/.bashrc` |
+| opencode.json parse error | See [recovery steps](AGENTS.md#recovering-from-opencodejson-conflicts) |
+| ADV plugin not loading | `bash lib/setup_adv.sh` |
+| Missing MCP server | Check `~/.config/opencode/opencode.json` for the server entry |
+| Theme looks wrong | `bash lib/setup_opencode.sh` |
+| `openchad doctor` reports issues | Follow the remediation instructions it prints |
 
-The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and `status_right.sh` (hides the segment when disabled).
+For detailed installer internals, CI flags, architecture, and contributor docs, see [AGENTS.md](AGENTS.md).
+
+---
+
+## Requirements
+
+- **Ubuntu / Debian** (Linux only — uses `/proc` for system metrics)
+- **bash 4.0+**, **git**, **tmux 3.2+**
+- **Node.js / npm** (for config merging)
+- **OpenCode** — install from [opencode.ai](https://opencode.ai)
+
+Everything else is installed automatically by the wizard.
+
+---
 
 ## License
 
