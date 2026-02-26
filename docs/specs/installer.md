@@ -1,7 +1,7 @@
 # Installer
 
-> **Version:** 1.0.0
-> **Updated:** 2026-02-25
+> **Version:** 1.1.0
+> **Updated:** 2026-02-26
 
 ## Purpose
 
@@ -136,5 +136,80 @@ lib/update.sh calls setup_zsh_plugins.sh. If it fails, a warning is emitted but 
 **Then:**
 - update.sh emits a WARN line
 - update continues to completion with exit 0
+
+---
+
+### Primary launcher command is openchad with oc alias
+
+**ID:** `rq-ocRen01` | **Priority:** **[MUST]**
+
+Installer and update flows publish openchad as the canonical launcher while providing oc as a forwarding alias. Legacy open-chad usage must be detected and guided with migration messaging rather than silently breaking.
+
+#### Scenarios
+
+**Fresh install creates canonical and alias launchers** (`rq-ocRen01.1`)
+
+**Given:**
+- no existing open-chad symlinks in ~/.local/bin
+
+**When:** install.sh is run
+
+**Then:**
+- ~/.local/bin/openchad exists and points to repo launcher
+- ~/.local/bin/oc exists and forwards all args to openchad
+- cds, oc-list, and oc-killall symlinks still exist
+
+**Legacy invocation gets migration guidance** (`rq-ocRen01.2`)
+
+**Given:**
+- a user invokes open-chad after the rename
+
+**When:** the command is executed
+
+**Then:**
+- the user receives a clear migration warning or compatibility path
+- documentation and doctor output reference openchad as canonical
+
+---
+
+### Symlink lifecycle is centralized and consistent
+
+**ID:** `rq-ocRen02` | **Priority:** **[MUST]**
+
+All symlink management must be driven by a single manifest consumed by install, update, doctor, uninstall, and installer tests to prevent drift between command sets.
+
+#### Scenarios
+
+**Install and update use same managed symlink set** (`rq-ocRen02.1`)
+
+**Given:**
+- the managed symlink manifest is defined
+
+**When:** install.sh and lib/update.sh are executed independently
+
+**Then:**
+- both scripts create/repair the exact same symlink names
+- no command exists in one path but not the other
+
+---
+
+### Rename rollout is TDD-first and regression-tested
+
+**ID:** `rq-ocRen03` | **Priority:** **[SHOULD]**
+
+For rename and alias behavior, tests are authored before implementation changes and regression coverage spans install, update, shell profile wiring, and oc session helpers.
+
+#### Scenarios
+
+**Red-to-green ordering is explicit in task graph** (`rq-ocRen03.1`)
+
+**Given:**
+- implementation tasks for launcher rename and aliasing
+
+**When:** task dependencies are inspected
+
+**Then:**
+- implementation tasks are blocked by the TDD scaffolding task
+- no test task is blocked by implementation tasks
 
 ---

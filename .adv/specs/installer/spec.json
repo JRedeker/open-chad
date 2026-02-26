@@ -3,8 +3,8 @@
   "name": "installer",
   "title": "Installer",
   "purpose": "Capability: Installer",
-  "version": "1.0.0",
-  "updated_at": "2026-02-25T22:40:35.192Z",
+  "version": "1.1.0",
+  "updated_at": "2026-02-26T08:27:21.951Z",
   "requirements": [
     {
       "id": "rq-zsh.1",
@@ -129,6 +129,79 @@
           "then": [
             "update.sh emits a WARN line",
             "update continues to completion with exit 0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-ocRen01",
+      "title": "Primary launcher command is openchad with oc alias",
+      "body": "Installer and update flows publish openchad as the canonical launcher while providing oc as a forwarding alias. Legacy open-chad usage must be detected and guided with migration messaging rather than silently breaking.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "rq-ocRen01.1",
+          "title": "Fresh install creates canonical and alias launchers",
+          "given": [
+            "no existing open-chad symlinks in ~/.local/bin"
+          ],
+          "when": "install.sh is run",
+          "then": [
+            "~/.local/bin/openchad exists and points to repo launcher",
+            "~/.local/bin/oc exists and forwards all args to openchad",
+            "cds, oc-list, and oc-killall symlinks still exist"
+          ]
+        },
+        {
+          "id": "rq-ocRen01.2",
+          "title": "Legacy invocation gets migration guidance",
+          "given": [
+            "a user invokes open-chad after the rename"
+          ],
+          "when": "the command is executed",
+          "then": [
+            "the user receives a clear migration warning or compatibility path",
+            "documentation and doctor output reference openchad as canonical"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-ocRen02",
+      "title": "Symlink lifecycle is centralized and consistent",
+      "body": "All symlink management must be driven by a single manifest consumed by install, update, doctor, uninstall, and installer tests to prevent drift between command sets.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "rq-ocRen02.1",
+          "title": "Install and update use same managed symlink set",
+          "given": [
+            "the managed symlink manifest is defined"
+          ],
+          "when": "install.sh and lib/update.sh are executed independently",
+          "then": [
+            "both scripts create/repair the exact same symlink names",
+            "no command exists in one path but not the other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-ocRen03",
+      "title": "Rename rollout is TDD-first and regression-tested",
+      "body": "For rename and alias behavior, tests are authored before implementation changes and regression coverage spans install, update, shell profile wiring, and oc session helpers.",
+      "priority": "should",
+      "scenarios": [
+        {
+          "id": "rq-ocRen03.1",
+          "title": "Red-to-green ordering is explicit in task graph",
+          "given": [
+            "implementation tasks for launcher rename and aliasing"
+          ],
+          "when": "task dependencies are inspected",
+          "then": [
+            "implementation tasks are blocked by the TDD scaffolding task",
+            "no test task is blocked by implementation tasks"
           ]
         }
       ]
