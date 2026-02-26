@@ -61,8 +61,11 @@ lib/
   setup_ubuntu_deps.sh      Silent apt bootstrap — core tools + language toolchain prereqs.
                             DEBIAN_FRONTEND=noninteractive, logs to /tmp/open-chad-install.log.
   setup_mcp.sh              Wires 5 MCP servers into opencode.json via json_merge.sh.
-                            context7/grep-app/lgrep (enabled), firecrawl/brave-web-search
-                            (disabled). Validates JSON before and after merge.
+                            context7/grep-app/lgrep/firecrawl registered as type=remote
+                            pointing at Vision daemon ports (6276/6288/6285/6281).
+                            brave-web-search registered as type=local (disabled, key-required).
+                            context7/grep-app/lgrep enabled; firecrawl/brave-web-search disabled.
+                            Validates JSON before and after merge.
   setup_morph.sh            Clone/pull morph-fast-apply, pnpm install+build, wire plugin
                             path and MORPH_INSTRUCTIONS.md into opencode.json.
   setup_dev_bundle.sh       Python (uv-only, no pyenv), Go (apt+tarball), Rust (rustup).
@@ -107,11 +110,11 @@ tests/
   animation_test.sh         39 tests — centering math, palette, phases, regression guards
   session_title_test.sh     31 tests — SQLite correlation, no-fallback, filtering, format
   llm_fuel_test.sh          50 tests — gauge rendering, API parsing, toggle, edge cases
-  install_test.sh           57 tests — idempotency, flags, file creation, MCP regression
-  installer_validation_test.sh  38 tests — error paths, wizard flags, MCP enabled/disabled,
+  install_test.sh           104 tests — idempotency, flags, file creation, MCP regression
+  installer_validation_test.sh  82 tests — error paths, wizard flags, MCP schema/enabled/disabled,
                             dev bundle config persistence
   discord_sanitizer_test.sh 34 tests — sanitizer pattern matching
-  discord_setup_test.sh     16 tests — setup wizard, config read/write
+  discord_setup_test.sh     20 tests — setup wizard, config read/write
 
 docs/
   STATUS_BAR_IMPLEMENTATION.md   Implementation examples for status bar data sources
@@ -261,6 +264,7 @@ Permissions: `0700` (owner-only). Created on first source.
 |------|---------|--------|--------|
 | `metrics` | `CPU% RAM% LOAD` (space-separated) | `collect_metrics.sh` | `status_resources.sh` |
 | `metrics.lock` | PID of running collector | `collect_metrics.sh` | `collect_metrics.sh` (singleton guard) |
+| `metrics-start.lock` | Atomic mkdir startup lock | `bin/open-chad` | `bin/open-chad` (prevents duplicate collector starts) |
 | `zai` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `copilot` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `claude` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
@@ -312,20 +316,20 @@ bash tests/oc_sessions_test.sh
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 80+ | Idempotency, flags, file creation, MCP regression, oc-list/oc-killall symlinks |
+| `install_test.sh` | 104 | Idempotency, flags, file creation, MCP regression, oc-list/oc-killall symlinks |
 | `llm_fuel_test.sh` | 62 | Gauge rendering, API parsing, toggle, edge cases |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
-| `installer_validation_test.sh` | 57 | Error paths, wizard flags, MCP enabled/disabled, bundle config |
+| `installer_validation_test.sh` | 82 | Error paths, wizard flags, MCP schema/enabled/disabled, bundle config |
 | `discord_sanitizer_test.sh` | 34 | Sanitizer pattern matching |
 | `discord_setup_test.sh` | 20 | Setup wizard, config read/write |
 | `cds_test.sh` | 18 | Date-stamped scratch dir launcher |
-| `integration_test.sh` | 36+ | End-to-end installer flow |
-| `installer_robustness_test.sh` | 50+ | Scenario-driven robustness |
+| `integration_test.sh` | 11 | End-to-end installer flow |
+| `installer_robustness_test.sh` | 24 | Scenario-driven robustness |
 | `setup_zsh_test.sh` | 32 | Zsh plugin setup, managed .zshrc block |
-| `shell_profile_test.sh` | 21+ | Shell profile PATH wiring |
+| `shell_profile_test.sh` | 27 | Shell profile PATH wiring |
 | `oc_sessions_test.sh` | 29 | oc-list and oc-killall behavior |
-| **Total** | **510+** | |
+| **Total** | **513** | |
 
 ### Testing conventions
 
@@ -423,13 +427,13 @@ The following security fixes were applied in the v1.1 hardening pass:
 | ISSUE-006 | `install.sh`, `lib/update.sh` | Symlink creation changed to atomic `ln -sfn`. Source existence validated before linking. |
 | ISSUE-008 | `lib/wizard.sh` | Install log created with `install -m 0600` for atomic secure creation. |
 | ISSUE-009 | `lib/setup_mcp.sh` | Node.js invocations use `process.argv` file inputs (not interpolated strings) for path safety. |
-| ISSUE-010 | `bin/open-chad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir. |
+| ISSUE-010 | `bin/open-chad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir (`metrics-start.lock`). Renamed from `metrics.lock` to avoid collision with the collector's own PID lockfile. Lockdir removed after 2s delay to close the race window. |
 | ISSUE-011 | `lib/setup_dev_bundle.sh` | Go fallback version updated to `go1.26.0` with maintenance comment. |
 | ISSUE-012 | `lib/check_environment.sh` | Non-fatal `python3` presence check added with `apt install python3` hint. |
 | ISSUE-013 | `lib/setup_dev_bundle.sh` | `_persist_bundles` moved to after failure checks — failed installs no longer persist as selected. |
 | ISSUE-016 | `lib/json_merge.sh` | 1MB size guard added before Node.js parse for both target file and merge payload. |
 | ISSUE-017 | `lib/wizard.sh` | WSL detected via `/proc/version`; generates `~/open-chad-keybindings.ps1` instead of manual instructions. |
-| ISSUE-018 | `lib/setup_shell_profile.sh` | Sources rc file + exports PATH directly after writing block for immediate availability. |
+| ISSUE-018 | `lib/setup_shell_profile.sh` | Exports PATH directly after writing block for immediate availability. Does NOT source the user's rc file (security: avoids executing arbitrary user shell code in installer context). |
 | ISSUE-019 | `lib/collect_metrics.sh` | `find` cleanup wrapped in `timeout 5` to prevent hangs on slow filesystems. |
 | ISSUE-021 | `lib/setup_shell_profile.sh` | Heredoc changed from `<<'EOF'` to `<<EOF` with `\$HOME` for explicit intent. |
 
