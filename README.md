@@ -169,7 +169,9 @@ oc shared             # → error: lists all matches if ambiguous
 | 5 | Multiple `~/dev/*/<name>` exist | Exit 1 + disambiguation list |
 | 6 | No match | Forwarded unchanged (openchad handles the error) |
 
-Tab-completion offers project names from `~/dev` alongside subcommands.
+Tab-completion offers project names from `~/dev` alongside subcommands, with
+de-dup behavior: if a name exists both top-level and nested, only the top-level
+name is suggested (matching runtime resolution precedence).
 
 ### Subcommands
 
