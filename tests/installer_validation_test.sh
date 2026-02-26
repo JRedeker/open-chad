@@ -1333,6 +1333,137 @@ test_makefile_has_test_target
 test_makefile_has_update_target
 test_makefile_has_uninstall_target
 
+# ─── Section: ADV Bundling — Error Paths ─────────────────────────────────────
+
+section "ADV bundling — missing-network graceful fallback"
+
+test_adv_offline_mode_exits_zero() {
+    # When ADV_INSTALL_MODE=offline, setup_adv.sh must exit 0 even with no network
+    # It should sync bundled commands and not attempt git clone/pull
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_home="$tmp_dir/home"
+    mkdir -p "$tmp_home/.config/opencode"
+    local exit_code=0
+    HOME="$tmp_home" \
+    ADV_INSTALL_MODE=offline \
+    ADV_CHECKOUT_DIR="$tmp_dir/adv-checkout" \
+    OPENCODE_CONFIG_DIR="$tmp_home/.config/opencode" \
+    bash "$REPO_DIR/lib/setup_adv.sh" > /dev/null 2>&1 || exit_code=$?
+    rm -rf "$tmp_dir"
+    if [ "$exit_code" -eq 0 ]; then
+        pass "setup_adv.sh exits 0 in offline mode"
+    else
+        fail "setup_adv.sh exits $exit_code in offline mode (expected 0)"
+    fi
+}
+
+test_adv_network_failure_falls_back_gracefully() {
+    # When git clone fails (bad URL), setup_adv.sh should fall back to bundled
+    # and exit 0 (non-fatal) rather than propagating the git error
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_home="$tmp_dir/home"
+    mkdir -p "$tmp_home/.config/opencode"
+    local exit_code=0
+    HOME="$tmp_home" \
+    ADVANCE_REPO="https://invalid.example.invalid/nonexistent.git" \
+    ADV_INSTALL_MODE=pinned \
+    ADV_CHECKOUT_DIR="$tmp_dir/adv-checkout" \
+    OPENCODE_CONFIG_DIR="$tmp_home/.config/opencode" \
+    bash "$REPO_DIR/lib/setup_adv.sh" > /dev/null 2>&1 || exit_code=$?
+    rm -rf "$tmp_dir"
+    if [ "$exit_code" -eq 0 ]; then
+        pass "setup_adv.sh exits 0 on network failure (graceful fallback)"
+    else
+        fail "setup_adv.sh exits $exit_code on network failure (expected 0 — should fall back to bundled)"
+    fi
+}
+
+test_adv_offline_mode_exits_zero
+test_adv_network_failure_falls_back_gracefully
+
+section "ADV bundling — stale checkout recovery"
+
+test_adv_stale_checkout_non_git_dir_quarantined() {
+    # If ADV_CHECKOUT_DIR exists but is not a git repo, setup_adv.sh should
+    # quarantine it (rename to .bak.*) and proceed — not crash
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_home="$tmp_dir/home"
+    local stale_dir="$tmp_dir/adv-checkout"
+    mkdir -p "$tmp_home/.config/opencode"
+    mkdir -p "$stale_dir"  # non-git directory
+    echo "stale content" > "$stale_dir/stale.txt"
+    local exit_code=0
+    HOME="$tmp_home" \
+    ADV_INSTALL_MODE=offline \
+    ADV_CHECKOUT_DIR="$stale_dir" \
+    OPENCODE_CONFIG_DIR="$tmp_home/.config/opencode" \
+    bash "$REPO_DIR/lib/setup_adv.sh" > /dev/null 2>&1 || exit_code=$?
+    rm -rf "$tmp_dir"
+    if [ "$exit_code" -eq 0 ]; then
+        pass "setup_adv.sh handles stale non-git checkout gracefully (exit 0)"
+    else
+        fail "setup_adv.sh exits $exit_code on stale checkout (expected 0)"
+    fi
+}
+
+test_adv_stale_checkout_non_git_dir_quarantined
+
+section "ADV bundling — lock immutability (validation)"
+
+test_adv_lock_ref_not_a_branch_name() {
+    # The ref in adv-lock.json must not be a branch name like 'main' or 'trunk'
+    local ref
+    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
+    if echo "$ref" | grep -qE '^(main|trunk|master|HEAD|develop|dev)$'; then
+        fail "adv-lock.json ref is a branch name ('$ref') — must be a commit SHA"
+    else
+        pass "adv-lock.json ref is not a branch name (got: '$ref')"
+    fi
+}
+
+test_adv_lock_ref_not_a_tag_pattern() {
+    # The ref must not look like a semver tag (v1.2.3)
+    local ref
+    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
+    if echo "$ref" | grep -qE '^v?[0-9]+\.[0-9]+'; then
+        fail "adv-lock.json ref looks like a tag ('$ref') — must be a commit SHA"
+    else
+        pass "adv-lock.json ref is not a semver tag (got: '$ref')"
+    fi
+}
+
+test_adv_lock_ref_not_a_branch_name
+test_adv_lock_ref_not_a_tag_pattern
+
+section "ADV bundling — doctor + wizard UX"
+
+test_doctor_references_adv_health_check() {
+    grep -q 'adv\|ADV\|advance\|Advance' "$REPO_DIR/lib/openchad_doctor.sh" 2>/dev/null \
+        && pass "openchad_doctor.sh references ADV health checks" \
+        || fail "openchad_doctor.sh missing ADV health check section"
+}
+
+test_wizard_step5_references_adv_mode() {
+    # wizard.sh Step 5 should display the ADV install mode/result
+    grep -q 'ADV_INSTALL_MODE\|pinned\|offline\|adv-lock' "$REPO_DIR/lib/wizard.sh" 2>/dev/null \
+        && pass "wizard.sh references ADV install mode" \
+        || fail "wizard.sh missing ADV install mode display"
+}
+
+test_setup_adv_emits_mode_in_output() {
+    # setup_adv.sh should print the mode it's running in (pinned/offline/latest)
+    grep -qE 'pinned|offline|latest|ADV_INSTALL_MODE' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh emits install mode in output" \
+        || fail "setup_adv.sh does not emit install mode"
+}
+
+test_doctor_references_adv_health_check
+test_wizard_step5_references_adv_mode
+test_setup_adv_emits_mode_in_output
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

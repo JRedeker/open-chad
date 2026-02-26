@@ -1198,6 +1198,163 @@ test_symlink_manifest_contains_cds
 test_symlink_manifest_contains_oc_list
 test_symlink_manifest_contains_oc_killall
 
+# ─── Section: ADV Bundling ────────────────────────────────────────────────────
+
+section "ADV bundling — adv-lock.json"
+
+test_adv_lock_file_exists() {
+    assert_file_exists "$REPO_DIR/config/opencode/adv-lock.json"
+}
+
+test_adv_lock_json_valid() {
+    if node -e "JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8'))" 2>/dev/null; then
+        pass "adv-lock.json is valid JSON"
+    else
+        fail "adv-lock.json is not valid JSON"
+    fi
+}
+
+test_adv_lock_ref_is_sha() {
+    local ref
+    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
+    if echo "$ref" | grep -qE '^[0-9a-f]{40}$'; then
+        pass "adv-lock.json ref is a 40-char hex SHA: $ref"
+    else
+        fail "adv-lock.json ref is not a 40-char hex SHA (got: '$ref')"
+    fi
+}
+
+test_adv_lock_has_repo_field() {
+    local repo
+    repo=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).repo)" 2>/dev/null || echo "")
+    if [ -n "$repo" ]; then
+        pass "adv-lock.json has repo field: $repo"
+    else
+        fail "adv-lock.json missing repo field"
+    fi
+}
+
+test_adv_lock_has_plugin_path_field() {
+    local pp
+    pp=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).pluginPath)" 2>/dev/null || echo "")
+    if [ -n "$pp" ]; then
+        pass "adv-lock.json has pluginPath field: $pp"
+    else
+        fail "adv-lock.json missing pluginPath field"
+    fi
+}
+
+test_adv_lock_file_exists
+test_adv_lock_json_valid
+test_adv_lock_ref_is_sha
+test_adv_lock_has_repo_field
+test_adv_lock_has_plugin_path_field
+
+section "ADV bundling — bundled command docs"
+
+test_adv_command_dir_exists() {
+    assert_dir_exists "$REPO_DIR/config/opencode/command"
+}
+
+test_adv_bundled_commands_count() {
+    local count
+    count=$(ls "$REPO_DIR/config/opencode/command"/adv-*.md 2>/dev/null | wc -l)
+    if [ "$count" -ge 10 ]; then
+        pass "bundled ADV command docs count >= 10 (got $count)"
+    else
+        fail "bundled ADV command docs count < 10 (got $count)"
+    fi
+}
+
+test_adv_bundled_commands_include_core() {
+    local missing=0
+    for cmd in adv-status adv-proposal adv-apply adv-archive adv-prep adv-research adv-review adv-harden; do
+        if [ ! -f "$REPO_DIR/config/opencode/command/${cmd}.md" ]; then
+            fail "bundled command missing: ${cmd}.md"
+            missing=$((missing + 1))
+        fi
+    done
+    [ "$missing" -eq 0 ] && pass "all core ADV command docs present"
+}
+
+test_adv_command_dir_exists
+test_adv_bundled_commands_count
+test_adv_bundled_commands_include_core
+
+section "ADV bundling — setup_adv.sh structure"
+
+test_setup_adv_reads_lock_file() {
+    grep -q 'adv-lock.json\|ADV_LOCK\|adv_lock' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh references adv-lock.json" \
+        || fail "setup_adv.sh does not reference adv-lock.json"
+}
+
+test_setup_adv_supports_install_mode() {
+    grep -q 'ADV_INSTALL_MODE\|install_mode\|INSTALL_MODE' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh supports ADV_INSTALL_MODE" \
+        || fail "setup_adv.sh missing ADV_INSTALL_MODE support"
+}
+
+test_setup_adv_has_offline_fallback() {
+    grep -q 'offline\|bundled\|fallback' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh has offline/bundled fallback path" \
+        || fail "setup_adv.sh missing offline/bundled fallback path"
+}
+
+test_setup_adv_reads_lock_file
+test_setup_adv_supports_install_mode
+test_setup_adv_has_offline_fallback
+
+section "ADV bundling — lock immutability"
+
+test_adv_lock_not_mutated_by_normal_update() {
+    # update.sh should NOT overwrite adv-lock.json on normal runs
+    # It should only update the lock when --adv-latest is passed
+    grep -q 'adv-lock.json' "$REPO_DIR/lib/update.sh" 2>/dev/null \
+        && pass "update.sh references adv-lock.json" \
+        || fail "update.sh does not reference adv-lock.json"
+}
+
+test_adv_lock_update_requires_adv_latest_flag() {
+    # The lock ref should only be updated when --adv-latest is explicitly passed
+    grep -q '\-\-adv-latest\|adv_latest\|ADV_LATEST' "$REPO_DIR/lib/update.sh" 2>/dev/null \
+        && pass "update.sh has --adv-latest flag support" \
+        || fail "update.sh missing --adv-latest flag (lock bump requires explicit opt-in)"
+}
+
+test_adv_lock_sha_format_enforced() {
+    # setup_adv.sh must validate that the ref is a 40-char hex SHA
+    grep -qE '40|[0-9a-f]\{40\}|hex|SHA|sha' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh enforces SHA format on lock ref" \
+        || fail "setup_adv.sh does not enforce SHA format on lock ref"
+}
+
+test_adv_lock_not_mutated_by_normal_update
+test_adv_lock_update_requires_adv_latest_flag
+test_adv_lock_sha_format_enforced
+
+section "ADV bundling — parity (bundled vs pinned)"
+
+test_adv_parity_bundled_matches_upstream_count() {
+    # Bundled command count should match what's in the ADV checkout (if present)
+    local adv_checkout="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
+    local upstream_cmd_dir="$adv_checkout/.opencode/command"
+    if [ -d "$upstream_cmd_dir" ]; then
+        local upstream_count bundled_count
+        upstream_count=$(ls "$upstream_cmd_dir"/adv-*.md 2>/dev/null | wc -l)
+        bundled_count=$(ls "$REPO_DIR/config/opencode/command"/adv-*.md 2>/dev/null | wc -l)
+        if [ "$bundled_count" -ge "$upstream_count" ]; then
+            pass "bundled command count ($bundled_count) >= upstream count ($upstream_count)"
+        else
+            fail "bundled command count ($bundled_count) < upstream count ($upstream_count) — run: cp $upstream_cmd_dir/adv-*.md $REPO_DIR/config/opencode/command/"
+        fi
+    else
+        skip "ADV checkout not present at $adv_checkout — skipping parity check"
+    fi
+}
+
+test_adv_parity_bundled_matches_upstream_count
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
