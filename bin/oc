@@ -54,7 +54,6 @@ _resolve_project_arg() {
 
         if [ "$match_count" -eq 1 ]; then
             # Single match — resolve with notice to stderr
-            printf '%s' "${matches[0]}" >&2
             printf 'oc: resolved %s → %s\n' "$token" "${matches[0]}" >&2
             printf '%s' "${matches[0]}"
             return 0
