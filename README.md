@@ -135,6 +135,8 @@ openchad ~/dev/my-project       # Launch in specific directory
 openchad --no-anim              # Skip boot animation
 
 oc                              # Short alias (same as openchad)
+oc x                            # Launch ~/dev/x from any directory
+oc my-project --no-anim         # Launch ~/dev/my-project, skip animation
 oc attach                       # Attach to a running session
 oc switch                       # Pick a session to switch to
 
@@ -144,6 +146,30 @@ cds 2026-01-15                  # Specific date
 oc-list                         # List all running sessions
 oc-killall                      # Kill all sessions (--yes to skip prompt)
 ```
+
+### Project shorthand (`oc <name>`)
+
+`oc` resolves bare project names to directories under `~/dev` so you can launch
+from anywhere without `cd`:
+
+```bash
+oc x                  # → ~/dev/x
+oc morph-fast-apply   # → ~/dev/oc-plugins/morph-fast-apply (one level deep)
+oc shared             # → error: lists all matches if ambiguous
+```
+
+**Resolution precedence** (highest to lowest):
+
+| Priority | Condition | Behavior |
+|----------|-----------|----------|
+| 1 | Subcommand (`update`, `doctor`, `version`, …) | Forwarded unchanged |
+| 2 | Explicit path (`./x`, `../x`, `/abs`, `~/…`) | Forwarded unchanged |
+| 3 | `~/dev/<name>` exists | Resolved to that path |
+| 4 | Exactly one `~/dev/*/<name>` exists | Resolved with a stderr notice |
+| 5 | Multiple `~/dev/*/<name>` exist | Exit 1 + disambiguation list |
+| 6 | No match | Forwarded unchanged (openchad handles the error) |
+
+Tab-completion offers project names from `~/dev` alongside subcommands.
 
 ### Subcommands
 

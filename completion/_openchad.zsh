@@ -7,6 +7,37 @@
 #
 # setup_shell_profile.sh wires this automatically.
 
+# _openchad_project_names — emit de-duped project names from ~/dev
+# Includes top-level dirs and one-level-deep dirs. Nested names that
+# collide with a top-level name are suppressed (top-level always wins
+# in resolution, so offering both would be misleading).
+_openchad_project_names() {
+    local dev_dir="${HOME}/dev"
+    [[ -d "$dev_dir" ]] || return 0
+
+    local -A _seen=()
+    local name d
+
+    # Top-level dirs
+    for d in "${dev_dir}"/*/; do
+        [[ -d "$d" ]] || continue
+        name="${d%/}"
+        name="${name##*/}"
+        _seen[$name]=1
+        print -- "$name"
+    done
+
+    # One-level nested dirs — only emit if name not already seen at top level
+    for d in "${dev_dir}"/*/*/; do
+        [[ -d "$d" ]] || continue
+        name="${d%/}"
+        name="${name##*/}"
+        (( ${+_seen[$name]} )) && continue
+        _seen[$name]=1
+        print -- "$name"
+    done
+}
+
 _openchad() {
     local state
 
@@ -27,7 +58,15 @@ _openchad() {
                 'changelog:Show git log since last tag'
                 'discord:Manage Discord Rich Presence'
             )
+            # Also offer project names from ~/dev with a description
+            local project_names=()
+            local pname
+            while IFS= read -r pname; do
+                [[ -n "$pname" ]] && project_names+=("${pname}:Project in ~/dev")
+            done < <(_openchad_project_names 2>/dev/null)
+
             _describe 'subcommand' subcommands
+            (( ${#project_names[@]} > 0 )) && _describe 'project' project_names
             ;;
         args)
             case "${words[2]}" in
