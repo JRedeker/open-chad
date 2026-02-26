@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# open-chad: Retro tmux launcher for OpenCode
+# openchad: Retro tmux launcher for OpenCode
 # Provides muted 80s Apple/Amiga theme, context bar, and crash isolation
 
 set -euo pipefail
@@ -12,32 +12,58 @@ NO_ANIM=0
 # shellcheck source=lib/opencode_env.sh
 source "$LIB_DIR/opencode_env.sh"
 
-# ─── Discord CLI routing ──────────────────────────────────────────────────────
-# Handle: open-chad discord {enable|disable|status} before main arg parsing
+# ─── Subcommand routing ───────────────────────────────────────────────────────
+# Dispatch before main arg parsing so subcommands get clean argv.
 
-if [ "${1:-}" = "discord" ]; then
-    shift
-    exec bash "$LIB_DIR/discord/setup.sh" "${@:-}"
-fi
-
-# ─── Update subcommand routing ───────────────────────────────────────────────
-# Handle: open-chad update — pulls latest changes and re-runs setup modules
-
-if [ "${1:-}" = "update" ]; then
-    shift
-    exec bash "$LIB_DIR/update.sh" "${@:-}"
-fi
+case "${1:-}" in
+    discord)
+        shift
+        exec bash "$LIB_DIR/discord/setup.sh" "${@:-}"
+        ;;
+    update)
+        shift
+        exec bash "$LIB_DIR/update.sh" "${@:-}"
+        ;;
+    version)
+        shift
+        exec bash "$LIB_DIR/openchad_version.sh" "${@:-}"
+        ;;
+    doctor)
+        shift
+        exec bash "$LIB_DIR/openchad_doctor.sh" "${@:-}"
+        ;;
+    uninstall)
+        shift
+        exec bash "$LIB_DIR/openchad_uninstall.sh" "${@:-}"
+        ;;
+    metrics)
+        shift
+        exec bash "$LIB_DIR/openchad_metrics.sh" "${@:-}"
+        ;;
+    changelog)
+        shift
+        exec bash "$LIB_DIR/openchad_changelog.sh" "${@:-}"
+        ;;
+esac
 
 usage() {
     cat <<EOF
-Usage: open-chad [OPTIONS] <project-dir|args...>
+Usage: openchad [OPTIONS] [project-dir]
+       oc       [OPTIONS] [project-dir]
 
 Options:
   --no-anim    Skip the boot animation
   -h, --help   Show this help
 
 Commands:
-  update           Pull latest open-chad changes and re-run setup
+  update           Pull latest openchad changes and re-run setup
+  version          Show openchad version
+  doctor           Validate install health (symlinks, theme, plugins, cache)
+  uninstall        Remove openchad symlinks, tmux theme block, shell profile block
+  metrics log      Append timestamped metrics reading to history
+  metrics export   Print current metrics as JSON
+  changelog        Show git log since last tag
+  changelog latest Show last tag release notes
   discord enable   Enable Discord Rich Presence (first-run wizard)
   discord disable  Disable Discord Rich Presence
   discord status   Show Discord Rich Presence status
@@ -47,7 +73,12 @@ Features:
   - Smart tab context (ADV parsing, git branch)
   - Shared system metrics (CPU/RAM/load)
   - Tmux crash isolation
-  - Optional Discord Rich Presence (open-chad discord enable)
+  - Optional Discord Rich Presence (openchad discord enable)
+
+Migration note:
+  The command was renamed from 'open-chad' to 'openchad' (one word, like opencode).
+  If you have 'open-chad' in scripts or aliases, update them to 'openchad' or 'oc'.
+  Run 'openchad doctor' to check for stale open-chad symlinks.
 EOF
 }
 
@@ -62,6 +93,11 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             usage
             exit 0
+            ;;
+        --)
+            shift
+            args+=("$@")
+            break
             ;;
         *)
             args+=("$1")
@@ -115,7 +151,7 @@ else
 fi
 
 # 5. Discord Rich Presence update (optional, non-blocking, SC-10: silent on failure)
-# Count active open-chad tmux sessions for presence display
+# Count active openchad tmux sessions for presence display
 if [ -f "$LIB_DIR/discord/update.sh" ]; then
     _discord_lock="${OPEN_CHAD_DISCORD_LOCK:-${OPEN_CHAD_CACHE_DIR}/discord-rpc.lock}"
     export OPEN_CHAD_DISCORD_LOCK="$_discord_lock"
@@ -136,7 +172,7 @@ if [ -f "$LIB_DIR/discord/update.sh" ]; then
     _discord_elapsed=$(( $(date +%s) - _discord_start_ts ))
     _discord_sessions=$(_discord_session_count)
 
-    # Fire-and-forget — never blocks open-chad startup
+    # Fire-and-forget — never blocks openchad startup
     # Log stderr to a user-private cache log for troubleshooting.
     _discord_log="${OPEN_CHAD_CACHE_DIR}/discord.log"
     if [ ! -f "$_discord_log" ]; then

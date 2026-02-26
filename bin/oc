@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# oc — Short alias for openchad
+#
+# Forwards all arguments to openchad unchanged.
+# Installed to ~/.local/bin/oc by install.sh.
+#
+# Usage: oc [OPTIONS] [project-dir]
+#        oc update | version | doctor | uninstall | discord | metrics | changelog
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+OPENCHAD_BIN="$SCRIPT_DIR/openchad"
+
+if [[ -x "$OPENCHAD_BIN" ]]; then
+    exec "$OPENCHAD_BIN" "$@"
+elif command -v openchad &>/dev/null; then
+    exec openchad "$@"
+else
+    echo "ERROR: openchad not found. Is it installed?" >&2
+    echo "       Try: bash ~/dev/open-chad/install.sh" >&2
+    exit 1
+fi

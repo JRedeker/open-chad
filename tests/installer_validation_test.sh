@@ -560,33 +560,33 @@ test_wizard_verbose_flag
 test_wizard_log_file_created
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# bin/open-chad — update subcommand routing
+# bin/openchad — update subcommand routing
 # ═══════════════════════════════════════════════════════════════════════════════
-section "bin/open-chad — update subcommand"
+section "bin/openchad — update subcommand"
 
 test_open_chad_update_routing() {
-    if grep -q '"update"' "$REPO_DIR/bin/open-chad" || grep -q "= \"update\"" "$REPO_DIR/bin/open-chad"; then
-        pass "bin/open-chad: 'update' subcommand routing present"
+    if grep -qE '^[[:space:]]*update\)' "$REPO_DIR/bin/openchad" || grep -q '"update"' "$REPO_DIR/bin/openchad"; then
+        pass "bin/openchad: 'update' subcommand routing present"
     else
-        fail "bin/open-chad: 'update' subcommand routing missing"
+        fail "bin/openchad: 'update' subcommand routing missing"
     fi
 }
 
 test_open_chad_update_routes_to_lib() {
-    if grep -q 'update.sh\|lib/update' "$REPO_DIR/bin/open-chad"; then
-        pass "bin/open-chad: 'update' routes to lib/update.sh"
+    if grep -q 'update.sh\|lib/update' "$REPO_DIR/bin/openchad"; then
+        pass "bin/openchad: 'update' routes to lib/update.sh"
     else
-        fail "bin/open-chad: 'update' subcommand should exec lib/update.sh"
+        fail "bin/openchad: 'update' subcommand should exec lib/update.sh"
     fi
 }
 
 test_open_chad_usage_includes_update() {
     local output
-    output=$(bash "$REPO_DIR/bin/open-chad" --help 2>&1 || true)
+    output=$(bash "$REPO_DIR/bin/openchad" --help 2>&1 || true)
     if echo "$output" | grep -q "update"; then
-        pass "bin/open-chad: --help output mentions 'update' command"
+        pass "bin/openchad: --help output mentions 'update' command"
     else
-        fail "bin/open-chad: --help output missing 'update' command"
+        fail "bin/openchad: --help output missing 'update' command"
     fi
 }
 
@@ -678,7 +678,8 @@ test_cds_does_not_exec_opencode_directly() {
 }
 
 test_install_wires_cds_symlink() {
-    if grep -q 'bin/cds\|cds' "$REPO_DIR/install.sh"; then
+    # install.sh uses manifest-based loop; verify it sources symlink_manifest.sh (which defines cds)
+    if grep -q 'bin/cds\|cds\|symlink_manifest' "$REPO_DIR/install.sh"; then
         pass "install.sh wires cds symlink"
     else
         fail "install.sh does not wire cds symlink"
@@ -1089,7 +1090,7 @@ test_check_environment_python3_warning_has_hint
 section "bin/openchad — subcommand routing"
 
 test_openchad_routes_update() {
-    if grep -q '"update"\|= "update"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+    if grep -qE '"update"|= "update"|^[[:space:]]*update\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
         pass "bin/openchad: 'update' subcommand routing present"
     else
         fail "bin/openchad: 'update' subcommand routing missing"
@@ -1097,7 +1098,7 @@ test_openchad_routes_update() {
 }
 
 test_openchad_routes_discord() {
-    if grep -q '"discord"\|= "discord"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+    if grep -qE '"discord"|= "discord"|^[[:space:]]*discord\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
         pass "bin/openchad: 'discord' subcommand routing present"
     else
         fail "bin/openchad: 'discord' subcommand routing missing"
@@ -1105,7 +1106,7 @@ test_openchad_routes_discord() {
 }
 
 test_openchad_routes_version() {
-    if grep -q '"version"\|= "version"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+    if grep -qE '"version"|= "version"|^[[:space:]]*version\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
         pass "bin/openchad: 'version' subcommand routing present"
     else
         fail "bin/openchad: 'version' subcommand routing missing"
@@ -1113,7 +1114,7 @@ test_openchad_routes_version() {
 }
 
 test_openchad_routes_doctor() {
-    if grep -q '"doctor"\|= "doctor"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+    if grep -qE '"doctor"|= "doctor"|^[[:space:]]*doctor\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
         pass "bin/openchad: 'doctor' subcommand routing present"
     else
         fail "bin/openchad: 'doctor' subcommand routing missing"
@@ -1121,7 +1122,7 @@ test_openchad_routes_doctor() {
 }
 
 test_openchad_routes_uninstall() {
-    if grep -q '"uninstall"\|= "uninstall"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+    if grep -qE '"uninstall"|= "uninstall"|^[[:space:]]*uninstall\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
         pass "bin/openchad: 'uninstall' subcommand routing present"
     else
         fail "bin/openchad: 'uninstall' subcommand routing missing"

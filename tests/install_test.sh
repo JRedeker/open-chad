@@ -379,7 +379,7 @@ test_install_symlink_idempotent() {
     # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
     timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
     timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
-    assert_symlink "$TMP_HOME/.local/bin/open-chad"
+    assert_symlink "$TMP_HOME/.local/bin/openchad"
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
 }
@@ -728,17 +728,17 @@ test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
 test_setup_opencode_syncs_adv_commands_opencode_layout
 test_setup_opencode_syncs_adv_commands_opencode_layout_agents
 
-# ─── Section 14: bin/open-chad metrics collector atomic lockdir ───────────────
+# ─── Section 14: bin/openchad metrics collector atomic lockdir ───────────────
 
-section "bin/open-chad — atomic mkdir lockdir for metrics collector"
+section "bin/openchad — atomic mkdir lockdir for metrics collector"
 
 test_open_chad_uses_atomic_mkdir_for_metrics_singleton() {
-    # Verify bin/open-chad uses mkdir-based atomic lock (not just pgrep)
+    # Verify bin/openchad uses mkdir-based atomic lock (not just pgrep)
     # for the metrics collector singleton guard.
     # The startup lock is metrics-start.lock (distinct from the collector's
     # own PID-based metrics.lock file to avoid dir/file collision).
-    assert_contains "$REPO_DIR/bin/open-chad" "mkdir"
-    assert_contains "$REPO_DIR/bin/open-chad" "metrics-start.lock"
+    assert_contains "$REPO_DIR/bin/openchad" "mkdir"
+    assert_contains "$REPO_DIR/bin/openchad" "metrics-start.lock"
 }
 
 test_open_chad_metrics_lockdir_skips_start_when_locked() {
@@ -827,26 +827,26 @@ test_setup_shell_profile_heredoc_uses_escaped_home
 section "CVE-001 addendum — stale /tmp/discord-rpc.lock cleanup on startup"
 
 test_open_chad_cleans_legacy_discord_lock() {
-    # bin/open-chad should remove stale /tmp/discord-rpc.lock* files on startup
-    assert_contains "$REPO_DIR/bin/open-chad" "_legacy_discord_lock"
-    assert_contains "$REPO_DIR/bin/open-chad" "/tmp/discord-rpc.lock"
+    # bin/openchad should remove stale /tmp/discord-rpc.lock* files on startup
+    assert_contains "$REPO_DIR/bin/openchad" "_legacy_discord_lock"
+    assert_contains "$REPO_DIR/bin/openchad" "/tmp/discord-rpc.lock"
 }
 
 test_open_chad_legacy_cleanup_checks_regular_file() {
     # Cleanup must check [ -f ] and [ ! -L ] to avoid symlink-follow deletion
-    assert_contains "$REPO_DIR/bin/open-chad" '! -L'
+    assert_contains "$REPO_DIR/bin/openchad" '! -L'
     # Check for -f check on the legacy file variable (pattern avoids shell expansion)
-    if grep -q '\-f.*_legacy_file' "$REPO_DIR/bin/open-chad"; then
-        pass "bin/open-chad: legacy cleanup checks -f before deleting"
+    if grep -q '\-f.*_legacy_file' "$REPO_DIR/bin/openchad"; then
+        pass "bin/openchad: legacy cleanup checks -f before deleting"
     else
-        fail "bin/open-chad: legacy cleanup missing -f check on _legacy_file"
+        fail "bin/openchad: legacy cleanup missing -f check on _legacy_file"
     fi
 }
 
 test_open_chad_legacy_cleanup_covers_guard_and_tagline() {
     # All three legacy lock variants should be cleaned up
-    assert_contains "$REPO_DIR/bin/open-chad" '.guard'
-    assert_contains "$REPO_DIR/bin/open-chad" '.tagline'
+    assert_contains "$REPO_DIR/bin/openchad" '.guard'
+    assert_contains "$REPO_DIR/bin/openchad" '.tagline'
 }
 
 test_open_chad_cleans_legacy_discord_lock
@@ -919,13 +919,13 @@ section "CVE-005 — Discord update.sh stderr logged to cache dir"
 
 test_open_chad_discord_stderr_logged_not_devnull() {
     # Discord update.sh stderr should go to a log file, not /dev/null
-    assert_contains "$REPO_DIR/bin/open-chad" "discord.log"
-    assert_not_contains "$REPO_DIR/bin/open-chad" 'discord/update.sh.*2>/dev/null'
+    assert_contains "$REPO_DIR/bin/openchad" "discord.log"
+    assert_not_contains "$REPO_DIR/bin/openchad" 'discord/update.sh.*2>/dev/null'
 }
 
 test_open_chad_discord_log_created_with_0600() {
     # The discord.log file should be created with 0600 permissions
-    assert_contains "$REPO_DIR/bin/open-chad" "0600"
+    assert_contains "$REPO_DIR/bin/openchad" "0600"
 }
 
 test_open_chad_discord_stderr_logged_not_devnull
@@ -1123,7 +1123,8 @@ test_update_repairs_openchad_symlink() {
 }
 
 test_update_repairs_oc_symlink() {
-    grep -q '"oc"\|bin/oc' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc" || fail "lib/update.sh does not reference oc"
+    # update.sh uses manifest-based loop; verify it sources symlink_manifest.sh (which defines oc)
+    grep -q '"oc"\|bin/oc\|symlink_manifest' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc" || fail "lib/update.sh does not reference oc"
 }
 
 test_update_repairs_oc_list_symlink() {
