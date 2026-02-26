@@ -81,6 +81,19 @@ worktree_delete reason: "Change {change-id} merged to default branch"
 
 **If the merge is not yet complete, do NOT delete the worktree.** The worktree protects unmerged work from being lost.
 
+## Navigating to the New Worktree Tab
+
+When a worktree is created, openchad may open a new tmux window for it. The agent continues working inline via `workdir` — but you can inspect the worktree directly using these keybinds:
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+b n` | Next tmux window |
+| `Ctrl+b l` | Last (previously active) window |
+| `Ctrl+b w` | Interactive window chooser |
+| `oc switch` | Switch between openchad sessions |
+
+The agent will emit this hint immediately after `worktree_create` succeeds so you always know how to reach the new tab.
+
 ## Always Ask First
 
 Before creating a worktree, briefly explain WHY you think isolation is needed and confirm with the user.
