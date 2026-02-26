@@ -3,8 +3,8 @@
   "name": "installer",
   "title": "Installer",
   "purpose": "Capability: Installer",
-  "version": "1.2.0",
-  "updated_at": "2026-02-26T15:21:15.097Z",
+  "version": "1.3.0",
+  "updated_at": "2026-02-26T15:38:00.000Z",
   "requirements": [
     {
       "id": "rq-zsh.1",
@@ -352,6 +352,156 @@
           "then": [
             "daemon stop is skipped gracefully",
             "the script exits 0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-adv.1",
+      "title": "ADV is installed at a pinned commit SHA by default",
+      "body": "setup_adv.sh reads config/opencode/adv-lock.json for the repo URL and pinned commit SHA. The ref field must be a 40-character lowercase hex SHA. Branch names (main, trunk, master, HEAD, develop, dev) and semver tags (v1.2.3) are rejected with a WARN and the script falls back to bundled command docs. The default install mode is 'pinned'.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-adv.1.1",
+          "title": "Pinned install checks out exact SHA",
+          "given": [
+            "adv-lock.json contains a valid 40-char hex SHA ref",
+            "network is available",
+            "pnpm is installed"
+          ],
+          "when": "bash lib/setup_adv.sh is run with ADV_INSTALL_MODE=pinned",
+          "then": [
+            "ADV is cloned or pulled from the repo URL in adv-lock.json",
+            "git checkout is called with the exact SHA from adv-lock.json",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-adv.1.2",
+          "title": "Invalid lock ref falls back to bundled",
+          "given": [
+            "adv-lock.json ref is a branch name like 'main'"
+          ],
+          "when": "bash lib/setup_adv.sh is run",
+          "then": [
+            "a WARN is emitted about the invalid ref",
+            "bundled command docs are synced to ~/.config/opencode/command/",
+            "the script exits 0 (non-fatal)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-adv.2",
+      "title": "ADV install has exactly two fallback tiers",
+      "body": "The ADV install flow has exactly two tiers: (1) network clone/build at pinned ref, (2) bundled command docs from config/opencode/command/. There is no third tier. Any network or build failure falls back to tier 2 and exits 0. The bundled fallback must contain at least 10 adv-*.md command files.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-adv.2.1",
+          "title": "Network failure falls back to bundled",
+          "given": [
+            "git clone fails (invalid URL or no network)"
+          ],
+          "when": "bash lib/setup_adv.sh is run with ADV_INSTALL_MODE=pinned",
+          "then": [
+            "a WARN is emitted about the network failure",
+            "bundled command docs are synced to ~/.config/opencode/command/",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-adv.2.2",
+          "title": "Offline mode skips network entirely",
+          "given": [
+            "ADV_INSTALL_MODE=offline is set"
+          ],
+          "when": "bash lib/setup_adv.sh is run",
+          "then": [
+            "no git clone or pull is attempted",
+            "bundled command docs are synced to ~/.config/opencode/command/",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-adv.2.3",
+          "title": "Bundled command docs are present in repo",
+          "given": [
+            "the open-chad repo is checked out"
+          ],
+          "when": "config/opencode/command/ is inspected",
+          "then": [
+            "at least 10 adv-*.md files are present",
+            "core commands exist: adv-status, adv-proposal, adv-apply, adv-archive, adv-prep, adv-research, adv-review, adv-harden"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-adv.3",
+      "title": "Lock ref is immutable during normal update; --adv-latest opt-in bumps it",
+      "body": "openchad update honors the pinned ref from adv-lock.json by default. The lock file is never mutated during a normal update run. Passing --adv-latest to openchad update pulls the latest ADV HEAD and updates adv-lock.json ref to the new commit SHA.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-adv.3.1",
+          "title": "Normal update uses pinned ref",
+          "given": [
+            "adv-lock.json contains a pinned SHA"
+          ],
+          "when": "openchad update is run without --adv-latest",
+          "then": [
+            "ADV is checked out at the pinned SHA",
+            "adv-lock.json is not modified"
+          ]
+        },
+        {
+          "id": "sc-adv.3.2",
+          "title": "--adv-latest pulls latest and bumps lock",
+          "given": [
+            "adv-lock.json contains a pinned SHA",
+            "network is available"
+          ],
+          "when": "openchad update --adv-latest is run",
+          "then": [
+            "ADV is pulled to latest HEAD",
+            "adv-lock.json ref is updated to the new HEAD SHA",
+            "the new ref is a valid 40-char hex SHA"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-adv.4",
+      "title": "openchad doctor reports ADV health with actionable remediation",
+      "body": "openchad doctor checks: adv-lock.json present with valid ref, bundled command docs count >= 10, ADV checkout present (non-fatal if absent), plugin wired in opencode.json, command docs synced to ~/.config/opencode/command/. Each failing check emits an actionable remediation hint.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-adv.4.1",
+          "title": "All ADV checks pass",
+          "given": [
+            "adv-lock.json present with valid SHA ref",
+            "bundled command docs >= 10 files",
+            "ADV plugin wired in opencode.json"
+          ],
+          "when": "openchad doctor is run",
+          "then": [
+            "all ADV health checks pass",
+            "no remediation hints are emitted for ADV"
+          ]
+        },
+        {
+          "id": "sc-adv.4.2",
+          "title": "Missing lock file is reported with remediation",
+          "given": [
+            "adv-lock.json is absent"
+          ],
+          "when": "openchad doctor is run",
+          "then": [
+            "doctor reports adv-lock.json missing",
+            "remediation hint suggests running bash install.sh"
           ]
         }
       ]

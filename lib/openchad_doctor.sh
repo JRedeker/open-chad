@@ -161,6 +161,82 @@ else
     unset _i _port _name _vision_ports _vision_names
 fi
 
+# ─── 6. ADV plugin health ────────────────────────────────────────────────────
+echo ""
+echo "ADV plugin (Advance spec-driven development):"
+
+ADV_LOCK_FILE="$REPO_DIR/config/opencode/adv-lock.json"
+ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
+OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
+OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"
+
+# Check lock file
+if [ -f "$ADV_LOCK_FILE" ]; then
+    _lock_ref=""
+    if command -v node &>/dev/null; then
+        _lock_ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).ref||'')" 2>/dev/null || echo "")
+    fi
+    if [ -n "$_lock_ref" ]; then
+        ok "adv-lock.json present (pinned @ ${_lock_ref:0:12}...)"
+    else
+        warn "adv-lock.json present but ref is empty or unreadable"
+        _issues=$((_issues + 1))
+    fi
+else
+    fail "adv-lock.json missing: $ADV_LOCK_FILE"
+    info "  Re-run: bash $REPO_DIR/install.sh"
+    _issues=$((_issues + 1))
+fi
+
+# Check bundled command docs
+_bundled_cmd_dir="$REPO_DIR/config/opencode/command"
+_bundled_count=$(ls "$_bundled_cmd_dir"/adv-*.md 2>/dev/null | wc -l)
+if [ "$_bundled_count" -ge 10 ]; then
+    ok "Bundled ADV command docs: $_bundled_count files in config/opencode/command/"
+else
+    fail "Bundled ADV command docs missing or incomplete (found $_bundled_count, expected ≥10)"
+    info "  Re-run: bash $REPO_DIR/install.sh"
+    _issues=$((_issues + 1))
+fi
+
+# Check ADV checkout
+if [ -d "$ADV_CHECKOUT_DIR/.git" ]; then
+    _adv_head=$(git -C "$ADV_CHECKOUT_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    ok "ADV checkout present: $ADV_CHECKOUT_DIR (HEAD: $_adv_head)"
+else
+    warn "ADV checkout not found at $ADV_CHECKOUT_DIR"
+    info "  Using bundled command docs (offline mode)."
+    info "  To install ADV fully: bash $REPO_DIR/lib/setup_adv.sh"
+fi
+
+# Check plugin wired in opencode.json
+if [ -f "$OPENCODE_JSON" ] && command -v node &>/dev/null; then
+    _plugin_wired=$(node -e "
+try {
+    const c=JSON.parse(require('fs').readFileSync('$OPENCODE_JSON','utf8'));
+    const plugins=(c.plugin||[]);
+    const wired=plugins.some(p=>p.includes('advance'));
+    process.stdout.write(wired?'yes':'no');
+} catch(e){ process.stdout.write('no'); }
+" 2>/dev/null || echo "no")
+    if [ "$_plugin_wired" = "yes" ]; then
+        ok "ADV plugin wired in opencode.json"
+    else
+        warn "ADV plugin not wired in opencode.json"
+        info "  Run: bash $REPO_DIR/lib/setup_adv.sh"
+        _issues=$((_issues + 1))
+    fi
+fi
+
+# Check synced command docs in opencode config dir
+_dest_cmd_count=$(ls "$OPENCODE_CONFIG_DIR/command"/adv-*.md 2>/dev/null | wc -l)
+if [ "$_dest_cmd_count" -ge 10 ]; then
+    ok "ADV command docs synced to $OPENCODE_CONFIG_DIR/command/ ($_dest_cmd_count files)"
+else
+    warn "ADV command docs not synced to $OPENCODE_CONFIG_DIR/command/ (found $_dest_cmd_count)"
+    info "  Run: bash $REPO_DIR/lib/setup_adv.sh"
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 if [ "$_issues" -eq 0 ]; then

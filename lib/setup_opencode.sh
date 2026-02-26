@@ -99,9 +99,22 @@ if [ "$SKIP_COMMANDS" -eq 0 ]; then
             _copy_if_regular "$src" "$dest" "command"
         done
     else
-        warn "ADV commands directory not found in $ADV_CHECKOUT_DIR"
-        warn "Checked: .opencode/command and plugin/commands"
-        warn "Run setup_adv.sh first, or use --skip-commands flag."
+        # Two-tier fallback: network checkout -> bundled config/opencode/command/
+        BUNDLED_CMD_DIR="$REPO_DIR/config/opencode/command"
+        if [ -d "$BUNDLED_CMD_DIR" ] && ls "$BUNDLED_CMD_DIR"/adv-*.md &>/dev/null 2>&1; then
+            warn "ADV checkout not found — using bundled command docs (offline fallback)"
+            step "Syncing bundled ADV commands from $BUNDLED_CMD_DIR -> $DEST_COMMANDS_DIR"
+            mkdir -p "$DEST_COMMANDS_DIR"
+            for src in "$BUNDLED_CMD_DIR"/adv-*.md; do
+                dest="$DEST_COMMANDS_DIR/$(basename "$src")"
+                _copy_if_regular "$src" "$dest" "command (bundled)"
+            done
+        else
+            warn "ADV commands directory not found in $ADV_CHECKOUT_DIR"
+            warn "Checked: .opencode/command and plugin/commands"
+            warn "Bundled fallback also unavailable: $BUNDLED_CMD_DIR"
+            warn "Run setup_adv.sh first, or use --skip-commands flag."
+        fi
     fi
 else
     warn "Skipping ADV command sync (--skip-commands)"
