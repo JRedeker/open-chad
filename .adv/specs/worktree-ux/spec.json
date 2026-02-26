@@ -1,0 +1,81 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anomalyco/oc-plugins/main/advance/plugin/schemas/spec.schema.json",
+  "name": "worktree-ux",
+  "title": "Worktree Ux",
+  "purpose": "Capability: Worktree Ux",
+  "version": "1.0.0",
+  "updated_at": "2026-02-26T17:22:54.516Z",
+  "requirements": [
+    {
+      "id": "rq-wt-ux.1",
+      "title": "Agent emits tmux navigation hint immediately after worktree_create succeeds",
+      "body": "When the ADV agent creates a git worktree via worktree_create, it must immediately emit a navigation hint block telling the user how to reach the new tmux window. The hint must include: Ctrl+b n (next window), Ctrl+b l (last window), Ctrl+b w (interactive chooser), and oc switch (session switcher). The hint must appear before the agent continues inline implementation.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-wt-ux.1.1",
+          "title": "Navigation hint emitted after successful worktree_create",
+          "given": [
+            "An ADV change is active",
+            "The agent calls worktree_create and it succeeds",
+            "A new tmux window may have opened for the worktree"
+          ],
+          "when": "The agent continues with implementation",
+          "then": [
+            "The agent emits a navigation hint block before any further tool calls",
+            "The hint includes Ctrl+b n, Ctrl+b l, Ctrl+b w, and oc switch",
+            "The hint states the worktree path and branch name",
+            "The hint states that implementation continues inline via workdir"
+          ]
+        },
+        {
+          "id": "sc-wt-ux.1.2",
+          "title": "Navigation hint wording is consistent across all sources",
+          "given": [
+            "adv-apply.md in the ADV repo contains the navigation hint block",
+            "ADV_INSTRUCTIONS.md in the ADV repo contains the navigation hint block",
+            "worktree-guide.md in openchad contains the navigation hint section",
+            "README.md in openchad contains the Worktree Flow section"
+          ],
+          "when": "The canonical keybinds are compared across all four sources",
+          "then": [
+            "All sources list the same four keybinds: Ctrl+b n, Ctrl+b l, Ctrl+b w, oc switch",
+            "No source references the non-existent oc window command"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-wt-ux.2",
+      "title": "Worktree navigation guidance is documented in openchad user-facing docs",
+      "body": "openchad must document worktree navigation keybinds in both the agent instruction file (worktree-guide.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-wt-ux.2.1",
+          "title": "worktree-guide.md contains Navigating to the New Worktree Tab section",
+          "given": [
+            "config/opencode/instructions/worktree-guide.md exists in the openchad repo"
+          ],
+          "when": "The file is read",
+          "then": [
+            "A section titled 'Navigating to the New Worktree Tab' is present",
+            "The section contains a keybind table with Ctrl+b n, Ctrl+b l, Ctrl+b w, and oc switch"
+          ]
+        },
+        {
+          "id": "sc-wt-ux.2.2",
+          "title": "README.md contains Worktree Flow section",
+          "given": [
+            "README.md exists in the openchad repo"
+          ],
+          "when": "The file is read",
+          "then": [
+            "A section titled 'Worktree Flow' is present",
+            "The section contains the four navigation keybinds"
+          ]
+        }
+      ]
+    }
+  ]
+}
