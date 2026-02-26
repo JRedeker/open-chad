@@ -63,6 +63,15 @@ assert_output_contains() {
     fi
 }
 
+assert_file_exists() {
+    local file_path="$1"
+    if [ -f "$file_path" ]; then
+        pass "file exists: $file_path"
+    else
+        fail "missing file: $file_path"
+    fi
+}
+
 section() { echo ""; echo "── $1 ──"; }
 
 # Temp dir setup

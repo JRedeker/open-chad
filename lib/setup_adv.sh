@@ -214,17 +214,23 @@ ok "ADV plugin built at $ADV_PLUGIN_DIR"
 
 # ─── Wire plugin into opencode.json ───────────────────────────────────────────
 step "Wiring ADV plugin into $OPENCODE_JSON"
-bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-    "{\"plugin\":[\"$ADV_PLUGIN_DIR\"]}"
-ok "Plugin entry added/confirmed: $ADV_PLUGIN_DIR"
+if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+    "{\"plugin\":[\"$ADV_PLUGIN_DIR\"]}"; then
+    ok "Plugin entry added/confirmed: $ADV_PLUGIN_DIR"
+else
+    warn "Failed to wire ADV plugin into $OPENCODE_JSON — json_merge.sh exited non-zero"
+fi
 
 # ─── Wire ADV instructions into opencode.json ─────────────────────────────────
 ADV_INSTRUCTIONS_FILE="$ADV_CHECKOUT_DIR/ADV_INSTRUCTIONS.md"
 if [ -f "$ADV_INSTRUCTIONS_FILE" ]; then
     step "Wiring ADV instructions into $OPENCODE_JSON"
-    bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-        "{\"instructions\":[\"$ADV_INSTRUCTIONS_FILE\"]}"
-    ok "Instructions entry added/confirmed: $ADV_INSTRUCTIONS_FILE"
+    if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+        "{\"instructions\":[\"$ADV_INSTRUCTIONS_FILE\"]}"; then
+        ok "Instructions entry added/confirmed: $ADV_INSTRUCTIONS_FILE"
+    else
+        warn "Failed to wire ADV instructions into $OPENCODE_JSON — json_merge.sh exited non-zero"
+    fi
 fi
 
 # ─── Sync bundled command docs (always — ensures offline fallback is current) ──

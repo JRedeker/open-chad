@@ -105,10 +105,10 @@ fi
 # ─── 4. Cache directory ───────────────────────────────────────────────────────
 echo ""
 echo "Cache directory:"
-# Source Claude_env.sh to resolve OPEN_CHAD_CACHE_DIR
-if [ -f "$REPO_DIR/lib/Claude_env.sh" ]; then
-    # shellcheck source=Claude_env.sh
-    source "$REPO_DIR/lib/Claude_env.sh"
+# Source opencode_env.sh to resolve OPEN_CHAD_CACHE_DIR
+if [ -f "$REPO_DIR/lib/opencode_env.sh" ]; then
+    # shellcheck source=opencode_env.sh
+    source "$REPO_DIR/lib/opencode_env.sh"
 fi
 _cache_dir="${OPEN_CHAD_CACHE_DIR:-/tmp/open-chad-${USER:-unknown}}"
 if [ -d "$_cache_dir" ] && [ -w "$_cache_dir" ]; then
@@ -176,11 +176,17 @@ if [ -f "$ADV_LOCK_FILE" ]; then
     if command -v node &>/dev/null; then
         _lock_ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).ref||'')" 2>/dev/null || echo "")
     fi
-    if [ -n "$_lock_ref" ]; then
-        ok "adv-lock.json present (pinned @ ${_lock_ref:0:12}...)"
-    else
+    if [ -z "$_lock_ref" ]; then
         warn "adv-lock.json present but ref is empty or unreadable"
         _issues=$((_issues + 1))
+    elif ! echo "$_lock_ref" | grep -qE '^[0-9a-f]{40}$'; then
+        fail "adv-lock.json ref is not a valid 40-char hex SHA (got: '${_lock_ref:0:20}...')"
+        info "  The ref must be a 40-character lowercase hex commit SHA."
+        info "  Branch names (main, trunk) and semver tags (v1.2.3) are not valid."
+        info "  Fix: update config/opencode/adv-lock.json or run: openchad update --adv-latest"
+        _issues=$((_issues + 1))
+    else
+        ok "adv-lock.json present (pinned @ ${_lock_ref:0:12}...)"
     fi
 else
     fail "adv-lock.json missing: $ADV_LOCK_FILE"

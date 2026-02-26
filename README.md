@@ -47,6 +47,12 @@ Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). I
 ### Themed tmux Dashboard
 Two-row ayu-dark status bar with repo/branch context, session titles correlated from OpenCode's database, live system metrics (CPU, RAM, load), and a retro boot animation.
 
+### Model Preferences (`omp`)
+
+A terminal UI for managing OpenCode model preferences — switch models, set defaults, and configure per-project overrides without editing JSON.
+
+![omp model preferences](ompscreenshot.png)
+
 ### Discord Rich Presence
 Optional — show your current project and a rotating tagline in Discord. All dynamic input is sanitized (no paths, tokens, or secrets transmitted).
 

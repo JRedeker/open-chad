@@ -78,7 +78,7 @@ log "Checking .git directory at $REPO_DIR"
 if [ ! -d "$REPO_DIR/.git" ]; then
     error "This open-chad install is not tracked by git."
     hint ""
-    hint "The 'open-chad update' command requires a git clone."
+    hint "The 'openchad update' command requires a git clone."
     hint "Your install appears to have been extracted from a tarball or zip."
     hint ""
     hint "Options:"
@@ -144,7 +144,7 @@ if [ "${_ahead:-0}" -gt 0 ]; then
     hint "  Option C — Push your changes (if you're developing open-chad):"
     hint "    git -C $REPO_DIR push origin $_current_branch"
     hint ""
-    hint "After resolving, re-run: open-chad update"
+    hint "After resolving, re-run: openchad update"
     log "FAILED: branch diverged ($_ahead commits ahead)"
     exit 1
 fi
@@ -162,7 +162,7 @@ if [ "$_pull_exit" -ne 0 ]; then
     error "git pull --ff-only failed (exit $_pull_exit)."
     hint "This usually means local changes conflict with upstream."
     hint "Stash your changes: git -C $REPO_DIR stash"
-    hint "Then re-run: open-chad update"
+    hint "Then re-run: openchad update"
     hint "Check $INSTALL_LOG for git error details."
     log "FAILED: git pull exit $_pull_exit"
     exit 1
@@ -298,18 +298,23 @@ step "Updating ADV plugin"
 ADV_LOCK_FILE="$REPO_DIR/config/opencode/adv-lock.json"
 if [ "$ADV_LATEST" -eq 1 ]; then
     step "ADV: --adv-latest flag set — pulling latest (ignoring adv-lock.json ref)"
-    ADV_INSTALL_MODE=latest bash "$REPO_DIR/lib/setup_adv.sh" || warn "ADV setup had errors (non-fatal)"
-    # Update adv-lock.json ref to new HEAD SHA after successful latest pull
-    ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
-    if [ -d "$ADV_CHECKOUT_DIR/.git" ] && command -v node &>/dev/null && [ -f "$ADV_LOCK_FILE" ]; then
-        _new_sha=$(git -C "$ADV_CHECKOUT_DIR" rev-parse HEAD 2>/dev/null || echo "")
-        if echo "$_new_sha" | grep -qE '^[0-9a-f]{40}$'; then
-            node -e "
+    _adv_exit=0
+    ADV_INSTALL_MODE=latest bash "$REPO_DIR/lib/setup_adv.sh" || _adv_exit=$?
+    if [ "$_adv_exit" -ne 0 ]; then
+        warn "ADV setup had errors (non-fatal, exit $_adv_exit) — lock file NOT updated"
+    else
+        # Update adv-lock.json ref to new HEAD SHA only after successful latest pull
+        ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
+        if [ -d "$ADV_CHECKOUT_DIR/.git" ] && command -v node &>/dev/null && [ -f "$ADV_LOCK_FILE" ]; then
+            _new_sha=$(git -C "$ADV_CHECKOUT_DIR" rev-parse HEAD 2>/dev/null || echo "")
+            if echo "$_new_sha" | grep -qE '^[0-9a-f]{40}$'; then
+                node -e "
 const fs=require('fs');
 const lock=JSON.parse(fs.readFileSync('$ADV_LOCK_FILE','utf8'));
 lock.ref='$_new_sha';
 fs.writeFileSync('$ADV_LOCK_FILE',JSON.stringify(lock,null,2)+'\n');
 " 2>/dev/null && ok "adv-lock.json updated to $_new_sha" || warn "Could not update adv-lock.json"
+            fi
         fi
     fi
 else
