@@ -70,9 +70,24 @@ if [ -L "$DEST_DIR/open-chad" ] || [ -e "$DEST_DIR/open-chad" ]; then
     warn "Stale 'open-chad' symlink found at $DEST_DIR/open-chad"
     info "  The canonical command is now 'openchad' (or 'oc' for short)."
     info "  Remove the stale symlink: rm $DEST_DIR/open-chad"
-    info "  Update any scripts or aliases that reference 'open-chad'."
+    _issues=$((_issues + 1))
 else
     ok "No stale 'open-chad' symlink found"
+fi
+
+# Check for stale alias oc='open-chad' in shell rc files
+_stale_alias_found=0
+for _rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$_rc" ] && grep -qE "^[[:space:]]*alias[[:space:]]+oc=['\"]open-chad['\"]" "$_rc"; then
+        warn "Stale alias oc='open-chad' in $_rc"
+        info "  This overrides the oc symlink and causes 'command not found'."
+        info "  Remove the line or run: openchad update"
+        _stale_alias_found=1
+        _issues=$((_issues + 1))
+    fi
+done
+if [ "$_stale_alias_found" -eq 0 ]; then
+    ok "No stale 'oc' alias found in shell rc files"
 fi
 
 # ─── 3. Tmux theme ───────────────────────────────────────────────────────────

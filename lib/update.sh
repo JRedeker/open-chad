@@ -182,6 +182,51 @@ done
 unset _link_name
 log "Symlinks repaired (openchad, oc, cds, oc-list, oc-killall)"
 
+# ─── 4c. Remove stale legacy aliases from shell rc files ─────────────────────
+step "Checking for stale 'open-chad' aliases in shell rc files"
+
+_remove_stale_alias() {
+    local rc_file="$1"
+    [ -f "$rc_file" ] || return 0
+    if grep -qE "^[[:space:]]*alias[[:space:]]+oc=['\"]open-chad['\"]" "$rc_file"; then
+        # Remove the stale alias line (and the comment above it if it matches)
+        local tmp_file
+        tmp_file=$(mktemp)
+        awk '
+            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*replaces old oc/ { next }
+            /^[[:space:]]*alias[[:space:]]+oc=.open-chad/ { next }
+            { print }
+        ' "$rc_file" > "$tmp_file"
+        mv -f "$tmp_file" "$rc_file"
+        ok "Removed stale alias oc='open-chad' from $(basename "$rc_file")"
+        log "Removed stale alias from $rc_file"
+    fi
+    # Also remove stale PATH export for open-chad/bin (now managed via ~/.local/bin symlinks)
+    if grep -qE "^[[:space:]]*export[[:space:]]+PATH=.*open-chad/bin" "$rc_file"; then
+        local tmp_file
+        tmp_file=$(mktemp)
+        awk '
+            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*[Rr]etro tmux/ { next }
+            /^[[:space:]]*export[[:space:]]+PATH=.*open-chad\/bin/ { next }
+            { print }
+        ' "$rc_file" > "$tmp_file"
+        mv -f "$tmp_file" "$rc_file"
+        ok "Removed stale PATH export (open-chad/bin) from $(basename "$rc_file")"
+        log "Removed stale PATH from $rc_file"
+    fi
+}
+
+_remove_stale_alias "$HOME/.zshrc"
+_remove_stale_alias "$HOME/.bashrc"
+_remove_stale_alias "$HOME/.bash_profile"
+
+# Also remove stale open-chad symlink if present
+if [ -L "$_DEST_DIR/open-chad" ]; then
+    rm -f "$_DEST_DIR/open-chad"
+    ok "Removed stale open-chad symlink from $_DEST_DIR"
+    log "Removed stale open-chad symlink"
+fi
+
 # ─── 5. Re-run setup modules ──────────────────────────────────────────────────
 echo ""
 step "Re-running setup modules..."

@@ -149,6 +149,45 @@ for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
 done
 unset _link_name
 
+# Remove stale open-chad symlink from previous installs
+if [ -L "$DEST_DIR/open-chad" ]; then
+    rm -f "$DEST_DIR/open-chad"
+    echo -e "Removed stale ${C_CORAL}open-chad${C_RESET} symlink (renamed to openchad)"
+fi
+
+# Remove stale alias oc='open-chad' and PATH from shell rc files
+_clean_stale_alias() {
+    local rc_file="$1"
+    [ -f "$rc_file" ] || return 0
+    local changed=0
+    if grep -qE "^[[:space:]]*alias[[:space:]]+oc=['\"]open-chad['\"]" "$rc_file"; then
+        local tmp_file; tmp_file=$(mktemp)
+        awk '
+            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*replaces old oc/ { next }
+            /^[[:space:]]*alias[[:space:]]+oc=.open-chad/ { next }
+            { print }
+        ' "$rc_file" > "$tmp_file"
+        mv -f "$tmp_file" "$rc_file"
+        changed=1
+    fi
+    if grep -qE "^[[:space:]]*export[[:space:]]+PATH=.*open-chad/bin" "$rc_file"; then
+        local tmp_file; tmp_file=$(mktemp)
+        awk '
+            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*[Rr]etro tmux/ { next }
+            /^[[:space:]]*export[[:space:]]+PATH=.*open-chad\/bin/ { next }
+            { print }
+        ' "$rc_file" > "$tmp_file"
+        mv -f "$tmp_file" "$rc_file"
+        changed=1
+    fi
+    if [ "$changed" -eq 1 ]; then
+        echo -e "Cleaned stale open-chad references from ${C_GOLD}$(basename "$rc_file")${C_RESET}"
+    fi
+}
+_clean_stale_alias "$HOME/.zshrc"
+_clean_stale_alias "$HOME/.bashrc"
+_clean_stale_alias "$HOME/.bash_profile"
+
 # ─── 4. Tmux theme integration ────────────────────────────────────────────────
 TMUX_CONF="$HOME/.tmux.conf"
 THEME_CONF="$SCRIPT_DIR/lib/theme.conf"
