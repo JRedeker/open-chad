@@ -17,6 +17,64 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 OPENCHAD_BIN="$SCRIPT_DIR/openchad"
 
+# ─── Project-name resolution ──────────────────────────────────────────────────
+#
+# _resolve_project_arg TOKEN
+#
+# Resolves a bare project name to an absolute path under ~/dev, following
+# strict precedence:
+#   1. openchad subcommands — caller must check before calling this function
+#   2. Explicit path prefixes (./ ../ / ~) — caller must check before calling
+#   3. Exact ~/dev/<token> match → print absolute path, return 0
+#   4. Single ~/dev/*/<token> match → print absolute path + notice to stderr, return 0
+#   5. Multiple ~/dev/*/<token> matches → print disambiguation to stderr, return 1
+#   6. No match → print token unchanged, return 0
+#
+# Prints the resolved (or unchanged) argument to stdout.
+# Returns 1 only on ambiguous match (caller should exit 1).
+_resolve_project_arg() {
+    local token="$1"
+    local dev_dir="${HOME}/dev"
+
+    # Check exact top-level match first
+    if [ -d "${dev_dir}/${token}" ]; then
+        printf '%s' "${dev_dir}/${token}"
+        return 0
+    fi
+
+    # One-level nested search: ~/dev/*/<token>
+    if [ -d "$dev_dir" ]; then
+        local matches=()
+        local candidate
+        for candidate in "${dev_dir}"/*/; do
+            [ -d "${candidate}${token}" ] && matches+=("${candidate}${token}")
+        done
+
+        local match_count="${#matches[@]}"
+
+        if [ "$match_count" -eq 1 ]; then
+            # Single match — resolve with notice to stderr
+            printf '%s' "${matches[0]}" >&2
+            printf 'oc: resolved %s → %s\n' "$token" "${matches[0]}" >&2
+            printf '%s' "${matches[0]}"
+            return 0
+        elif [ "$match_count" -gt 1 ]; then
+            # Ambiguous — print disambiguation list and fail
+            printf 'oc: ambiguous project name "%s" — multiple matches:\n' "$token" >&2
+            local m
+            for m in "${matches[@]}"; do
+                printf '  %s\n' "$m" >&2
+            done
+            printf 'Use the full path to disambiguate, e.g.: oc %s\n' "${matches[0]}" >&2
+            return 1
+        fi
+    fi
+
+    # No match — return token unchanged
+    printf '%s' "$token"
+    return 0
+}
+
 # ─── oc-specific subcommands (not forwarded to openchad) ─────────────────────
 
 case "${1:-}" in
@@ -80,12 +138,67 @@ case "${1:-}" in
         ;;
 esac
 
+# ─── Project-name resolution before forwarding ───────────────────────────────
+#
+# Subcommands handled above (attach/switch) and by openchad's own dispatcher
+# (update/doctor/version/uninstall/metrics/changelog/discord). We must not
+# rewrite those. Explicit path prefixes (./ ../ / ~) are also left unchanged.
+#
+# We scan argv for the first non-option positional argument and attempt
+# project-name resolution on it. Options (starting with -) are passed through.
+
+_OC_SUBCOMMANDS="update doctor version uninstall metrics changelog discord attach switch"
+
+_resolved_args=()
+_resolution_done=0
+
+for _arg in "$@"; do
+    # If we've already resolved one positional, pass remaining args through
+    if [ "$_resolution_done" -eq 1 ]; then
+        _resolved_args+=("$_arg")
+        continue
+    fi
+
+    # Options pass through unchanged; don't attempt resolution on them
+    if [[ "$_arg" == -* ]]; then
+        _resolved_args+=("$_arg")
+        continue
+    fi
+
+    # Subcommands pass through unchanged (openchad handles them)
+    _is_subcmd=0
+    for _sc in $_OC_SUBCOMMANDS; do
+        [ "$_arg" = "$_sc" ] && { _is_subcmd=1; break; }
+    done
+    if [ "$_is_subcmd" -eq 1 ]; then
+        _resolved_args+=("$_arg")
+        _resolution_done=1
+        continue
+    fi
+
+    # Explicit path prefixes pass through unchanged
+    if [[ "$_arg" == ./* || "$_arg" == ../* || "$_arg" == /* || "$_arg" == ~* ]]; then
+        _resolved_args+=("$_arg")
+        _resolution_done=1
+        continue
+    fi
+
+    # Attempt project-name resolution on this positional argument
+    _resolved=""
+    if ! _resolved=$(_resolve_project_arg "$_arg"); then
+        # Ambiguous match — _resolve_project_arg already printed disambiguation
+        exit 1
+    fi
+    _resolved_args+=("$_resolved")
+    _resolution_done=1
+done
+
 # ─── Forward everything else to openchad ─────────────────────────────────────
 
 if [[ -x "$OPENCHAD_BIN" ]]; then
-    exec "$OPENCHAD_BIN" "$@"
+    exec "$OPENCHAD_BIN" "${_resolved_args[@]+"${_resolved_args[@]}"}"
 elif command -v openchad &>/dev/null; then
-    exec openchad "$@"
+    exec openchad "${_resolved_args[@]+"${_resolved_args[@]}"}"
 else
     echo "ERROR: openchad not found. Is it installed?" >&2
     echo "       Try: bash ~/dev/open-chad/install.sh" >&2
