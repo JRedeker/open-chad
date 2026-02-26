@@ -225,7 +225,7 @@ _log "YES_MODE=$YES_MODE VERBOSE=$VERBOSE"
 _log "CONFIG=$OPEN_CHAD_CONFIG_FILE"
 _log_flush
 
-TOTAL_STEPS=9
+TOTAL_STEPS=10
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1: System Dependencies
@@ -354,9 +354,25 @@ fi
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 5: Plugins (ADV + morph)
+# STEP 5: Vision Daemon Setup
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 5 "$TOTAL_STEPS" "OpenCode Plugins"
+_step_banner 5 "$TOTAL_STEPS" "Vision MCP Daemon"
+
+info "Verifying Vision daemon and registering MCP servers..."
+info "Vision manages context7, grep-app, lgrep, firecrawl endpoints."
+echo ""
+OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
+    bash "$REPO_DIR/lib/setup_vision.sh" || {
+    warn "Vision setup had errors (non-fatal). MCP servers may be unavailable."
+    warn "Ensure 'vision' binary is on PATH and retry: bash lib/setup_vision.sh"
+}
+_log "VISION SETUP DONE"
+_log_flush
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 6: Plugins (ADV + morph)
+# ═══════════════════════════════════════════════════════════════════════════════
+_step_banner 6 "$TOTAL_STEPS" "OpenCode Plugins"
 
 if [ "$SKIP_ADV" -eq 1 ]; then
     skip "ADV plugin (--skip-adv)"
@@ -384,9 +400,9 @@ fi
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 6: OpenCode Config (agents, instructions, theme)
+# STEP 7: OpenCode Config (agents, instructions, theme)
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 6 "$TOTAL_STEPS" "OpenCode Config & Agents"
+_step_banner 7 "$TOTAL_STEPS" "OpenCode Config & Agents"
 
 info "Syncing agents, instructions, and theme..."
 OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \
@@ -398,9 +414,9 @@ _log "OPENCODE CONFIG DONE"
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 7: OMP (opencode-model-preferences)
+# STEP 8: OMP (opencode-model-preferences)
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 7 "$TOTAL_STEPS" "Model Preferences (omp)"
+_step_banner 8 "$TOTAL_STEPS" "Model Preferences (omp)"
 
 if [ "$SKIP_OMP" -eq 1 ]; then
     skip "omp (--skip-omp)"
@@ -419,9 +435,9 @@ _log "OMP STEP DONE"
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 8: Zsh Shell Setup
+# STEP 9: Zsh Shell Setup
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 8 "$TOTAL_STEPS" "Zsh Shell Setup"
+_step_banner 9 "$TOTAL_STEPS" "Zsh Shell Setup"
 
 if [ "$SKIP_ZSH" -eq 1 ]; then
     skip "zsh + plugin setup (--skip-zsh)"
@@ -440,9 +456,9 @@ _log "ZSH SETUP DONE"
 _log_flush
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 9: Windows Terminal Keybindings
+# STEP 10: Windows Terminal Keybindings
 # ═══════════════════════════════════════════════════════════════════════════════
-_step_banner 9 "$TOTAL_STEPS" "Windows Terminal Keybindings (optional)"
+_step_banner 10 "$TOTAL_STEPS" "Windows Terminal Keybindings (optional)"
 
 # Detect WSL: check /proc/version for Microsoft kernel signature
 _is_wsl=0

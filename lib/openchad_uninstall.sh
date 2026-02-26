@@ -40,6 +40,14 @@ if [ "${YES_MODE:-0}" != "1" ] && [ "${1:-}" != "--yes" ]; then
 fi
 
 echo ""
+step "Stopping Vision MCP daemon (if running)"
+if command -v vision >/dev/null 2>&1; then
+    vision daemon stop >/dev/null 2>&1 || true
+    ok "Vision daemon stopped (or was not running)"
+else
+    ok "Vision binary not found — skipping daemon stop"
+fi
+
 step "Removing managed symlinks from ~/.local/bin"
 
 # Source the shared manifest

@@ -68,6 +68,12 @@ lib/
   setup_adv.sh              ADV plugin installer (pnpm)
   setup_omp.sh              Model preferences TUI installer (go build)
   setup_opencode.sh         OpenCode config/agent/theme sync
+  setup_vision.sh           Vision MCP daemon setup — verifies vision binary on PATH
+                            (non-fatal warn if missing), creates/merges
+                            ~/.config/vision/servers.yaml with 4 MCP servers
+                            (context7/grep-app/lgrep/firecrawl), sets 0600 perms,
+                            reloads running daemon. Idempotent: skips servers already
+                            present. Called by wizard.sh (Step 5) and update.sh.
   discord/
     setup.sh                Discord Rich Presence wizard + CLI (enable/disable/status)
     update.sh               Rate-limited bridge — checks config, rate limit, calls update.js
@@ -106,9 +112,10 @@ lib/
                             setup modules, repairs symlinks via manifest, removes stale
                             open-chad aliases/PATH from rc files. .git detection +
                             releases URL. Diverged branch recovery guide.
-  wizard.sh                 Interactive 9-step install wizard. YES_MODE for CI/--yes.
+  wizard.sh                 Interactive 10-step install wizard. YES_MODE for CI/--yes.
                             Logs to ~/.config/opencode/open-chad-install.log. Flags:
                             --yes, --skip-deps/auth/bundles/mcp/adv/morph/omp/zsh, --verbose.
+                            Step 5 runs setup_vision.sh (Vision MCP daemon).
 
 completion/
   openchad.bash             Bash completion for openchad and oc subcommands
@@ -147,6 +154,9 @@ tests/
   setup_zsh_test.sh         32 tests — zsh plugin setup, managed .zshrc block
   shell_profile_test.sh     33 tests — shell profile PATH wiring, completions
   oc_sessions_test.sh       33 tests — oc-list, oc-killall, rename regression
+  vision_test.sh            49 tests — Vision daemon setup, singleton startup, port health,
+                            doctor checks, wizard/update/uninstall wiring, idempotency,
+                            security (0600 perms), AGENTS.md documentation
 
 docs/
   STATUS_BAR_IMPLEMENTATION.md   Implementation examples for status bar data sources
@@ -279,6 +289,35 @@ bin/openchad (on launch, fire-and-forget)
             └─ exits 0 (always — Discord not running is non-fatal)
 ```
 
+### Vision MCP Daemon
+
+```
+wizard.sh / install.sh (Step 5 — setup_vision.sh)
+  ├─ verifies vision binary on PATH (non-fatal warn if missing)
+  ├─ creates ~/.config/vision/servers.yaml (0600) with 4 MCP servers:
+  │     context7  → localhost:6276
+  │     grep-app  → localhost:6288
+  │     lgrep     → localhost:6285
+  │     firecrawl → localhost:6281
+  └─ reloads running daemon (vision daemon reload)
+
+bin/openchad (on launch, fire-and-forget, singleton)
+  ├─ atomic mkdir vision-start.lock (prevents duplicate starts)
+  ├─ creates $OPEN_CHAD_CACHE_DIR/vision.log (0600) for daemon stderr
+  ├─ nohup vision daemon start >> vision.log 2>&1 &
+  └─ removes vision-start.lock after 2s delay
+
+lib/update.sh (on openchad update)
+  ├─ vision daemon stop (graceful, non-fatal)
+  ├─ setup_vision.sh (idempotent re-registration)
+  └─ daemon restarts immediately in update flow
+
+openchad doctor (Section 5 — Vision daemon)
+  ├─ checks vision binary on PATH
+  ├─ vision daemon status
+  └─ curl --max-time 2 health checks on all 4 MCP ports
+```
+
 ---
 
 ## Cache Directory
@@ -305,6 +344,7 @@ Permissions: `0700` (owner-only). Created on first source.
 | `copilot` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `claude` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
 | `codex` | Integer 0-100 or empty | `collect_metrics.sh` | `status_right.sh` |
+| `vision.log` | Vision daemon stderr output | `bin/openchad` | Debugging (0600, owner-only) |
 
 All writes are atomic (write to `$file.$$`, then `mv -f`).
 
@@ -365,7 +405,8 @@ bash tests/oc_sessions_test.sh
 | `setup_zsh_test.sh` | 32 | Zsh plugin setup, managed .zshrc block |
 | `shell_profile_test.sh` | 33 | Shell profile PATH wiring, completions |
 | `oc_sessions_test.sh` | 33 | oc-list, oc-killall, rename regression |
-| **Total** | **594** | |
+| `vision_test.sh` | 49 | Vision daemon setup, singleton startup, port health, doctor checks, wizard/update/uninstall wiring, security |
+| **Total** | **643** | |
 
 ### Testing conventions
 
@@ -472,6 +513,19 @@ The following security fixes were applied in the v1.1 hardening pass:
 | ISSUE-018 | `lib/setup_shell_profile.sh` | Exports PATH directly after writing block for immediate availability. Does NOT source the user's rc file (security: avoids executing arbitrary user shell code in installer context). |
 | ISSUE-019 | `lib/collect_metrics.sh` | `find` cleanup wrapped in `timeout 5` to prevent hangs on slow filesystems. |
 | ISSUE-021 | `lib/setup_shell_profile.sh` | Heredoc changed from `<<'EOF'` to `<<EOF` with `\$HOME` for explicit intent. |
+
+### Vision bundling (v1.3)
+
+The following changes were applied to bundle Vision as a managed component:
+
+| ID | Script | Fix |
+|----|--------|-----|
+| VISION-001 | `lib/setup_vision.sh` | New. Idempotent Vision server registration — creates `~/.config/vision/servers.yaml` (0600) with 4 MCP servers, reloads daemon. Non-fatal if vision binary missing. |
+| VISION-002 | `bin/openchad` | Vision singleton daemon start added after metrics collector. Two-tier locking (`vision-start.lock` atomic mkdir). `vision.log` created with `install -m 0600`. Fire-and-forget. |
+| VISION-003 | `lib/wizard.sh` | `setup_vision.sh` wired as Step 5 (after MCP, before Plugins). `TOTAL_STEPS` incremented 9→10. |
+| VISION-004 | `lib/update.sh` | Vision stop→setup→restart block added after MCP setup. Daemon restarts immediately in update flow. |
+| VISION-005 | `lib/openchad_doctor.sh` | Section 5 "Vision daemon" added: binary check, `vision daemon status`, 4-port health checks with `curl --max-time 2`. |
+| VISION-006 | `lib/openchad_uninstall.sh` | `vision daemon stop` added to uninstall path (non-fatal). |
 
 ### Rename migration (v1.2)
 

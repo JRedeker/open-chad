@@ -120,6 +120,47 @@ else
     _issues=$((_issues + 1))
 fi
 
+# ─── 5. Vision daemon ────────────────────────────────────────────────────────
+echo ""
+echo "Vision daemon (MCP server manager):"
+
+if ! command -v vision &>/dev/null; then
+    fail "vision binary not found on PATH"
+    info "  Vision is required for MCP tools (context7, grep-app, lgrep, firecrawl)."
+    info "  Install Vision and ensure it is on PATH."
+    info "  Then re-run: bash $REPO_DIR/lib/setup_vision.sh"
+    _issues=$((_issues + 1))
+else
+    ok "vision binary: $(command -v vision)"
+
+    # Check daemon status
+    if vision daemon status 2>/dev/null | grep -q "running"; then
+        ok "Vision daemon running"
+    else
+        fail "Vision daemon not running"
+        info "  Start with: openchad (auto-starts on launch)"
+        info "  Or manually: vision daemon start &"
+        _issues=$((_issues + 1))
+    fi
+
+    # Check all 4 MCP ports (2-second timeout each)
+    _vision_ports=(6276 6288 6285 6281)
+    _vision_names=(context7 grep-app lgrep firecrawl)
+    for _i in "${!_vision_ports[@]}"; do
+        _port="${_vision_ports[$_i]}"
+        _name="${_vision_names[$_i]}"
+        if curl -sf --max-time 2 "http://localhost:${_port}/mcp" >/dev/null 2>&1; then
+            ok "Port ${_port} (${_name}): reachable"
+        else
+            fail "Port ${_port} (${_name}): not reachable"
+            info "  Vision daemon may not have started ${_name} yet."
+            info "  Check: $REPO_DIR/../cache/vision.log (or \$OPEN_CHAD_CACHE_DIR/vision.log)"
+            _issues=$((_issues + 1))
+        fi
+    done
+    unset _i _port _name _vision_ports _vision_names
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 if [ "$_issues" -eq 0 ]; then

@@ -244,6 +244,33 @@ step "Updating MCP server configuration"
 bash "$REPO_DIR/lib/setup_mcp.sh" || warn "MCP setup had errors (non-fatal)"
 log "MCP setup done"
 
+# Vision daemon (stop → update config → restart)
+# Full restart: stop daemon, re-run setup, start daemon immediately
+step "Updating Vision daemon configuration"
+if command -v vision &>/dev/null; then
+    if vision daemon status 2>/dev/null | grep -q "running"; then
+        step "Stopping Vision daemon for update"
+        vision daemon stop 2>/dev/null || warn "vision daemon stop failed (continuing)"
+        log "Vision daemon stopped for update"
+    fi
+    OPEN_CHAD_INSTALL_LOG="$INSTALL_LOG" \
+        bash "$REPO_DIR/lib/setup_vision.sh" || warn "Vision setup had errors (non-fatal)"
+    log "Vision setup done"
+    # Restart daemon immediately so MCP tools are available in the current session
+    step "Restarting Vision daemon"
+    # Source cache dir for vision.log path
+    source "$REPO_DIR/lib/opencode_env.sh"
+    _vision_log="$OPEN_CHAD_CACHE_DIR/vision.log"
+    install -m 0600 /dev/null "$_vision_log" 2>/dev/null || true
+    nohup vision daemon start >> "$_vision_log" 2>&1 &
+    disown 2>/dev/null || true
+    ok "Vision daemon restarted"
+    log "Vision daemon restarted (PID: $!)"
+else
+    warn "vision binary not found — skipping Vision update (MCP servers may be unavailable)"
+    log "Vision binary not found — skipped"
+fi
+
 # Morph plugin (clone or pull + rebuild)
 step "Updating morph-fast-apply plugin"
 bash "$REPO_DIR/lib/setup_morph.sh" || warn "morph setup had errors (non-fatal)"
