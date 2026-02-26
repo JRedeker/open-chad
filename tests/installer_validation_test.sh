@@ -1081,6 +1081,181 @@ test_setup_mcp_error_function_uses_stderr
 test_setup_dev_bundle_sha256_errors_have_hints
 test_check_environment_python3_warning_has_hint
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# openchad rename + oc alias — validation tests (TDD scaffold)
+# These tests FAIL until implementation is complete.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+section "bin/openchad — subcommand routing"
+
+test_openchad_routes_update() {
+    if grep -q '"update"\|= "update"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'update' subcommand routing present"
+    else
+        fail "bin/openchad: 'update' subcommand routing missing"
+    fi
+}
+
+test_openchad_routes_discord() {
+    if grep -q '"discord"\|= "discord"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'discord' subcommand routing present"
+    else
+        fail "bin/openchad: 'discord' subcommand routing missing"
+    fi
+}
+
+test_openchad_routes_version() {
+    if grep -q '"version"\|= "version"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'version' subcommand routing present"
+    else
+        fail "bin/openchad: 'version' subcommand routing missing"
+    fi
+}
+
+test_openchad_routes_doctor() {
+    if grep -q '"doctor"\|= "doctor"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'doctor' subcommand routing present"
+    else
+        fail "bin/openchad: 'doctor' subcommand routing missing"
+    fi
+}
+
+test_openchad_routes_uninstall() {
+    if grep -q '"uninstall"\|= "uninstall"' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'uninstall' subcommand routing present"
+    else
+        fail "bin/openchad: 'uninstall' subcommand routing missing"
+    fi
+}
+
+test_openchad_help_mentions_all_subcommands() {
+    local output
+    output=$(bash "$REPO_DIR/bin/openchad" --help 2>&1 || true)
+    echo "$output" | grep -q 'update' && pass "bin/openchad --help mentions 'update'" || fail "bin/openchad --help missing 'update'"
+    echo "$output" | grep -q 'version' && pass "bin/openchad --help mentions 'version'" || fail "bin/openchad --help missing 'version'"
+    echo "$output" | grep -q 'doctor' && pass "bin/openchad --help mentions 'doctor'" || fail "bin/openchad --help missing 'doctor'"
+    echo "$output" | grep -q 'uninstall' && pass "bin/openchad --help mentions 'uninstall'" || fail "bin/openchad --help missing 'uninstall'"
+}
+
+test_openchad_routes_update
+test_openchad_routes_discord
+test_openchad_routes_version
+test_openchad_routes_doctor
+test_openchad_routes_uninstall
+test_openchad_help_mentions_all_subcommands
+
+section "lib/update.sh — full symlink repair parity"
+
+test_update_repairs_all_five_symlinks() {
+    local missing=0
+    for name in openchad oc cds oc-list oc-killall; do
+        if grep -q "$name" "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+            pass "lib/update.sh: repairs $name symlink"
+        else
+            fail "lib/update.sh: missing repair for $name symlink"
+            missing=$((missing + 1))
+        fi
+    done
+}
+
+test_update_does_not_repair_open_chad() {
+    # The old hyphenated name should not be re-created by update
+    if grep -q '"open-chad"\|bin/open-chad' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+        fail "lib/update.sh still references open-chad symlink (should be removed)"
+    else
+        pass "lib/update.sh does not reference open-chad symlink"
+    fi
+}
+
+test_update_repairs_all_five_symlinks
+test_update_does_not_repair_open_chad
+
+section "lib/openchad_version.sh — version subcommand handler"
+
+test_version_handler_exists() {
+    if [ -f "$REPO_DIR/lib/openchad_version.sh" ]; then
+        pass "lib/openchad_version.sh exists"
+    else
+        fail "lib/openchad_version.sh missing"
+    fi
+}
+
+test_version_handler_syntax_ok() {
+    bash -n "$REPO_DIR/lib/openchad_version.sh" 2>/dev/null && pass "lib/openchad_version.sh syntax OK" || fail "lib/openchad_version.sh syntax error"
+}
+
+test_version_handler_exists
+test_version_handler_syntax_ok
+
+section "lib/openchad_doctor.sh — doctor subcommand handler"
+
+test_doctor_handler_exists() {
+    if [ -f "$REPO_DIR/lib/openchad_doctor.sh" ]; then
+        pass "lib/openchad_doctor.sh exists"
+    else
+        fail "lib/openchad_doctor.sh missing"
+    fi
+}
+
+test_doctor_handler_syntax_ok() {
+    bash -n "$REPO_DIR/lib/openchad_doctor.sh" 2>/dev/null && pass "lib/openchad_doctor.sh syntax OK" || fail "lib/openchad_doctor.sh syntax error"
+}
+
+test_doctor_handler_exists
+test_doctor_handler_syntax_ok
+
+section "lib/openchad_uninstall.sh — uninstall subcommand handler"
+
+test_uninstall_handler_exists() {
+    if [ -f "$REPO_DIR/lib/openchad_uninstall.sh" ]; then
+        pass "lib/openchad_uninstall.sh exists"
+    else
+        fail "lib/openchad_uninstall.sh missing"
+    fi
+}
+
+test_uninstall_handler_syntax_ok() {
+    bash -n "$REPO_DIR/lib/openchad_uninstall.sh" 2>/dev/null && pass "lib/openchad_uninstall.sh syntax OK" || fail "lib/openchad_uninstall.sh syntax error"
+}
+
+test_uninstall_uses_manifest() {
+    grep -q 'symlink_manifest\|MANAGED_SYMLINKS' "$REPO_DIR/lib/openchad_uninstall.sh" 2>/dev/null \
+        && pass "lib/openchad_uninstall.sh uses symlink manifest" \
+        || fail "lib/openchad_uninstall.sh does not use symlink manifest"
+}
+
+test_uninstall_handler_exists
+test_uninstall_handler_syntax_ok
+test_uninstall_uses_manifest
+
+section "Makefile — project task runner"
+
+test_makefile_exists() {
+    assert_file_exists "$REPO_DIR/Makefile"
+}
+
+test_makefile_has_install_target() {
+    grep -q '^install:' "$REPO_DIR/Makefile" 2>/dev/null && pass "Makefile has install target" || fail "Makefile missing install target"
+}
+
+test_makefile_has_test_target() {
+    grep -q '^test:\|^verify:' "$REPO_DIR/Makefile" 2>/dev/null && pass "Makefile has test/verify target" || fail "Makefile missing test/verify target"
+}
+
+test_makefile_has_update_target() {
+    grep -q '^update:' "$REPO_DIR/Makefile" 2>/dev/null && pass "Makefile has update target" || fail "Makefile missing update target"
+}
+
+test_makefile_has_uninstall_target() {
+    grep -q '^uninstall:' "$REPO_DIR/Makefile" 2>/dev/null && pass "Makefile has uninstall target" || fail "Makefile missing uninstall target"
+}
+
+test_makefile_exists
+test_makefile_has_install_target
+test_makefile_has_test_target
+test_makefile_has_update_target
+test_makefile_has_uninstall_target
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
