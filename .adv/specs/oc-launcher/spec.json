@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anomalyco/oc-plugins/main/advance/plugin/schemas/spec.schema.json",
+  "name": "oc-launcher",
+  "title": "Oc Launcher",
+  "purpose": "Capability: Oc Launcher",
+  "version": "1.0.0",
+  "updated_at": "2026-02-26T17:15:27.523Z",
+  "requirements": [
+    {
+      "id": "rq-ocLaunch1",
+      "title": "oc resolves bare project-name arguments under ~/dev with deterministic precedence",
+      "body": "When invoked as `oc <token>`, the wrapper must preserve existing subcommand/path behavior while resolving a bare token to `~/dev/<token>` or a single `~/dev/*/<token>` match. Ambiguous nested matches must fail with a disambiguation list, and unresolved tokens must pass through unchanged.",
+      "priority": "must",
+      "tags": [
+        "launcher",
+        "routing",
+        "safety"
+      ],
+      "scenarios": [
+        {
+          "id": "rq-ocLaunch1.1",
+          "title": "Subcommand and explicit-path precedence remain intact",
+          "given": [
+            "`bin/oc` receives first arg `update` or `./repo`",
+            "matching project directories may exist under ~/dev"
+          ],
+          "when": "the launcher resolves the first positional argument",
+          "then": [
+            "the first argument is forwarded unchanged",
+            "no project-name rewrite is attempted"
+          ]
+        },
+        {
+          "id": "rq-ocLaunch1.2",
+          "title": "Single nested match resolves with notice",
+          "given": [
+            "`~/dev/<token>` does not exist",
+            "exactly one `~/dev/*/<token>` directory exists"
+          ],
+          "when": "the launcher resolves bare token `<token>`",
+          "then": [
+            "argv[1] is rewritten to the matched absolute path",
+            "a one-line resolution notice is emitted to stderr",
+            "remaining argv is preserved"
+          ]
+        },
+        {
+          "id": "rq-ocLaunch1.3",
+          "title": "Ambiguous nested matches fail safely",
+          "given": [
+            "two or more `~/dev/*/<token>` directories exist"
+          ],
+          "when": "the launcher resolves bare token `<token>`",
+          "then": [
+            "launcher exits with status 1",
+            "a disambiguation list is printed to stderr",
+            "no automatic selection is made"
+          ]
+        }
+      ]
+    }
+  ]
+}
