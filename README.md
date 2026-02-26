@@ -54,7 +54,15 @@ A terminal UI for managing OpenCode model preferences — switch models, set def
 ![omp model preferences](ompscreenshot.png)
 
 ### Discord Rich Presence
-Optional — show your current project and a rotating tagline in Discord. All dynamic input is sanitized (no paths, tokens, or secrets transmitted).
+Optional — show your openchad activity in Discord with a single command. No Discord Developer account required.
+
+```bash
+openchad discord enable          # Enable with built-in default app (no setup needed)
+openchad discord enable --custom # Use your own Discord app (advanced)
+openchad discord status          # Check current mode and last update time
+```
+
+All dynamic input is sanitized — no project names, file paths, tokens, or secrets are ever transmitted. See [`lib/discord/SETUP.md`](lib/discord/SETUP.md) for the full guide.
 
 ---
 

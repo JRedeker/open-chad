@@ -25,6 +25,10 @@ REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=../opencode_env.sh
 source "$REPO_DIR/lib/opencode_env.sh"
 
+# Single source of truth for default Client ID and resolution helper
+# shellcheck source=lib/discord/defaults.sh
+source "$SCRIPT_DIR/defaults.sh"
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 RATE_LIMIT_SEC="${DISCORD_RATE_LIMIT_SEC:-15}"
@@ -78,13 +82,13 @@ main() {
         exit 0
     fi
 
-    # 3. Read CLIENT_ID from config (not from environment — SC-12)
-    local client_id
-    client_id=$(json_get "$CONFIG_FILE" "(c.discordPresence||{}).clientId||''")
-    if [ -z "$client_id" ]; then
-        log_debug "discordPresence.clientId not set — skipping"
-        exit 0
-    fi
+    # 3. Resolve CLIENT_ID via fallback chain:
+    #    user-configured clientId → built-in DISCORD_DEFAULT_CLIENT_ID
+    local resolve_result mode client_id
+    resolve_result=$(_resolve_discord_client_id "$CONFIG_FILE")
+    mode=$(echo "$resolve_result" | cut -d" " -f1)
+    client_id=$(echo "$resolve_result" | cut -d" " -f2)
+    log_debug "client_id resolved: mode=$mode id=$client_id"
 
     # 4. Rate limit check via lockfile mtime
     # Wrapped in flock to prevent concurrent race where two update.sh calls

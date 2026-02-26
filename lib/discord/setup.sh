@@ -1,25 +1,36 @@
 #!/usr/bin/env bash
 # lib/discord/setup.sh — Discord Rich Presence wizard + CLI subcommands
 #
-# Subcommands (invoked via open-chad discord <subcommand>):
-#   enable      — First-run wizard (or re-enable). Validates CLIENT_ID, writes config.
-#   disable     — Sets discordPresence.enabled=false in config.
-#   status      — Shows current configuration state.
+# Subcommands (invoked via openchad discord <subcommand>):
+#   enable           — Default path: writes enabled=true, no clientId, no prompt.
+#   enable --custom  — Interactive wizard: prompts for Client ID, writes clientId.
+#   disable          — Sets discordPresence.enabled=false in config.
+#   status           — Shows current configuration state (mode: default/custom).
 #
 # Internal flags (for testing without interactive prompts):
-#   --enable   --no-prompt   DISCORD_CLIENT_ID=<id>   (non-interactive enable)
+#   --enable   --no-prompt   DISCORD_CLIENT_ID=<id>   (non-interactive custom enable)
 #   --disable                                          (non-interactive disable)
 #   --status                                           (show status)
 #   --validate-id            DISCORD_CLIENT_ID=<id>   (validate and print result)
 #
 # Environment overrides:
 #   OPEN_CHAD_CONFIG_FILE   — path to config JSON (default: ~/.config/opencode/open-chad.json)
-#   DISCORD_CLIENT_ID       — client ID (used only in non-interactive --enable --no-prompt mode)
+#   DISCORD_CLIENT_ID       — client ID (used in --custom --no-prompt mode)
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Resolve dedicated cache directory (OPEN_CHAD_CACHE_DIR)
+# shellcheck source=../opencode_env.sh
+if [ -f "$REPO_DIR/lib/opencode_env.sh" ]; then
+    source "$REPO_DIR/lib/opencode_env.sh"
+fi
+
+# Single source of truth for default Client ID and resolution helper
+# shellcheck source=lib/discord/defaults.sh
+source "$SCRIPT_DIR/defaults.sh"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 
@@ -96,16 +107,28 @@ cmd_validate_id() {
     if [[ "$result" == "valid" ]]; then exit 0; else exit 1; fi
 }
 
-cmd_enable() {
+# cmd_enable_default — zero-prompt path
+# Writes discordPresence.enabled=true only. No clientId. No prompt.
+cmd_enable_default() {
+    config_set '{"discordPresence":{"enabled":true}}'
+    echo -e "${C_SAGE}✓ Discord Rich Presence enabled (default mode).${C_RESET}"
+    echo -e "  Config: ${C_GOLD}$CONFIG_FILE${C_RESET}"
+    echo -e "  Run ${C_GOLD}openchad discord status${C_RESET} to verify."
+}
+
+# cmd_enable_custom — interactive wizard or non-interactive via env var
+# Prompts for Client ID (or reads DISCORD_CLIENT_ID), validates, writes clientId.
+# Args: $1 = "1" for --no-prompt (non-interactive), "0" for interactive
+cmd_enable_custom() {
     local no_prompt="${1:-0}"
     local client_id="${DISCORD_CLIENT_ID:-}"
 
     if [ "$no_prompt" = "0" ]; then
         # Interactive wizard
         echo -e "\n${C_SAGE}╔══════════════════════════════════════╗${C_RESET}"
-        echo -e "${C_SAGE}║  Discord Rich Presence — Setup       ║${C_RESET}"
+        echo -e "${C_SAGE}║  Discord Rich Presence — Custom App  ║${C_RESET}"
         echo -e "${C_SAGE}╚══════════════════════════════════════╝${C_RESET}\n"
-        echo -e "This will show your open-chad activity on Discord."
+        echo -e "This will use your own Discord Application ID."
         echo -e "See ${C_GOLD}lib/discord/SETUP.md${C_RESET} for how to create a Discord app.\n"
 
         while true; do
@@ -115,7 +138,7 @@ cmd_enable() {
             if [[ "$validation_result" == "valid" ]]; then
                 break
             else
-            echo -e "${C_CORAL}  $validation_result${C_RESET}"
+                echo -e "${C_CORAL}  $validation_result${C_RESET}"
             fi
         done
     else
@@ -132,14 +155,14 @@ cmd_enable() {
         fi
     fi
 
-    # Write config
+    # Write config with clientId
     config_set "{\"discordPresence\":{\"enabled\":true,\"clientId\":\"$client_id\"}}"
 
     if [ "$no_prompt" = "0" ]; then
-        echo -e "\n${C_SAGE}✓ Discord Rich Presence enabled!${C_RESET}"
+        echo -e "\n${C_SAGE}✓ Discord Rich Presence enabled (custom mode)!${C_RESET}"
         echo -e "  Client ID: ${C_GOLD}$client_id${C_RESET}"
         echo -e "  Config:    ${C_GOLD}$CONFIG_FILE${C_RESET}"
-        echo -e "\nPresence will update next time you start open-chad.\n"
+        echo -e "\nPresence will update next time you start openchad.\n"
     fi
 }
 
@@ -153,35 +176,47 @@ cmd_disable() {
 
     if [ "${1:-}" != "--quiet" ]; then
         echo -e "${C_GOLD}Discord Rich Presence disabled.${C_RESET}"
-        echo -e "Re-enable with: ${C_SAGE}open-chad discord enable${C_RESET}"
+        echo -e "Re-enable with: ${C_SAGE}openchad discord enable${C_RESET}"
     fi
 }
 
 cmd_status() {
     local enabled
     enabled=$(config_get "(c.discordPresence||{}).enabled||false")
-    local client_id
-    client_id=$(config_get "(c.discordPresence||{}).clientId||''")
-    local lock_file="${OPEN_CHAD_DISCORD_LOCK:-/tmp/discord-rpc.lock}"
+
+    # Resolve Client ID and mode via shared helper (custom → default fallback)
+    local resolve_result mode client_id
+    resolve_result=$(_resolve_discord_client_id "$CONFIG_FILE")
+    mode=$(echo "$resolve_result" | cut -d" " -f1)
+    client_id=$(echo "$resolve_result" | cut -d" " -f2)
+
+    # Lock file lives in OPEN_CHAD_CACHE_DIR (not /tmp)
+    local cache_dir="${OPEN_CHAD_CACHE_DIR:-${TMPDIR:-/tmp}/open-chad-${USER:-user}}"
+    local lock_file="${OPEN_CHAD_DISCORD_LOCK:-${cache_dir}/discord-rpc.lock}"
+    local log_file="${cache_dir}/discord.log"
 
     echo -e "\n${C_SAGE}Discord Rich Presence Status${C_RESET}"
     echo -e "──────────────────────────────────────"
 
     if [ "$enabled" = "true" ]; then
         echo -e "  Status:    ${C_SAGE}enabled${C_RESET}"
-        echo -e "  Client ID: ${C_GOLD}${client_id:-not set}${C_RESET}"
+        echo -e "  Mode:      ${C_GOLD}${mode}${C_RESET}"
+        if [ "$mode" = "custom" ]; then
+            echo -e "  Client ID: ${C_GOLD}${client_id}${C_RESET}"
+        fi
     else
         echo -e "  Status:    ${C_CORAL}disabled${C_RESET}"
-        echo -e "  Run ${C_GOLD}open-chad discord enable${C_RESET} to set up."
+        echo -e "  Run ${C_GOLD}openchad discord enable${C_RESET} to set up."
     fi
 
     if [ -f "$lock_file" ]; then
         local last_update
-        last_update=$(date -r "$lock_file" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "unknown")
+        last_update=$(date -r "$lock_file" '+%Y-%m-%d %H:%M:%S' 2>/dev/null \
+            || stat -c '%y' "$lock_file" 2>/dev/null | cut -d'.' -f1 \
+            || echo "unknown")
         echo -e "  Last update: $last_update"
     fi
 
-    local log_file="${TMPDIR:-/tmp}/open-chad-discord.log"
     if [ -f "$log_file" ]; then
         echo -e "  Debug log: ${C_GOLD}$log_file${C_RESET}"
     fi
@@ -191,18 +226,20 @@ cmd_status() {
 
 # ─── Argument parsing ─────────────────────────────────────────────────────────
 
-NO_PROMPT=0
-
 case "${1:-}" in
     --validate-id)
         cmd_validate_id
         ;;
     --enable)
+        # Legacy non-interactive flag: --enable [--no-prompt]
+        # With --no-prompt + DISCORD_CLIENT_ID → custom non-interactive path
+        # Without --no-prompt → default path (no prompt, no clientId)
         shift
         if [ "${1:-}" = "--no-prompt" ]; then
-            NO_PROMPT=1
+            cmd_enable_custom "1"
+        else
+            cmd_enable_default
         fi
-        cmd_enable "$NO_PROMPT"
         ;;
     --disable)
         cmd_disable
@@ -211,7 +248,19 @@ case "${1:-}" in
         cmd_status
         ;;
     enable)
-        cmd_enable 0
+        shift
+        if [ "${1:-}" = "--custom" ]; then
+            shift
+            # --custom [--no-prompt]: interactive wizard or non-interactive via env
+            if [ "${1:-}" = "--no-prompt" ]; then
+                cmd_enable_custom "1"
+            else
+                cmd_enable_custom "0"
+            fi
+        else
+            # Default enable: no prompt, no clientId
+            cmd_enable_default
+        fi
         ;;
     disable)
         cmd_disable
@@ -220,11 +269,11 @@ case "${1:-}" in
         cmd_status
         ;;
     "")
-        # Default: interactive wizard (same as enable)
-        cmd_enable 0
+        # Default: same as 'enable' (zero-prompt default path)
+        cmd_enable_default
         ;;
     *)
-        echo "Usage: open-chad discord {enable|disable|status}" >&2
+        echo "Usage: openchad discord {enable [--custom]|disable|status}" >&2
         exit 1
         ;;
 esac

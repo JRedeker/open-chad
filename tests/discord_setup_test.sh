@@ -364,6 +364,240 @@ test_discord_disabled_when_key_absent
 test_discord_disabled_when_enabled_false
 test_installer_does_not_write_discord_enabled
 
+# ─── Section 8: update.sh Client ID fallback chain (rq-MDbiJekK) ─────────────
+
+section "update.sh Client ID fallback chain (rq-MDbiJekK)"
+
+test_update_uses_default_client_id_when_no_custom() {
+    if [ ! -f "$UPDATE_SH" ]; then skip "update.sh not found"; return; fi
+    setup_tmp_env
+    # Enabled but no clientId — should use built-in default, NOT skip
+    echo '{"discordPresence":{"enabled":true}}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    # We can't easily test that update.js was called with the right ID without
+    # mocking node, but we CAN test that update.sh does NOT exit early (exit 0
+    # before reaching the node call). We verify by checking it doesn't output
+    # the "skipping" debug message when OPEN_CHAD_DEBUG=1.
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_DEBUG=1 \
+        DISCORD_RATE_LIMIT_SEC=0 \
+        bash "$UPDATE_SH" "1" "0" 2>&1) || true
+
+    assert_not_contains "$result" "clientId not set.*skipping\|clientId not set — skipping" \
+        "update.sh does NOT skip when clientId is absent (uses default)"
+    teardown_tmp_env
+}
+
+test_update_uses_custom_client_id_when_set() {
+    if [ ! -f "$UPDATE_SH" ]; then skip "update.sh not found"; return; fi
+    setup_tmp_env
+    echo '{"discordPresence":{"enabled":true,"clientId":"9876543210987654321"}}' \
+        > "$OPEN_CHAD_CONFIG_FILE"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_DEBUG=1 \
+        DISCORD_RATE_LIMIT_SEC=0 \
+        bash "$UPDATE_SH" "1" "0" 2>&1) || true
+
+    assert_not_contains "$result" "skipping" \
+        "update.sh does NOT skip when custom clientId is set"
+    teardown_tmp_env
+}
+
+test_update_uses_default_client_id_when_no_custom
+test_update_uses_custom_client_id_when_set
+
+# ─── Section 9: Default enable — no prompt, no clientId written ──────────────
+
+section "Default enable — zero-prompt path (rq-BlBC0zGJ)"
+
+test_default_enable_writes_enabled_true_no_client_id() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    if ! command -v node &>/dev/null; then skip "node not available"; return; fi
+    setup_tmp_env
+    echo '{}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    # Default enable: no DISCORD_CLIENT_ID, no --custom flag
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" enable 2>/dev/null
+    local rc=$?
+
+    assert_eq "$rc" "0" "default enable exits 0"
+
+    local enabled
+    enabled=$(node -e "
+const fs=require('fs');
+try {
+  const c=JSON.parse(fs.readFileSync('$OPEN_CHAD_CONFIG_FILE'));
+  process.stdout.write(String((c.discordPresence||{}).enabled));
+} catch(e) { process.stdout.write('error'); }
+" 2>/dev/null)
+    assert_eq "$enabled" "true" "default enable writes discordPresence.enabled=true"
+
+    local client_id
+    client_id=$(node -e "
+const fs=require('fs');
+try {
+  const c=JSON.parse(fs.readFileSync('$OPEN_CHAD_CONFIG_FILE'));
+  const id=(c.discordPresence||{}).clientId;
+  process.stdout.write(id===undefined?'absent':String(id));
+} catch(e) { process.stdout.write('error'); }
+" 2>/dev/null)
+    assert_eq "$client_id" "absent" "default enable does NOT write clientId to config"
+    teardown_tmp_env
+}
+
+test_default_enable_preserves_existing_keys() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    if ! command -v node &>/dev/null; then skip "node not available"; return; fi
+    setup_tmp_env
+    echo '{"theme":"ayu-dark","providers":["zai"]}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" enable 2>/dev/null || true
+
+    local theme
+    theme=$(node -e "
+const fs=require('fs');
+try {
+  const c=JSON.parse(fs.readFileSync('$OPEN_CHAD_CONFIG_FILE'));
+  process.stdout.write(c.theme||'missing');
+} catch(e) { process.stdout.write('error'); }
+" 2>/dev/null)
+    assert_eq "$theme" "ayu-dark" "default enable preserves existing config keys"
+    teardown_tmp_env
+}
+
+test_default_enable_writes_enabled_true_no_client_id
+test_default_enable_preserves_existing_keys
+
+# ─── Section 9: --custom flag — interactive wizard path ──────────────────────
+
+section "--custom flag — custom Client ID path (rq-9H9rbMve)"
+
+test_custom_enable_writes_client_id() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    if ! command -v node &>/dev/null; then skip "node not available"; return; fi
+    setup_tmp_env
+    echo '{}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    DISCORD_CLIENT_ID="9876543210987654321" \
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" enable --custom --no-prompt 2>/dev/null
+    local rc=$?
+
+    assert_eq "$rc" "0" "enable --custom --no-prompt exits 0 with valid ID"
+
+    local client_id
+    client_id=$(node -e "
+const fs=require('fs');
+try {
+  const c=JSON.parse(fs.readFileSync('$OPEN_CHAD_CONFIG_FILE'));
+  process.stdout.write(String((c.discordPresence||{}).clientId||'missing'));
+} catch(e) { process.stdout.write('error'); }
+" 2>/dev/null)
+    assert_eq "$client_id" "9876543210987654321" "enable --custom writes clientId to config"
+    teardown_tmp_env
+}
+
+test_custom_enable_invalid_id_exits_nonzero() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    setup_tmp_env
+    echo '{}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    local exit_code=0
+    DISCORD_CLIENT_ID="not-a-number" \
+    OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" enable --custom --no-prompt 2>/dev/null || exit_code=$?
+
+    [ "$exit_code" -ne 0 ] && pass "enable --custom with invalid ID exits non-zero" \
+        || fail "enable --custom with invalid ID should exit non-zero (got 0)"
+    teardown_tmp_env
+}
+
+test_custom_enable_writes_client_id
+test_custom_enable_invalid_id_exits_nonzero
+
+# ─── Section 11: status mode reporting (rq-mn3NmUG2) ─────────────────────────
+
+section "status mode reporting — default vs custom (rq-mn3NmUG2)"
+
+test_status_shows_default_mode_when_no_client_id() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    setup_tmp_env
+    echo '{"discordPresence":{"enabled":true}}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    assert_contains "$result" "default" \
+        "status shows 'default' mode when no clientId in config"
+    teardown_tmp_env
+}
+
+test_status_shows_custom_mode_when_client_id_set() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    setup_tmp_env
+    echo '{"discordPresence":{"enabled":true,"clientId":"9876543210987654321"}}' \
+        > "$OPEN_CHAD_CONFIG_FILE"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    assert_contains "$result" "custom" \
+        "status shows 'custom' mode when clientId is set"
+    assert_contains "$result" "9876543210987654321" \
+        "status shows the custom Client ID"
+    teardown_tmp_env
+}
+
+test_status_no_tmp_hardcode() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    setup_tmp_env
+    echo '{"discordPresence":{"enabled":true}}' > "$OPEN_CHAD_CONFIG_FILE"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    # Status should NOT show a hardcoded /tmp path for the lock file
+    assert_not_contains "$result" "/tmp/discord-rpc.lock" \
+        "status does not show hardcoded /tmp lock path"
+    teardown_tmp_env
+}
+
+test_status_lock_path_uses_cache_dir() {
+    if [ ! -f "$SETUP_SH" ]; then skip "setup.sh not found"; return; fi
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+    echo '{"discordPresence":{"enabled":true}}' > "$OPEN_CHAD_CONFIG_FILE"
+    # Create a lock file in the cache dir to trigger the "Last update" line
+    touch "$cache_dir/discord-rpc.lock"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_CACHE_DIR="$cache_dir" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    # Should show last update (lock file exists) and NOT show /tmp path
+    assert_contains "$result" "Last update" \
+        "status shows Last update when lock file exists in cache dir"
+    assert_not_contains "$result" "/tmp/discord-rpc.lock" \
+        "status lock path does not hardcode /tmp"
+    teardown_tmp_env
+}
+
+test_status_shows_default_mode_when_no_client_id
+test_status_shows_custom_mode_when_client_id_set
+test_status_no_tmp_hardcode
+test_status_lock_path_uses_cache_dir
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
