@@ -50,19 +50,33 @@ _render_provider() {
 
 # Returns 0 if at least one provider cache file has a valid integer
 _has_any_gauge_data() {
-    local f
-    for f in \
-        "${OPEN_CHAD_CACHE_DIR}/zai" \
-        "${OPEN_CHAD_CACHE_DIR}/copilot" \
-        "${OPEN_CHAD_CACHE_DIR}/claude" \
-        "${OPEN_CHAD_CACHE_DIR}/codex"
-    do
-        if [ -f "$f" ]; then
-            local v
-            v=$(cat "$f" 2>/dev/null || true)
-            [[ "${v:-}" =~ ^[0-9]+$ ]] && return 0
-        fi
-    done
+    local active_file="${OPEN_CHAD_CACHE_DIR}/active_providers"
+    if [ -f "$active_file" ]; then
+        while read -r _label cache_key; do
+            [ -z "$cache_key" ] && continue
+            local f="${OPEN_CHAD_CACHE_DIR}/${cache_key}"
+            if [ -f "$f" ]; then
+                local v
+                v=$(cat "$f" 2>/dev/null || true)
+                [[ "${v:-}" =~ ^[0-9]+$ ]] && return 0
+            fi
+        done < "$active_file"
+    else
+        # Fallback to default 4 providers
+        local f
+        for f in \
+            "${OPEN_CHAD_CACHE_DIR}/zai" \
+            "${OPEN_CHAD_CACHE_DIR}/copilot" \
+            "${OPEN_CHAD_CACHE_DIR}/claude" \
+            "${OPEN_CHAD_CACHE_DIR}/codex"
+        do
+            if [ -f "$f" ]; then
+                local v
+                v=$(cat "$f" 2>/dev/null || true)
+                [[ "${v:-}" =~ ^[0-9]+$ ]] && return 0
+            fi
+        done
+    fi
     return 1
 }
 
@@ -93,13 +107,28 @@ _render_resources() {
 
 # --- Multi-provider gauge ---
 _render_gauges() {
-    _render_provider "Z.ai"    "${OPEN_CHAD_CACHE_DIR}/zai"
-    printf '%s' "$sep"
-    _render_provider "Copilot" "${OPEN_CHAD_CACHE_DIR}/copilot"
-    printf '%s' "$sep"
-    _render_provider "Claude"  "${OPEN_CHAD_CACHE_DIR}/claude"
-    printf '%s' "$sep"
-    _render_provider "Codex"   "${OPEN_CHAD_CACHE_DIR}/codex"
+    local active_file="${OPEN_CHAD_CACHE_DIR}/active_providers"
+    local first=1
+
+    if [ -f "$active_file" ]; then
+        while read -r label cache_key; do
+            [ -z "$cache_key" ] && continue
+            if [ "$first" -eq 0 ]; then
+                printf '%s' "$sep"
+            fi
+            _render_provider "$label" "${OPEN_CHAD_CACHE_DIR}/${cache_key}"
+            first=0
+        done < "$active_file"
+    else
+        # Fallback to default 4 providers
+        _render_provider "Z.ai"    "${OPEN_CHAD_CACHE_DIR}/zai"
+        printf '%s' "$sep"
+        _render_provider "Copilot" "${OPEN_CHAD_CACHE_DIR}/copilot"
+        printf '%s' "$sep"
+        _render_provider "Claude"  "${OPEN_CHAD_CACHE_DIR}/claude"
+        printf '%s' "$sep"
+        _render_provider "Codex"   "${OPEN_CHAD_CACHE_DIR}/codex"
+    fi
 }
 
 # --- Compose right block as one unit ---

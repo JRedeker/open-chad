@@ -187,6 +187,8 @@ run_status_right_force() {
 
 test_renders_all_dash_when_no_caches_forced() {
     local result
+    # Mock active_providers to include all 4
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(run_status_right_force)
     assert_contains "$result" "Z.ai" "force-on: Z.ai label shown even with no caches"
     assert_contains "$result" "Copilot" "force-on: Copilot label shown even with no caches"
@@ -196,6 +198,7 @@ test_renders_all_dash_when_no_caches_forced() {
 
 test_auto_hides_when_no_caches() {
     local result
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(run_status_right)
     # Accent edges always render; gauge labels should be absent with no cache data
     assert_not_contains "$result" "Z.ai"    "auto mode: Z.ai label hidden when no cache files"
@@ -206,8 +209,19 @@ test_auto_hides_when_no_caches() {
 }
 
 test_exits_zero_with_no_caches() {
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" >/dev/null 2>&1
     assert_eq "$?" "0" "status_right.sh exits 0 with no caches"
+}
+
+test_renders_subset_of_providers() {
+    local result
+    printf "Z.ai zai\nClaude claude\n" > "$TMP_DIR/active_providers"
+    result=$(run_status_right_force)
+    assert_contains "$result" "Z.ai" "subset: Z.ai label shown"
+    assert_contains "$result" "Claude" "subset: Claude label shown"
+    assert_not_contains "$result" "Copilot" "subset: Copilot label hidden"
+    assert_not_contains "$result" "Codex" "subset: Codex label hidden"
 }
 
 test_script_exists
@@ -217,6 +231,7 @@ test_right_script_syntax
 test_renders_all_dash_when_no_caches_forced
 test_auto_hides_when_no_caches
 test_exits_zero_with_no_caches
+test_renders_subset_of_providers
 
 # ─── Section 4: API response parsing helpers ──────────────────────────────────
 
@@ -427,6 +442,7 @@ section "OPEN_CHAD_MULTI_GAUGE toggle"
 
 test_toggle_on_shows_dashes_with_no_caches() {
     local result
+    printf "Z.ai zai\nCopilot copilot\nClaude claude\nCodex codex\n" > "$TMP_DIR/active_providers"
     result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
     assert_contains "$result" "Z.ai"    "MULTI_GAUGE=1: Z.ai shown even with no caches"
     assert_contains "$result" "Copilot" "MULTI_GAUGE=1: Copilot shown even with no caches"
@@ -504,6 +520,56 @@ test_resources_empty_when_no_cache
 test_resources_uses_open_chad_cache_dir
 test_resources_sources_env
 test_resources_reads_metrics_file
+
+# ─── Section 10: active_providers robustness ────────────────────────────────
+
+section "active_providers robustness"
+
+test_malformed_active_providers_missing_key() {
+    local result
+    # Line with label but no cache_key — should be skipped gracefully
+    printf "Z.ai zai\nOrphanLabel\nClaude claude\n" > "$TMP_DIR/active_providers"
+    echo "75" > "$TMP_DIR/zai"
+    echo "50" > "$TMP_DIR/claude"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    assert_contains "$result" "Z.ai"   "malformed: Z.ai still rendered"
+    assert_contains "$result" "Claude"  "malformed: Claude still rendered"
+    # OrphanLabel should not appear (no cache_key → skipped by [ -z "$cache_key" ] guard)
+    assert_not_contains "$result" "OrphanLabel" "malformed: orphan label skipped"
+}
+
+test_active_providers_extra_whitespace() {
+    local result
+    # Extra trailing whitespace and blank lines
+    printf "Z.ai zai  \n\n  Claude claude\n" > "$TMP_DIR/active_providers"
+    echo "80" > "$TMP_DIR/zai"
+    echo "60" > "$TMP_DIR/claude"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    assert_contains "$result" "Z.ai"   "whitespace: Z.ai rendered despite trailing spaces"
+    assert_contains "$result" "Claude"  "whitespace: Claude rendered despite leading spaces"
+}
+
+test_end_to_end_provider_ordering() {
+    local result
+    # Config order: Codex first, then Z.ai — renderer should preserve this order
+    printf "Codex codex\nZ.ai zai\n" > "$TMP_DIR/active_providers"
+    echo "90" > "$TMP_DIR/codex"
+    echo "45" > "$TMP_DIR/zai"
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" OPEN_CHAD_MULTI_GAUGE=1 bash "$STATUS_RIGHT" 2>/dev/null || true)
+    # Codex should appear before Z.ai in the output
+    local codex_pos zai_pos
+    codex_pos=$(echo "$result" | grep -bo "Codex" | head -1 | cut -d: -f1)
+    zai_pos=$(echo "$result" | grep -bo "Z.ai" | head -1 | cut -d: -f1)
+    if [ -n "$codex_pos" ] && [ -n "$zai_pos" ] && [ "$codex_pos" -lt "$zai_pos" ]; then
+        pass "ordering: Codex appears before Z.ai (config order preserved)"
+    else
+        fail "ordering: expected Codex before Z.ai, got codex_pos=$codex_pos zai_pos=$zai_pos"
+    fi
+}
+
+test_malformed_active_providers_missing_key
+test_active_providers_extra_whitespace
+test_end_to_end_provider_ordering
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

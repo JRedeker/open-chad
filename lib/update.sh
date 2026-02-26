@@ -21,7 +21,7 @@
 #   OPEN_CHAD_INSTALL_LOG   — log file (default: /tmp/open-chad-install.log)
 #   OPEN_CHAD_SKIP_BUNDLES  — if set, skip re-applying dev bundles
 #
-# Called by bin/open-chad update. Safe to call standalone.
+# Called by bin/openchad update. Safe to call standalone.
 
 set -uo pipefail
 
@@ -156,7 +156,7 @@ _new_head=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unkno
 ok "Pulled to $REPO_DIR ($_current_branch @ $_new_head)"
 log "git pull OK: HEAD=$_new_head"
 
-# ─── 4b. Repair symlinks (open-chad + cds) ───────────────────────────────────
+# ─── 4b. Repair symlinks (full managed set from manifest) ────────────────────
 step "Ensuring ~/.local/bin symlinks are current"
 _DEST_DIR="$HOME/.local/bin"
 mkdir -p "$_DEST_DIR"
@@ -172,9 +172,15 @@ _repair_symlink() {
     ok "Symlink: $(basename "$src") -> $dest"
 }
 
-_repair_symlink "$REPO_DIR/bin/open-chad" "$_DEST_DIR/open-chad"
-_repair_symlink "$REPO_DIR/bin/cds"       "$_DEST_DIR/cds"
-log "Symlinks repaired"
+# Source the shared manifest to get MANAGED_SYMLINKS
+# shellcheck source=symlink_manifest.sh
+source "$REPO_DIR/lib/symlink_manifest.sh"
+
+for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
+    _repair_symlink "$REPO_DIR/${MANAGED_SYMLINKS[$_link_name]}" "$_DEST_DIR/$_link_name"
+done
+unset _link_name
+log "Symlinks repaired (openchad, oc, cds, oc-list, oc-killall)"
 
 # ─── 5. Re-run setup modules ──────────────────────────────────────────────────
 echo ""

@@ -379,7 +379,7 @@ test_install_symlink_idempotent() {
     # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
     timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
     timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
-    assert_symlink "$TMP_HOME/.local/bin/open-chad"
+    assert_symlink "$TMP_HOME/.local/bin/openchad"
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
 }
@@ -728,17 +728,17 @@ test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
 test_setup_opencode_syncs_adv_commands_opencode_layout
 test_setup_opencode_syncs_adv_commands_opencode_layout_agents
 
-# ─── Section 14: bin/open-chad metrics collector atomic lockdir ───────────────
+# ─── Section 14: bin/openchad metrics collector atomic lockdir ───────────────
 
-section "bin/open-chad — atomic mkdir lockdir for metrics collector"
+section "bin/openchad — atomic mkdir lockdir for metrics collector"
 
 test_open_chad_uses_atomic_mkdir_for_metrics_singleton() {
-    # Verify bin/open-chad uses mkdir-based atomic lock (not just pgrep)
+    # Verify bin/openchad uses mkdir-based atomic lock (not just pgrep)
     # for the metrics collector singleton guard.
     # The startup lock is metrics-start.lock (distinct from the collector's
     # own PID-based metrics.lock file to avoid dir/file collision).
-    assert_contains "$REPO_DIR/bin/open-chad" "mkdir"
-    assert_contains "$REPO_DIR/bin/open-chad" "metrics-start.lock"
+    assert_contains "$REPO_DIR/bin/openchad" "mkdir"
+    assert_contains "$REPO_DIR/bin/openchad" "metrics-start.lock"
 }
 
 test_open_chad_metrics_lockdir_skips_start_when_locked() {
@@ -827,26 +827,26 @@ test_setup_shell_profile_heredoc_uses_escaped_home
 section "CVE-001 addendum — stale /tmp/discord-rpc.lock cleanup on startup"
 
 test_open_chad_cleans_legacy_discord_lock() {
-    # bin/open-chad should remove stale /tmp/discord-rpc.lock* files on startup
-    assert_contains "$REPO_DIR/bin/open-chad" "_legacy_discord_lock"
-    assert_contains "$REPO_DIR/bin/open-chad" "/tmp/discord-rpc.lock"
+    # bin/openchad should remove stale /tmp/discord-rpc.lock* files on startup
+    assert_contains "$REPO_DIR/bin/openchad" "_legacy_discord_lock"
+    assert_contains "$REPO_DIR/bin/openchad" "/tmp/discord-rpc.lock"
 }
 
 test_open_chad_legacy_cleanup_checks_regular_file() {
     # Cleanup must check [ -f ] and [ ! -L ] to avoid symlink-follow deletion
-    assert_contains "$REPO_DIR/bin/open-chad" '! -L'
+    assert_contains "$REPO_DIR/bin/openchad" '! -L'
     # Check for -f check on the legacy file variable (pattern avoids shell expansion)
-    if grep -q '\-f.*_legacy_file' "$REPO_DIR/bin/open-chad"; then
-        pass "bin/open-chad: legacy cleanup checks -f before deleting"
+    if grep -q '\-f.*_legacy_file' "$REPO_DIR/bin/openchad"; then
+        pass "bin/openchad: legacy cleanup checks -f before deleting"
     else
-        fail "bin/open-chad: legacy cleanup missing -f check on _legacy_file"
+        fail "bin/openchad: legacy cleanup missing -f check on _legacy_file"
     fi
 }
 
 test_open_chad_legacy_cleanup_covers_guard_and_tagline() {
     # All three legacy lock variants should be cleaned up
-    assert_contains "$REPO_DIR/bin/open-chad" '.guard'
-    assert_contains "$REPO_DIR/bin/open-chad" '.tagline'
+    assert_contains "$REPO_DIR/bin/openchad" '.guard'
+    assert_contains "$REPO_DIR/bin/openchad" '.tagline'
 }
 
 test_open_chad_cleans_legacy_discord_lock
@@ -919,13 +919,13 @@ section "CVE-005 — Discord update.sh stderr logged to cache dir"
 
 test_open_chad_discord_stderr_logged_not_devnull() {
     # Discord update.sh stderr should go to a log file, not /dev/null
-    assert_contains "$REPO_DIR/bin/open-chad" "discord.log"
-    assert_not_contains "$REPO_DIR/bin/open-chad" 'discord/update.sh.*2>/dev/null'
+    assert_contains "$REPO_DIR/bin/openchad" "discord.log"
+    assert_not_contains "$REPO_DIR/bin/openchad" 'discord/update.sh.*2>/dev/null'
 }
 
 test_open_chad_discord_log_created_with_0600() {
     # The discord.log file should be created with 0600 permissions
-    assert_contains "$REPO_DIR/bin/open-chad" "0600"
+    assert_contains "$REPO_DIR/bin/openchad" "0600"
 }
 
 test_open_chad_discord_stderr_logged_not_devnull
@@ -998,6 +998,205 @@ test_collect_metrics_cleanup_completes_within_sla() {
 }
 
 test_collect_metrics_cleanup_completes_within_sla
+
+# ─── Section 17: openchad rename and oc alias (TDD scaffold) ─────────────────
+# These tests define the contract for the rename. They FAIL until implementation.
+
+section "bin/openchad — rename from open-chad"
+
+test_openchad_bin_exists() {
+    assert_file_exists "$REPO_DIR/bin/openchad"
+}
+
+test_openchad_bin_executable() {
+    [ -x "$REPO_DIR/bin/openchad" ] && pass "bin/openchad is executable" || fail "bin/openchad is not executable"
+}
+
+test_openchad_bin_syntax_ok() {
+    bash -n "$REPO_DIR/bin/openchad" 2>/dev/null && pass "bin/openchad syntax OK" || fail "bin/openchad syntax error"
+}
+
+test_open_chad_bin_removed() {
+    # The old hyphenated name must not exist as a separate file (symlink is ok during migration)
+    if [ -f "$REPO_DIR/bin/open-chad" ] && [ ! -L "$REPO_DIR/bin/open-chad" ]; then
+        fail "bin/open-chad still exists as a regular file (should be renamed to bin/openchad)"
+    else
+        pass "bin/open-chad is not a regular file (renamed or removed)"
+    fi
+}
+
+test_openchad_has_shebang() {
+    local first_line
+    first_line=$(head -1 "$REPO_DIR/bin/openchad" 2>/dev/null || echo "")
+    echo "$first_line" | grep -q "bash" && pass "bin/openchad has bash shebang" || fail "bin/openchad missing bash shebang"
+}
+
+test_openchad_bin_exists
+test_openchad_bin_executable
+test_openchad_bin_syntax_ok
+test_open_chad_bin_removed
+test_openchad_has_shebang
+
+section "bin/oc — thin alias"
+
+test_oc_bin_exists() {
+    assert_file_exists "$REPO_DIR/bin/oc"
+}
+
+test_oc_bin_executable() {
+    [ -x "$REPO_DIR/bin/oc" ] && pass "bin/oc is executable" || fail "bin/oc is not executable"
+}
+
+test_oc_bin_syntax_ok() {
+    bash -n "$REPO_DIR/bin/oc" 2>/dev/null && pass "bin/oc syntax OK" || fail "bin/oc syntax error"
+}
+
+test_oc_execs_openchad() {
+    grep -q 'openchad' "$REPO_DIR/bin/oc" && pass "bin/oc references openchad" || fail "bin/oc does not reference openchad"
+}
+
+test_oc_forwards_all_args() {
+    grep -q '"$@"\|"${@}"' "$REPO_DIR/bin/oc" && pass "bin/oc forwards all args" || fail "bin/oc does not forward all args"
+}
+
+test_oc_bin_exists
+test_oc_bin_executable
+test_oc_bin_syntax_ok
+test_oc_execs_openchad
+test_oc_forwards_all_args
+
+section "install.sh — openchad/oc symlink set"
+
+test_install_creates_openchad_symlink() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    assert_symlink "$TMP_HOME/.local/bin/openchad"
+    teardown_tmp_env
+}
+
+test_install_creates_oc_symlink() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    assert_symlink "$TMP_HOME/.local/bin/oc"
+    teardown_tmp_env
+}
+
+test_install_openchad_points_to_bin_openchad() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    local target
+    target=$(readlink "$TMP_HOME/.local/bin/openchad" 2>/dev/null || echo "")
+    echo "$target" | grep -q "bin/openchad" && pass "openchad symlink points to bin/openchad" || fail "openchad symlink target unexpected: $target"
+    teardown_tmp_env
+}
+
+test_install_oc_points_to_bin_oc() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    local target
+    target=$(readlink "$TMP_HOME/.local/bin/oc" 2>/dev/null || echo "")
+    echo "$target" | grep -q "bin/oc" && pass "oc symlink points to bin/oc" || fail "oc symlink target unexpected: $target"
+    teardown_tmp_env
+}
+
+test_install_does_not_create_open_chad_symlink() {
+    setup_tmp_env
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    if [ -L "$TMP_HOME/.local/bin/open-chad" ]; then
+        fail "install.sh still creates open-chad symlink (should be removed)"
+    else
+        pass "install.sh does not create open-chad symlink"
+    fi
+    teardown_tmp_env
+}
+
+test_install_creates_openchad_symlink
+test_install_creates_oc_symlink
+test_install_openchad_points_to_bin_openchad
+test_install_oc_points_to_bin_oc
+test_install_does_not_create_open_chad_symlink
+
+section "lib/update.sh — full symlink repair set"
+
+test_update_repairs_openchad_symlink() {
+    grep -q 'openchad' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references openchad" || fail "lib/update.sh does not reference openchad"
+}
+
+test_update_repairs_oc_symlink() {
+    # update.sh uses manifest-based loop; verify it sources symlink_manifest.sh (which defines oc)
+    grep -q '"oc"\|bin/oc\|symlink_manifest' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc" || fail "lib/update.sh does not reference oc"
+}
+
+test_update_repairs_oc_list_symlink() {
+    grep -q 'oc-list' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc-list" || fail "lib/update.sh does not reference oc-list"
+}
+
+test_update_repairs_oc_killall_symlink() {
+    grep -q 'oc-killall' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc-killall" || fail "lib/update.sh does not reference oc-killall"
+}
+
+test_update_repairs_openchad_symlink
+test_update_repairs_oc_symlink
+test_update_repairs_oc_list_symlink
+test_update_repairs_oc_killall_symlink
+
+section "lib/check_environment.sh — warn() defined"
+
+test_check_env_warn_defined() {
+    # warn() must be defined before the python3 check that calls it
+    if grep -q '^warn()' "$REPO_DIR/lib/check_environment.sh"; then
+        pass "check_environment.sh defines warn()"
+    else
+        fail "check_environment.sh does not define warn() — python3 check will fail"
+    fi
+}
+
+test_check_env_python3_uses_warn_not_echo() {
+    # The python3 warning should use warn() not a bare echo
+    local py3_section
+    py3_section=$(grep -A5 'python3 not found\|python3.*PATH' "$REPO_DIR/lib/check_environment.sh" 2>/dev/null || echo "")
+    if echo "$py3_section" | grep -q 'warn\b'; then
+        pass "check_environment.sh python3 warning uses warn()"
+    else
+        fail "check_environment.sh python3 warning does not use warn()"
+    fi
+}
+
+test_check_env_warn_defined
+test_check_env_python3_uses_warn_not_echo
+
+section "lib/symlink_manifest.sh — shared manifest"
+
+test_symlink_manifest_exists() {
+    assert_file_exists "$REPO_DIR/lib/symlink_manifest.sh"
+}
+
+test_symlink_manifest_contains_openchad() {
+    grep -q 'openchad' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains openchad" || fail "symlink_manifest.sh missing openchad"
+}
+
+test_symlink_manifest_contains_oc() {
+    grep -q '"oc"\|bin/oc' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc" || fail "symlink_manifest.sh missing oc"
+}
+
+test_symlink_manifest_contains_cds() {
+    grep -q 'cds' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains cds" || fail "symlink_manifest.sh missing cds"
+}
+
+test_symlink_manifest_contains_oc_list() {
+    grep -q 'oc-list' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc-list" || fail "symlink_manifest.sh missing oc-list"
+}
+
+test_symlink_manifest_contains_oc_killall() {
+    grep -q 'oc-killall' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc-killall" || fail "symlink_manifest.sh missing oc-killall"
+}
+
+test_symlink_manifest_exists
+test_symlink_manifest_contains_openchad
+test_symlink_manifest_contains_oc
+test_symlink_manifest_contains_cds
+test_symlink_manifest_contains_oc_list
+test_symlink_manifest_contains_oc_killall
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

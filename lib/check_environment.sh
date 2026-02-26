@@ -26,6 +26,7 @@ C_RESET="\e[0m"
 
 check()  { echo -e "${C_GOLD}[env]${C_RESET} Checking: $*"; }
 ok()     { echo -e "${C_SAGE}[env] OK:${C_RESET} $*"; }
+warn()   { echo -e "${C_GOLD}[env] WARN:${C_RESET} $*"; }
 error()  { echo -e "${C_CORAL}[env] ERROR:${C_RESET} $*" >&2; }
 hint()   { echo -e "${C_CORAL}       ↳${C_RESET} $*" >&2; }
 

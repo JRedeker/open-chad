@@ -85,14 +85,15 @@ section "Symlink collision: target is a regular file"
 
 test_install_replaces_regular_file_with_yes() {
     setup_tmp
-    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/open-chad"
-    chmod +x "$TMP_HOME/.local/bin/open-chad"
+    # Test with openchad (the canonical name after rename)
+    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/openchad"
+    chmod +x "$TMP_HOME/.local/bin/openchad"
 
     _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
 
-    [ -L "$TMP_HOME/.local/bin/open-chad" ] && \
-        pass "install: open-chad is now a symlink after replacing regular file" || \
-        fail "install: open-chad should be a symlink after replacement"
+    [ -L "$TMP_HOME/.local/bin/openchad" ] && \
+        pass "install: openchad is now a symlink after replacing regular file" || \
+        fail "install: openchad should be a symlink after replacement"
     teardown_tmp
 }
 
@@ -364,13 +365,14 @@ section "--yes flag: suppresses prompts in all conflict scenarios"
 
 test_yes_flag_suppresses_file_collision_prompt() {
     setup_tmp
-    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/open-chad"
+    # Test with openchad (the canonical name after rename)
+    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/openchad"
 
     _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
 
     # Symlink step completes in <1s. The wizard may timeout (124/137) — that's fine.
     # What matters: the symlink was replaced (proves no prompt blocked it).
-    [ -L "$TMP_HOME/.local/bin/open-chad" ] && \
+    [ -L "$TMP_HOME/.local/bin/openchad" ] && \
         pass "--yes: symlink replaced without hanging (exit $INSTALL_EXIT)" || \
         fail "--yes: symlink not replaced — prompt may have blocked (exit $INSTALL_EXIT)"
     teardown_tmp

@@ -37,6 +37,10 @@ ok()   { echo -e "${C_SAGE}[profile] OK:${C_RESET} $*"; }
 info() { echo -e "${C_GOLD}[profile]${C_RESET} $*"; }
 warn() { echo -e "${C_CORAL}[profile] WARN:${C_RESET} $*"; }
 
+# Resolve repo root (this script lives in lib/)
+_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_COMPLETION_DIR="$_REPO_DIR/completion"
+
 # ─── Detect target rc file ────────────────────────────────────────────────────
 
 _detected_shell="${SHELL:-/bin/bash}"
@@ -76,6 +80,9 @@ fi
 
 info "Writing PATH block to $_rc_file"
 
+# Backup before modifying (stored in /tmp, not in repo)
+[ -f "$_rc_file" ] && cp "$_rc_file" "/tmp/$(basename "$_rc_file").openchad-backup.$$" 2>/dev/null || true
+
 cat >> "$_rc_file" <<EOF
 
 # BEGIN open-chad
@@ -86,6 +93,29 @@ EOF
 
 ok "PATH block written to $_rc_file"
 info "Reload with:  $_reload_cmd"
+
+# ─── Wire shell completions ───────────────────────────────────────────────────
+# Add completion sourcing to the same rc file (idempotent — check for marker).
+
+if [ -d "$_COMPLETION_DIR" ]; then
+    case "$_shell_name" in
+        bash)
+            _bash_comp="$_COMPLETION_DIR/openchad.bash"
+            if [ -f "$_bash_comp" ] && ! grep -qF "openchad.bash" "$_rc_file" 2>/dev/null; then
+                printf '\n# openchad completions\n[ -f "%s" ] && source "%s"\n' \
+                    "$_bash_comp" "$_bash_comp" >> "$_rc_file"
+                ok "Bash completions wired in $_rc_file"
+            fi
+            ;;
+        zsh)
+            if ! grep -qF "openchad.*completion\|completion.*openchad" "$_rc_file" 2>/dev/null; then
+                printf '\n# openchad completions\nfpath=("%s" $fpath)\nautoload -Uz compinit && compinit\n' \
+                    "$_COMPLETION_DIR" >> "$_rc_file"
+                ok "Zsh completions wired in $_rc_file"
+            fi
+            ;;
+    esac
+fi
 
 # Export PATH directly so this process benefits immediately.
 # We intentionally do NOT source the user's rc file here — it may contain
