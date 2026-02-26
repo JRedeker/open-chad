@@ -8,6 +8,10 @@
 #             Wire pyrefly as LSP in opencode.json
 #   go      — Go via apt + upgrade to latest stable via tarball if apt version < 1.21
 #   rust    — Rust via rustup --profile minimal (stable toolchain)
+#   web     — TypeScript, Node.js tooling for Svelte/SvelteKit/Vite development
+#             Installs: typescript, @anthropic-ai/claude-code (globally for CLI)
+#             LSP: typescript-language-server
+#             Framework CLIs (project-local): vite, svelte, @sveltejs/kit
 #
 # uv-only policy (R3): Python version management is handled entirely by uv.
 # pyenv is NOT installed — uv python install <version> replaces it.
@@ -299,6 +303,86 @@ _install_rust_bundle() {
     log "Rust bundle complete"
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# WEB BUNDLE — TypeScript/JavaScript for Svelte/SvelteKit/Vite
+# ═══════════════════════════════════════════════════════════════════════════════
+_install_web_bundle() {
+    step "Web bundle: checking Node.js and npm"
+
+    # Node.js is already installed by setup_ubuntu_deps.sh (core dep)
+    if ! command -v node &>/dev/null; then
+        error "Node.js not found. This should have been installed by setup_ubuntu_deps.sh"
+        hint "Install Node.js first: bash lib/setup_ubuntu_deps.sh"
+        return 1
+    fi
+
+    local _node_ver
+    _node_ver=$(node --version 2>/dev/null || echo "unknown")
+    ok "Node.js $_node_ver present"
+
+    # Ensure npm is available
+    if ! command -v npm &>/dev/null; then
+        error "npm not found. This should have been installed by setup_ubuntu_deps.sh"
+        return 1
+    fi
+
+    # Install TypeScript globally (user-local, not system-wide)
+    step "Installing TypeScript globally (user-local)"
+    if command -v tsc &>/dev/null; then
+        _ts_ver=$(tsc --version 2>/dev/null | awk '{print $NF}')
+        ok "TypeScript $_ts_ver already installed"
+    else
+        npm install --prefix "$HOME/.local" typescript >> "$INSTALL_LOG" 2>&1 || {
+            error "TypeScript install failed"
+            hint "Manual install: npm install -g typescript"
+            return 1
+        }
+        # Ensure npm global bins are in PATH
+        export PATH="$HOME/.local/bin:$PATH"
+        ok "TypeScript installed"
+    fi
+
+    # Install TypeScript language server for LSP support
+    step "Installing typescript-language-server (LSP)"
+    if command -v typescript-language-server &>/dev/null; then
+        _tls_ver=$(typescript-language-server --version 2>/dev/null | head -1 | awk '{print $NF}')
+        ok "typescript-language-server $_tls_ver already installed"
+    else
+        npm install --prefix "$HOME/.local" typescript-language-server >> "$INSTALL_LOG" 2>&1 || {
+            warn "typescript-language-server install failed (non-fatal)"
+            hint "Manual install: npm install -g typescript-language-server"
+            # Don't return 1 - LSP is optional, TypeScript is the core
+        }
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+
+    # Wire TypeScript LSP into opencode.json if available
+    if command -v typescript-language-server &>/dev/null; then
+        step "Wiring TypeScript LSP into $OPENCODE_JSON"
+        mkdir -p "$OPENCODE_CONFIG_DIR"
+        [ -f "$OPENCODE_JSON" ] || echo '{}' > "$OPENCODE_JSON"
+        bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+            '{"lsp":{"typescript-language-server":{"command":["typescript-language-server","--stdio"],"extensions":[".ts",".tsx",".js",".jsx",".mjs",".cjs"]}}}' \
+            >> "$INSTALL_LOG" 2>&1 || warn "Could not wire TypeScript LSP"
+        ok "TypeScript LSP wired into opencode.json"
+    else
+        warn "typescript-language-server not found — skipping LSP config"
+    fi
+
+    # Note: Framework CLIs (vite, svelte, @sveltejs/kit) are intentionally NOT
+    # installed globally. They should be project-local dependencies via:
+    #   npm create vite@latest my-app
+    #   npm create svelte@latest my-app
+    # This keeps versions per-project and avoids global version conflicts.
+    info "Framework CLIs (vite, svelte, @sveltejs/kit) remain project-local"
+    info "  Create new projects with: npm create vite@latest or npm create svelte@latest"
+
+    # Add ~/.local/bin to PATH in shell profile via centralized helper (idempotent)
+    bash "$REPO_DIR/lib/setup_shell_profile.sh" || true
+
+    log "Web bundle complete"
+}
+
 # ─── Main: iterate selected bundles ───────────────────────────────────────────
 _failed_bundles=()
 
@@ -315,6 +399,10 @@ for bundle in $BUNDLES; do
         rust)
             echo -e "\n${C_SAGE}── Rust Bundle ────────────────────────────────────${C_RESET}"
             _install_rust_bundle || _failed_bundles+=("rust")
+            ;;
+        web)
+            echo -e "\n${C_SAGE}── Web Bundle (TS/JS) ─────────────────────────────${C_RESET}"
+            _install_web_bundle || _failed_bundles+=("web")
             ;;
         *)
             warn "Unknown bundle: $bundle (skipping)"
@@ -340,6 +428,9 @@ if [ "${#_failed_bundles[@]}" -gt 0 ]; then
                 ;;
             rust)
                 echo -e "    ${C_GOLD}Rust:${C_RESET}   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+                ;;
+            web)
+                echo -e "    ${C_GOLD}Web:${C_RESET}    npm install -g typescript typescript-language-server"
                 ;;
         esac
     done

@@ -468,6 +468,62 @@ test_dev_bundle_no_pyenv
 test_dev_bundle_uv_install
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# setup_dev_bundle.sh — web bundle validation
+# ═══════════════════════════════════════════════════════════════════════════════
+section "setup_dev_bundle.sh — web bundle"
+
+test_web_bundle_case_branch_exists() {
+    if grep -q 'web)' "$REPO_DIR/lib/setup_dev_bundle.sh" && \
+       grep -q '_install_web_bundle' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: web bundle case branch exists"
+    else
+        fail "setup_dev_bundle.sh: missing web bundle case branch or install function"
+    fi
+}
+
+test_web_bundle_installs_typescript() {
+    if grep -q 'typescript' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: web bundle installs TypeScript"
+    else
+        fail "setup_dev_bundle.sh: web bundle missing TypeScript install"
+    fi
+}
+
+test_web_bundle_wires_lsp() {
+    # Should wire typescript-language-server as LSP
+    if grep -q 'typescript-language-server' "$REPO_DIR/lib/setup_dev_bundle.sh" && \
+       grep -q '"lsp".*"typescript-language-server"' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: web bundle wires TypeScript LSP"
+    else
+        fail "setup_dev_bundle.sh: web bundle missing LSP wiring for typescript-language-server"
+    fi
+}
+
+test_web_bundle_uses_user_local_prefix() {
+    # Should install to user-local prefix, not system global
+    if grep -q 'npm install --prefix.*\.local' "$REPO_DIR/lib/setup_dev_bundle.sh"; then
+        pass "setup_dev_bundle.sh: web bundle uses user-local npm prefix"
+    else
+        fail "setup_dev_bundle.sh: web bundle should use --prefix \$HOME/.local for npm installs"
+    fi
+}
+
+test_web_bundle_has_recovery_hint() {
+    # Should have recovery instructions in the failure summary section
+    if grep -A 20 'failed_bundles' "$REPO_DIR/lib/setup_dev_bundle.sh" | grep -qi 'web.*npm.*typescript'; then
+        pass "setup_dev_bundle.sh: web bundle has recovery hint"
+    else
+        fail "setup_dev_bundle.sh: web bundle missing recovery hint in failure summary"
+    fi
+}
+
+test_web_bundle_case_branch_exists
+test_web_bundle_installs_typescript
+test_web_bundle_wires_lsp
+test_web_bundle_uses_user_local_prefix
+test_web_bundle_has_recovery_hint
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # wizard.sh — --yes mode, --skip-* flags
 # ═══════════════════════════════════════════════════════════════════════════════
 section "wizard.sh — non-interactive flags"
@@ -727,6 +783,24 @@ test_multiselect_empty_input_defaults_to_all() {
     fi
 }
 
+test_wizard_offers_web_bundle() {
+    # wizard.sh should include 'web' in the multiselect call
+    if grep -q '_multiselect.*python.*go.*rust.*web' "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh: offers web bundle in multiselect"
+    else
+        fail "wizard.sh: does not offer web bundle in multiselect options"
+    fi
+}
+
+test_wizard_displays_web_bundle_description() {
+    # wizard.sh should display a description for the web bundle
+    if grep -q 'Web.*TypeScript\|TypeScript.*Svelte\|Svelte.*Vite' "$REPO_DIR/lib/wizard.sh"; then
+        pass "wizard.sh: displays web bundle description"
+    else
+        fail "wizard.sh: missing web bundle description in selection UI"
+    fi
+}
+
 test_normalize_bundles_function_exists() {
     if grep -q '_normalize_bundles' "$REPO_DIR/lib/wizard.sh"; then
         pass "wizard.sh: _normalize_bundles function present"
@@ -746,17 +820,17 @@ test_normalize_bundles_comma_separated() {
             local result=()
             for token in $normalized; do
                 case "$token" in
-                    python|go|rust) result+=("$token") ;;
+                    python|go|rust|web) result+=("$token") ;;
                 esac
             done
             echo "${result[*]:-}"
         }
-        _normalize_bundles "python,go,rust"
+        _normalize_bundles "python,go,rust,web"
     ')
-    if [ "$result" = "python go rust" ]; then
+    if [ "$result" = "python go rust web" ]; then
         pass "wizard.sh: _normalize_bundles handles comma-separated input"
     else
-        fail "wizard.sh: _normalize_bundles comma input gave: [$result] (expected: [python go rust])"
+        fail "wizard.sh: _normalize_bundles comma input gave: [$result] (expected: [python go rust web])"
     fi
 }
 
@@ -770,17 +844,17 @@ test_normalize_bundles_space_separated() {
             local result=()
             for token in $normalized; do
                 case "$token" in
-                    python|go|rust) result+=("$token") ;;
+                    python|go|rust|web) result+=("$token") ;;
                 esac
             done
             echo "${result[*]:-}"
         }
-        _normalize_bundles "python go"
+        _normalize_bundles "python go web"
     ')
-    if [ "$result" = "python go" ]; then
+    if [ "$result" = "python go web" ]; then
         pass "wizard.sh: _normalize_bundles handles space-separated input"
     else
-        fail "wizard.sh: _normalize_bundles space input gave: [$result] (expected: [python go])"
+        fail "wizard.sh: _normalize_bundles space input gave: [$result] (expected: [python go web])"
     fi
 }
 
@@ -794,17 +868,17 @@ test_normalize_bundles_rejects_unknown_tokens() {
             local result=()
             for token in $normalized; do
                 case "$token" in
-                    python|go|rust) result+=("$token") ;;
+                    python|go|rust|web) result+=("$token") ;;
                 esac
             done
             echo "${result[*]:-}"
         }
-        _normalize_bundles "python,java,ruby"
+        _normalize_bundles "python,java,ruby,web"
     ')
-    if [ "$result" = "python" ]; then
+    if [ "$result" = "python web" ]; then
         pass "wizard.sh: _normalize_bundles rejects unknown bundle tokens"
     else
-        fail "wizard.sh: _normalize_bundles unknown tokens gave: [$result] (expected: [python])"
+        fail "wizard.sh: _normalize_bundles unknown tokens gave: [$result] (expected: [python web])"
     fi
 }
 
@@ -819,6 +893,8 @@ test_install_sh_normalizes_bundles_flag() {
 
 test_multiselect_display_goes_to_stderr
 test_multiselect_empty_input_defaults_to_all
+test_wizard_offers_web_bundle
+test_wizard_displays_web_bundle_description
 test_normalize_bundles_function_exists
 test_normalize_bundles_comma_separated
 test_normalize_bundles_space_separated

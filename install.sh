@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-omp               Skip omp (opencode-model-preferences) install"
             echo "  --no-opencode-setup    Skip all OpenCode config changes"
             echo "  --skip-zsh / --no-zsh  Skip zsh + plugin setup"
-            echo "  --bundles <list>       Pre-select language bundles: 'python go rust'"
+            echo "  --bundles <list>       Pre-select language bundles: 'python go rust web'"
             echo "  --verbose              Show verbose output"
             echo "  --no-env-check         Skip pre-flight environment checks"
             echo "  --help                 Show this help"

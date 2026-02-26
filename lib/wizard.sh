@@ -283,7 +283,7 @@ _normalize_bundles() {
     local result=()
     for token in $normalized; do
         case "$token" in
-            python|go|rust) result+=("$token") ;;
+            python|go|rust|web) result+=("$token") ;;
             *) _log "WARN: unknown bundle token ignored: $token" ;;
         esac
     done
@@ -302,9 +302,10 @@ else
     echo -e "  ${C_TYPE}Python${C_RESET} — uv, ruff, pyrefly (LSP), ty"
     echo -e "  ${C_TYPE}Go${C_RESET}     — Go 1.21+ (apt + tarball upgrade)"
     echo -e "  ${C_TYPE}Rust${C_RESET}   — Rust stable via rustup (minimal profile)"
+    echo -e "  ${C_TYPE}Web${C_RESET}    — TypeScript, typescript-language-server (for Svelte/Vite)"
     echo ""
 
-    SELECTED_BUNDLES=$(_multiselect "Select bundles" python go rust)
+    SELECTED_BUNDLES=$(_multiselect "Select bundles" python go rust web)
 fi
 
 if [ -n "$SELECTED_BUNDLES" ]; then

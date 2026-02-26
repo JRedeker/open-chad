@@ -41,7 +41,7 @@ bash install.sh --yes
 |------|--------------|
 | 1. System deps | Installs `git`, `curl`, `tmux`, Node 20, `pnpm` via apt (silent, logged) |
 | 2. Claude auth | Step-by-step OAuth onboarding instructions for OpenCode |
-| 3. Dev bundles | Multi-select: Python (uv), Go, Rust — press Enter to install all (default), 0 for none |
+| 3. Dev bundles | Multi-select: Python (uv), Go, Rust, Web (TS/JS) — press Enter to install all (default), 0 for none |
 | 4. MCP servers | Wires `context7`, `grep-app`, `lgrep` (enabled) + `firecrawl`, `brave-web-search` (disabled) into `opencode.json` |
 | 5. Plugins | Installs ADV spec-driven dev plugin and morph fast-apply plugin |
 | 6. OpenCode config | Syncs agents, instructions, theme, and slash commands |
@@ -59,7 +59,7 @@ bash install.sh --yes --skip-omp --skip-zsh
 
 # Select bundles non-interactively (comma or space separated, both work)
 bash install.sh --yes --bundles python,go
-bash install.sh --yes --bundles "python go rust"
+bash install.sh --yes --bundles "python go rust web"
 
 # Skip environment pre-flight check
 bash install.sh --yes --no-env-check
