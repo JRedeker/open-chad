@@ -24,7 +24,9 @@ Eight specialized agents — **scout**, **build**, **refine**, **plan**, **explo
 The [ADV plugin](https://github.com/Sharper-Flow/Advance) turns requirements into enforceable specs. A 6-gate quality workflow — research → prep → implementation → review → harden → signoff — ensures changes are validated against specs before archive. Accumulated wisdom carries forward across changes.
 
 ### Pre-Wired Tool Ecosystem
-MCP servers for documentation lookup ([Context7](https://context7.com)), code search ([grep.app](https://grep.app)), semantic codebase search ([lgrep](https://github.com/Sharper-Flow/lgrep)), and web scraping (Firecrawl) are configured and ready. Agents can reach external knowledge without you wiring anything. Add or remove servers dynamically at runtime.
+MCP servers for documentation lookup ([Context7](https://context7.com)), code search ([grep.app](https://grep.app)), semantic codebase search ([lgrep](https://github.com/Sharper-Flow/lgrep)), and web scraping (Firecrawl) are configured and ready. Agents can reach external knowledge without you wiring anything.
+
+The [Vision](https://github.com/Sharper-Flow/vision) MCP daemon is bundled and managed automatically — started as a singleton on every `openchad` launch, restarted on `openchad update`, and health-checked by `openchad doctor`. No manual daemon management required.
 
 ### Project Context via AGENTS.md
 Each project gets an `AGENTS.md` that documents architecture, conventions, data flow, and design decisions. Agents read it automatically — so they understand your codebase structure, not just the code.
@@ -59,7 +61,7 @@ git clone https://github.com/JRedeker/open-chad.git && cd open-chad
 bash install.sh
 ```
 
-The interactive wizard walks you through 9 steps:
+The interactive wizard walks you through 10 steps:
 
 | Step | What happens |
 |------|-------------|
@@ -67,11 +69,12 @@ The interactive wizard walks you through 9 steps:
 | 2 | OpenCode OAuth onboarding |
 | 3 | Dev language bundles — Python (uv), Go, Rust, Web (TS/JS) |
 | 4 | MCP servers wired into opencode.json |
-| 5 | ADV + morph plugins installed |
-| 6 | Agents, instructions, theme, slash commands synced |
-| 7 | Model preferences TUI (`omp`) |
-| 8 | Zsh + plugins configured |
-| 9 | Windows Terminal keybindings (WSL only) |
+| 5 | Vision MCP daemon registered and started |
+| 6 | ADV + morph plugins installed |
+| 7 | Agents, instructions, theme, slash commands synced |
+| 8 | Model preferences TUI (`omp`) |
+| 9 | Zsh + plugins configured |
+| 10 | Windows Terminal keybindings (WSL only) |
 
 For CI or unattended installs: `bash install.sh --yes`
 
@@ -170,6 +173,7 @@ To disable the gauge entirely: `export OPEN_CHAD_MULTI_GAUGE=0`
 | ADV plugin not loading | `bash lib/setup_adv.sh` |
 | Missing MCP server | Check `~/.config/opencode/opencode.json` for the server entry |
 | Theme looks wrong | `bash lib/setup_opencode.sh` |
+| Vision MCP tools unavailable | Run `openchad doctor` to check daemon status; ensure `vision` binary is on PATH |
 | `openchad doctor` reports issues | Follow the remediation instructions it prints |
 
 For detailed installer internals, CI flags, architecture, and contributor docs, see [AGENTS.md](AGENTS.md).
