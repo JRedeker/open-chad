@@ -1,6 +1,6 @@
 # Installer
 
-> **Version:** 1.1.0
+> **Version:** 1.2.0
 > **Updated:** 2026-02-26
 
 ## Purpose
@@ -211,5 +211,154 @@ For rename and alias behavior, tests are authored before implementation changes 
 **Then:**
 - implementation tasks are blocked by the TDD scaffolding task
 - no test task is blocked by implementation tasks
+
+---
+
+### setup_vision.sh registers 4 MCP servers idempotently
+
+**ID:** `rq-vision.1` | **Priority:** **[MUST]**
+
+setup_vision.sh verifies the vision binary is on PATH (non-fatal warn if missing), creates ~/.config/vision/servers.yaml with 0600 permissions, and registers context7 (6276), grep-app (6288), lgrep (6285), and firecrawl (6281). Running the script N times results in exactly one entry per server.
+
+#### Scenarios
+
+**Clean slate install** (`sc-vision.1.1`)
+
+**Given:**
+- vision binary is on PATH
+- ~/.config/vision/servers.yaml does not exist
+
+**When:** bash lib/setup_vision.sh is run
+
+**Then:**
+- ~/.config/vision/servers.yaml is created with 0600 permissions
+- all 4 MCP servers are registered (context7, grep-app, lgrep, firecrawl)
+- the script exits 0
+
+**Idempotent re-run** (`sc-vision.1.2`)
+
+**Given:**
+- vision binary is on PATH
+- ~/.config/vision/servers.yaml already contains all 4 servers
+
+**When:** bash lib/setup_vision.sh is run a second time
+
+**Then:**
+- no duplicate server entries are added
+- the script exits 0
+
+**Binary missing is non-fatal** (`sc-vision.1.3`)
+
+**Given:**
+- vision binary is NOT on PATH
+
+**When:** bash lib/setup_vision.sh is run
+
+**Then:**
+- a warning is printed mentioning vision
+- the script exits 0 (non-fatal)
+
+---
+
+### Vision daemon starts as singleton on openchad launch
+
+**ID:** `rq-vision.2` | **Priority:** **[MUST]**
+
+bin/openchad starts the Vision daemon as a fire-and-forget singleton using a two-tier lock (atomic mkdir vision-start.lock + daemon self-manages PID). vision.log is created with 0600 permissions. A second concurrent openchad launch must not start a second daemon.
+
+#### Scenarios
+
+**First launch starts daemon** (`sc-vision.2.1`)
+
+**Given:**
+- vision binary is on PATH
+- vision-start.lock does not exist
+- Vision daemon is not running
+
+**When:** openchad is launched
+
+**Then:**
+- vision-start.lock is created atomically
+- vision daemon start is invoked in the background
+- $OPEN_CHAD_CACHE_DIR/vision.log is created with 0600 permissions
+- vision-start.lock is removed after 2 seconds
+
+**Concurrent launch does not duplicate daemon** (`sc-vision.2.2`)
+
+**Given:**
+- vision-start.lock already exists (another launch in progress)
+
+**When:** a second openchad is launched concurrently
+
+**Then:**
+- the second launch skips daemon start (mkdir fails)
+- exactly one Vision daemon process runs
+
+---
+
+### openchad doctor reports Vision health
+
+**ID:** `rq-vision.3` | **Priority:** **[MUST]**
+
+openchad doctor checks: vision binary on PATH, vision daemon status, and all 4 MCP ports reachable via curl with a 2-second timeout. Missing binary or unreachable ports cause a non-zero exit.
+
+#### Scenarios
+
+**All healthy** (`sc-vision.3.1`)
+
+**Given:**
+- vision binary is on PATH
+- vision daemon is running
+- all 4 MCP ports respond within 2 seconds
+
+**When:** openchad doctor is run
+
+**Then:**
+- all Vision checks pass
+- the script exits 0
+
+**Binary missing causes failure** (`sc-vision.3.2`)
+
+**Given:**
+- vision binary is NOT on PATH
+
+**When:** openchad doctor is run
+
+**Then:**
+- doctor reports vision binary missing
+- the script exits non-zero
+
+---
+
+### Vision daemon is stopped on uninstall
+
+**ID:** `rq-vision.4` | **Priority:** **[MUST]**
+
+openchad_uninstall.sh stops the Vision daemon before removing symlinks. The stop is non-fatal if Vision is not installed or not running.
+
+#### Scenarios
+
+**Daemon running at uninstall time** (`sc-vision.4.1`)
+
+**Given:**
+- vision binary is on PATH
+- vision daemon is running
+
+**When:** openchad uninstall is run
+
+**Then:**
+- vision daemon stop is called before symlink removal
+- the script exits 0
+
+**Binary missing is non-fatal at uninstall** (`sc-vision.4.2`)
+
+**Given:**
+- vision binary is NOT on PATH
+
+**When:** openchad uninstall is run
+
+**Then:**
+- daemon stop is skipped gracefully
+- the script exits 0
 
 ---

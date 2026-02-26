@@ -3,8 +3,8 @@
   "name": "installer",
   "title": "Installer",
   "purpose": "Capability: Installer",
-  "version": "1.1.0",
-  "updated_at": "2026-02-26T08:27:21.951Z",
+  "version": "1.2.0",
+  "updated_at": "2026-02-26T15:21:15.097Z",
   "requirements": [
     {
       "id": "rq-zsh.1",
@@ -202,6 +202,156 @@
           "then": [
             "implementation tasks are blocked by the TDD scaffolding task",
             "no test task is blocked by implementation tasks"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-vision.1",
+      "title": "setup_vision.sh registers 4 MCP servers idempotently",
+      "body": "setup_vision.sh verifies the vision binary is on PATH (non-fatal warn if missing), creates ~/.config/vision/servers.yaml with 0600 permissions, and registers context7 (6276), grep-app (6288), lgrep (6285), and firecrawl (6281). Running the script N times results in exactly one entry per server.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-vision.1.1",
+          "title": "Clean slate install",
+          "given": [
+            "vision binary is on PATH",
+            "~/.config/vision/servers.yaml does not exist"
+          ],
+          "when": "bash lib/setup_vision.sh is run",
+          "then": [
+            "~/.config/vision/servers.yaml is created with 0600 permissions",
+            "all 4 MCP servers are registered (context7, grep-app, lgrep, firecrawl)",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-vision.1.2",
+          "title": "Idempotent re-run",
+          "given": [
+            "vision binary is on PATH",
+            "~/.config/vision/servers.yaml already contains all 4 servers"
+          ],
+          "when": "bash lib/setup_vision.sh is run a second time",
+          "then": [
+            "no duplicate server entries are added",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-vision.1.3",
+          "title": "Binary missing is non-fatal",
+          "given": [
+            "vision binary is NOT on PATH"
+          ],
+          "when": "bash lib/setup_vision.sh is run",
+          "then": [
+            "a warning is printed mentioning vision",
+            "the script exits 0 (non-fatal)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-vision.2",
+      "title": "Vision daemon starts as singleton on openchad launch",
+      "body": "bin/openchad starts the Vision daemon as a fire-and-forget singleton using a two-tier lock (atomic mkdir vision-start.lock + daemon self-manages PID). vision.log is created with 0600 permissions. A second concurrent openchad launch must not start a second daemon.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-vision.2.1",
+          "title": "First launch starts daemon",
+          "given": [
+            "vision binary is on PATH",
+            "vision-start.lock does not exist",
+            "Vision daemon is not running"
+          ],
+          "when": "openchad is launched",
+          "then": [
+            "vision-start.lock is created atomically",
+            "vision daemon start is invoked in the background",
+            "$OPEN_CHAD_CACHE_DIR/vision.log is created with 0600 permissions",
+            "vision-start.lock is removed after 2 seconds"
+          ]
+        },
+        {
+          "id": "sc-vision.2.2",
+          "title": "Concurrent launch does not duplicate daemon",
+          "given": [
+            "vision-start.lock already exists (another launch in progress)"
+          ],
+          "when": "a second openchad is launched concurrently",
+          "then": [
+            "the second launch skips daemon start (mkdir fails)",
+            "exactly one Vision daemon process runs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-vision.3",
+      "title": "openchad doctor reports Vision health",
+      "body": "openchad doctor checks: vision binary on PATH, vision daemon status, and all 4 MCP ports reachable via curl with a 2-second timeout. Missing binary or unreachable ports cause a non-zero exit.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-vision.3.1",
+          "title": "All healthy",
+          "given": [
+            "vision binary is on PATH",
+            "vision daemon is running",
+            "all 4 MCP ports respond within 2 seconds"
+          ],
+          "when": "openchad doctor is run",
+          "then": [
+            "all Vision checks pass",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-vision.3.2",
+          "title": "Binary missing causes failure",
+          "given": [
+            "vision binary is NOT on PATH"
+          ],
+          "when": "openchad doctor is run",
+          "then": [
+            "doctor reports vision binary missing",
+            "the script exits non-zero"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-vision.4",
+      "title": "Vision daemon is stopped on uninstall",
+      "body": "openchad_uninstall.sh stops the Vision daemon before removing symlinks. The stop is non-fatal if Vision is not installed or not running.",
+      "priority": "must",
+      "scenarios": [
+        {
+          "id": "sc-vision.4.1",
+          "title": "Daemon running at uninstall time",
+          "given": [
+            "vision binary is on PATH",
+            "vision daemon is running"
+          ],
+          "when": "openchad uninstall is run",
+          "then": [
+            "vision daemon stop is called before symlink removal",
+            "the script exits 0"
+          ]
+        },
+        {
+          "id": "sc-vision.4.2",
+          "title": "Binary missing is non-fatal at uninstall",
+          "given": [
+            "vision binary is NOT on PATH"
+          ],
+          "when": "openchad uninstall is run",
+          "then": [
+            "daemon stop is skipped gracefully",
+            "the script exits 0"
           ]
         }
       ]
