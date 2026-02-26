@@ -189,6 +189,22 @@ openchad discord enable         # Turn on Discord Rich Presence
 openchad discord status         # Check Discord status
 ```
 
+### CI/CD and Releases
+
+- CI runs on every PR and every push to `trunk` (`.github/workflows/ci.yml`) and executes the full `npm test` suite.
+- Release automation runs on version tags (`v*`) (`.github/workflows/release.yml`). It gates on passing tests, then:
+  - generates release notes from commits since the previous tag,
+  - updates `CHANGELOG.md` in the packaged artifact,
+  - builds `openchad-<tag>.tar.gz` + `SHA256SUMS.txt`,
+  - publishes a GitHub Release with all artifacts attached.
+
+To cut a release:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
 ---
 
 ## Configuration

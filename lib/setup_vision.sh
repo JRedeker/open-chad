@@ -166,7 +166,7 @@ _register_server "lgrep" "6285" \
     autostart: true
     source: https://github.com/anomalyco/lgrep'
 
-# firecrawl — Web scraping (disabled by default)
+# firecrawl — Web scraping (enabled by default for Scout agent)
 _register_server "firecrawl" "6281" \
 '  firecrawl:  # open-chad
     port: 6281
@@ -174,7 +174,7 @@ _register_server "firecrawl" "6281" \
     args:
       - "-y"
       - "@mendableai/firecrawl-mcp@latest"
-    autostart: false
+    autostart: true
     source: https://github.com/mendableai/firecrawl'
 
 # ─── Step 6: Reload daemon if running ────────────────────────────────────────
@@ -197,4 +197,4 @@ fi
 audit "setup_vision.sh complete"
 ok "Vision setup complete."
 echo ""
-echo -e "  ${C_SAGE}Registered:${C_RESET} context7 (6276), grep-app (6288), lgrep (6285), firecrawl (6281, disabled)"
+echo -e "  ${C_SAGE}Registered:${C_RESET} context7 (6276), grep-app (6288), lgrep (6285), firecrawl (6281)"

@@ -74,12 +74,16 @@ When multiple tools could accomplish a task, use this guide to select the most a
 - Clicking buttons
 - Interactive web tasks
 - Screenshots of rendered pages
+- Exploring interactive application behavior
 
 **NEVER use for**:
 - Web search (use Kagi)
 - Fetching page content (use Firecrawl or fetch)
 - Research (use Kagi)
 - Documentation lookup (use Context7)
+- General web browsing
+
+**Playwright is for exploring application behavior, not browsing.**
 
 ## Decision Matrix
 

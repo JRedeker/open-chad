@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build And Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Generate release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          bash scripts/generate_release_notes.sh "$RELEASE_TAG" dist/release-notes.md
+
+      - name: Update changelog for package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          bash scripts/update_changelog.sh "$RELEASE_TAG" dist/release-notes.md CHANGELOG.md
+
+      - name: Build release package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          tar --exclude=.git --exclude=dist -czf "dist/openchad-${RELEASE_TAG}.tar.gz" .
+          sha256sum "dist/openchad-${RELEASE_TAG}.tar.gz" > dist/SHA256SUMS.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: dist/release-notes.md
+          files: |
+            dist/openchad-${{ github.ref_name }}.tar.gz
+            dist/SHA256SUMS.txt
+            dist/release-notes.md
+            CHANGELOG.md

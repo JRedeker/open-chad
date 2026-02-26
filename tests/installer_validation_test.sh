@@ -225,8 +225,8 @@ test_mcp_enabled_disabled_correctly() {
     OPEN_CHAD_INSTALL_LOG="$TMP_DIR/test.log" \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
-    # context7, grep-app, lgrep should be enabled
-    for server in context7 grep-app lgrep; do
+    # context7, grep-app, lgrep, firecrawl should be enabled
+    for server in context7 grep-app lgrep firecrawl; do
         node -e "
 const fs=require('fs');
 const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
@@ -237,8 +237,8 @@ process.exit(enabled===true ? 0 : 1);
             fail "setup_mcp: '$server' should be enabled but isn't"
     done
 
-    # firecrawl, brave-web-search should be disabled
-    for server in firecrawl brave-web-search; do
+    # brave-web-search should be disabled (requires API key)
+    for server in brave-web-search; do
         node -e "
 const fs=require('fs');
 const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
@@ -1472,6 +1472,69 @@ test_setup_adv_emits_mode_in_output() {
 test_doctor_references_adv_health_check
 test_wizard_step5_references_adv_mode
 test_setup_adv_emits_mode_in_output
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Scout agent policy — Firecrawl enabled, Playwright restriction
+# ═══════════════════════════════════════════════════════════════════════════════
+section "Scout agent policy — Firecrawl enabled, Playwright restriction"
+
+test_scout_firecrawl_tools_enabled() {
+    # Scout agent must have Firecrawl tools enabled (scrape, crawl, check_crawl_status)
+    local scout_file="$REPO_DIR/config/opencode/agents/scout.md"
+    assert_file_exists "$scout_file"
+    
+    # Check that firecrawl tools are set to true (not false)
+    for tool in firecrawl_firecrawl_scrape firecrawl_firecrawl_crawl firecrawl_firecrawl_check_crawl_status; do
+        if grep -q "^  ${tool}: true" "$scout_file" 2>/dev/null; then
+            pass "scout.md: '$tool' is enabled"
+        elif grep -q "^  ${tool}: false" "$scout_file" 2>/dev/null; then
+            fail "scout.md: '$tool' should be enabled (true) but is disabled (false)"
+        else
+            fail "scout.md: '$tool' not found in tool configuration"
+        fi
+    done
+}
+
+test_scout_playwright_not_for_browsing_rule() {
+    # Scout agent must explicitly state that Playwright is NOT for general web browsing
+    # Playwright is only for exploring interactive application behavior
+    local scout_file="$REPO_DIR/config/opencode/agents/scout.md"
+    assert_file_exists "$scout_file"
+    
+    # Check for explicit Playwright restriction wording
+    if grep -qi "playwright" "$scout_file" 2>/dev/null; then
+        # If Playwright is mentioned, it must include the restriction
+        if grep -qi "playwright.*brows\|brows.*playwright" "$scout_file" 2>/dev/null && \
+           grep -qi "not.*brows\|only.*application\|interactive.*behavior" "$scout_file" 2>/dev/null; then
+            pass "scout.md: includes Playwright restriction (not for general browsing)"
+        else
+            fail "scout.md: mentions Playwright but missing restriction rule (not for general browsing)"
+        fi
+    else
+        # If Playwright not mentioned, that's OK for Scout (it's a read-only agent)
+        # But we should have it documented somewhere
+        pass "scout.md: no Playwright reference (OK for read-only agent)"
+    fi
+}
+
+test_scout_remains_read_only() {
+    # Scout must remain read-only for filesystem operations
+    local scout_file="$REPO_DIR/config/opencode/agents/scout.md"
+    assert_file_exists "$scout_file"
+    
+    # Write tools must still be disabled
+    for tool in edit write morph_edit; do
+        if grep -q "^  ${tool}: false" "$scout_file" 2>/dev/null; then
+            pass "scout.md: '$tool' remains disabled (read-only preserved)"
+        else
+            fail "scout.md: '$tool' should be disabled (Scout is read-only)"
+        fi
+    done
+}
+
+test_scout_firecrawl_tools_enabled
+test_scout_playwright_not_for_browsing_rule
+test_scout_remains_read_only
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

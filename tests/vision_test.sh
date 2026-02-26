@@ -144,6 +144,59 @@ test_setup_vision_creates_yaml() {
 }
 test_setup_vision_creates_yaml
 
+test_setup_vision_firecrawl_autostart() {
+    # firecrawl must be autostart: true (enabled by default for Scout agent)
+    setup_tmp_env
+    local fake_bin="$TMP_HOME/.local/bin/vision"
+    printf '#!/usr/bin/env bash\necho "vision v1.0.0"\n' > "$fake_bin"
+    chmod +x "$fake_bin"
+    local saved_PATH="$PATH"
+    export PATH="$TMP_HOME/.local/bin:$PATH"
+
+    bash "$REPO_DIR/lib/setup_vision.sh" 2>&1 || true
+
+    local yaml_file="$TMP_HOME/.config/vision/servers.yaml"
+    if [ -f "$yaml_file" ]; then
+        # Check that firecrawl has autostart: true (not false)
+        # Use -A10 to capture the full server block
+        if grep -A10 "firecrawl:" "$yaml_file" | grep -q "autostart: true"; then
+            pass "setup_vision: firecrawl has autostart: true"
+        else
+            fail "setup_vision: firecrawl should have autostart: true (enabled by default)"
+        fi
+    else
+        fail "servers.yaml not created — cannot check firecrawl autostart"
+    fi
+
+    export PATH="$saved_PATH"
+    teardown_tmp_env
+}
+test_setup_vision_firecrawl_autostart
+
+test_setup_vision_output_no_firecrawl_disabled() {
+    # setup_vision.sh output should NOT describe firecrawl as "disabled"
+    setup_tmp_env
+    local fake_bin="$TMP_HOME/.local/bin/vision"
+    printf '#!/usr/bin/env bash\necho "vision v1.0.0"\n' > "$fake_bin"
+    chmod +x "$fake_bin"
+    local saved_PATH="$PATH"
+    export PATH="$TMP_HOME/.local/bin:$PATH"
+
+    local output
+    output=$(bash "$REPO_DIR/lib/setup_vision.sh" 2>&1) || true
+
+    # The output should NOT say "firecrawl (6281, disabled)" or similar
+    if echo "$output" | grep -qi "firecrawl.*disabled"; then
+        fail "setup_vision: output should NOT describe firecrawl as disabled (it is enabled by default)"
+    else
+        pass "setup_vision: output does not describe firecrawl as disabled"
+    fi
+
+    export PATH="$saved_PATH"
+    teardown_tmp_env
+}
+test_setup_vision_output_no_firecrawl_disabled
+
 test_setup_vision_yaml_permissions() {
     setup_tmp_env
     local fake_bin="$TMP_HOME/.local/bin/vision"

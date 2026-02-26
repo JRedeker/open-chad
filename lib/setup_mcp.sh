@@ -5,7 +5,7 @@
 #   context7       (enabled)  — Library and API documentation (vision remote)
 #   grep-app       (enabled)  — Code search across GitHub (vision remote)
 #   lgrep          (enabled)  — Semantic local code search (vision remote)
-#   firecrawl      (disabled) — Web scraping (vision remote; enable via vision_add)
+#   firecrawl      (enabled)   — Web scraping (vision remote)
 #   brave-web-search (disabled) — Web search (requires BRAVE_API_KEY; key-required)
 #
 # NOTE: opencode.json has NO per-server tool restriction field. Tool filtering
@@ -153,19 +153,19 @@ _merge "lgrep" '{
 ok "lgrep (enabled)"
 audit "lgrep registered"
 
-# firecrawl — disabled — Vision-managed web scraper
-# Registered but disabled: user enables via `vision_add firecrawl`
+# firecrawl — enabled — Vision-managed web scraper
+# Enabled by default for Scout agent web research capabilities
 _merge "firecrawl" '{
   "mcp": {
     "firecrawl": {
       "type": "remote",
       "url": "http://localhost:6281/mcp",
-      "enabled": false
+      "enabled": true
     }
   }
 }'
-ok "firecrawl (disabled — enable via: vision_add firecrawl)"
-audit "firecrawl registered (disabled)"
+ok "firecrawl (enabled)"
+audit "firecrawl registered (enabled)"
 
 # brave-web-search — disabled — Requires BRAVE_API_KEY
 _merge "brave-web-search" '{
@@ -211,7 +211,7 @@ if [ "$_servers_ok" -eq 0 ]; then
 fi
 
 audit "All 5 MCP servers verified in opencode.json"
-ok "MCP setup complete. 5 servers registered (3 enabled, 2 disabled)."
+ok "MCP setup complete. 5 servers registered (4 enabled, 1 disabled)."
 echo ""
-echo -e "  ${C_SAGE}Enabled:${C_RESET}  context7, grep-app, lgrep"
-echo -e "  ${C_GOLD}Disabled:${C_RESET} firecrawl (vision_add firecrawl), brave-web-search (needs API key)"
+echo -e "  ${C_SAGE}Enabled:${C_RESET}  context7, grep-app, lgrep, firecrawl"
+echo -e "  ${C_GOLD}Disabled:${C_RESET} brave-web-search (needs API key)"

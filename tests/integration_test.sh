@@ -256,24 +256,24 @@ test_mcp_integration_enabled_state() {
 
     local enabled_count=0 disabled_count=0
 
-    for server in context7 grep-app lgrep; do
+    for server in context7 grep-app lgrep firecrawl; do
         node -e "
 const c=JSON.parse(require('fs').readFileSync('$tmp_oc/opencode.json','utf8'));
 process.exit((c.mcp&&c.mcp['$server']&&c.mcp['$server'].enabled===true)?0:1);
 " 2>/dev/null && enabled_count=$((enabled_count + 1)) || true
     done
 
-    for server in firecrawl brave-web-search; do
+    for server in brave-web-search; do
         node -e "
 const c=JSON.parse(require('fs').readFileSync('$tmp_oc/opencode.json','utf8'));
 process.exit((c.mcp&&c.mcp['$server']&&c.mcp['$server'].enabled===false)?0:1);
 " 2>/dev/null && disabled_count=$((disabled_count + 1)) || true
     done
 
-    [ "$enabled_count" -eq 3 ] && pass "setup_mcp.sh: 3 servers correctly enabled" || \
-        fail "setup_mcp.sh: expected 3 enabled servers, got $enabled_count"
-    [ "$disabled_count" -eq 2 ] && pass "setup_mcp.sh: 2 servers correctly disabled" || \
-        fail "setup_mcp.sh: expected 2 disabled servers, got $disabled_count"
+    [ "$enabled_count" -eq 4 ] && pass "setup_mcp.sh: 4 servers correctly enabled" || \
+        fail "setup_mcp.sh: expected 4 enabled servers, got $enabled_count"
+    [ "$disabled_count" -eq 1 ] && pass "setup_mcp.sh: 1 server correctly disabled" || \
+        fail "setup_mcp.sh: expected 1 disabled server, got $disabled_count"
 }
 
 test_mcp_integration_idempotent() {

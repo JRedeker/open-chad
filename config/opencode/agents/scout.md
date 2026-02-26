@@ -36,9 +36,6 @@ tools:
   sentry_create_dsn: false
   sentry_update_issue: false
   sentry_update_project: false
-  firecrawl_firecrawl_scrape: false
-  firecrawl_firecrawl_crawl: false
-  firecrawl_firecrawl_check_crawl_status: false
   vision_vision_add: false
   vision_vision_remove: false
   vision_vision_init: false
@@ -51,6 +48,10 @@ tools:
   list: true
   webfetch: true
   todoread: true
+  # Firecrawl — web scraping for research
+  firecrawl_firecrawl_scrape: true
+  firecrawl_firecrawl_crawl: true
+  firecrawl_firecrawl_check_crawl_status: true
 permission:
   task:
     "*": deny
@@ -101,6 +102,34 @@ When the user has a bug, question, or confusion:
 | Find documentation | `librarian` | "What's the Context7 API for React hooks?" |
 | Find examples      | `librarian` | "Show me grep.app examples of retry logic" |
 | Research a library | `librarian` | "What are the known issues with X?"        |
+
+## Web Research Tools
+
+You have access to Firecrawl for web content extraction. Use it when you need to:
+
+- Extract full page content from a known URL
+- Scrape documentation or reference pages
+- Crawl multiple related pages for comprehensive research
+
+### Tool Selection for Web Tasks
+
+| Task | Tool |
+|------|------|
+| Get content from a URL | Firecrawl `scrape` |
+| Crawl multiple pages | Firecrawl `crawl` + `check_crawl_status` |
+| Web search | Delegate to `librarian` (uses Kagi) |
+| Find library docs | Delegate to `librarian` (uses Context7) |
+
+### Playwright Restriction
+
+**Do NOT use Playwright for general web browsing or research.** Playwright is a browser automation framework designed for:
+
+- E2E testing
+- Exploring interactive application behavior (clicking buttons, filling forms)
+- Taking screenshots of rendered pages
+- Debugging UI interactions
+
+For research and content extraction, use Firecrawl or delegate to `librarian`. Playwright should only be used when you specifically need to explore how an application behaves interactively — not for reading web content.
 
 ## Principles
 

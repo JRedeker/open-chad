@@ -96,7 +96,7 @@ lib/
                             context7/grep-app/lgrep/firecrawl registered as type=remote
                             pointing at Vision daemon ports (6276/6288/6285/6281).
                             brave-web-search registered as type=local (disabled, key-required).
-                            context7/grep-app/lgrep enabled; firecrawl/brave-web-search disabled.
+                            context7/grep-app/lgrep/firecrawl enabled; brave-web-search disabled.
                             Validates JSON before and after merge.
   setup_morph.sh            Clone/pull morph-fast-apply, pnpm install+build, wire plugin
                             path and MORPH_INSTRUCTIONS.md into opencode.json.
