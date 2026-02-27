@@ -106,6 +106,8 @@ A terminal UI for managing OpenCode model preferences — switch models, set def
 - Quick access in-session: press `Ctrl+b m` to open `omp` in a tmux popup.
 - Popup behavior uses `display-popup -EE`: success closes automatically; failures stay visible.
 - Default popup size is 80%×80%. Override with `OPEN_CHAD_OMP_POPUP_SIZE` (e.g. `export OPEN_CHAD_OMP_POPUP_SIZE="90%x85%"`).
+- Popup runs from the active pane directory and launches `omp` through your shell login context for parity with terminal invocation.
+- Override the popup binary path with `OPEN_CHAD_OMP_BIN` if needed (e.g. `export OPEN_CHAD_OMP_BIN="$HOME/.local/bin/omp"`).
 - Requires tmux `>=3.2` for popup support. On older tmux versions, `prefix+m` shows a fallback hint.
 - Preference changes apply on the next OpenCode agent/command invocation — no restart needed.
 

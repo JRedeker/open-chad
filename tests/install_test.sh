@@ -602,8 +602,8 @@ test_install_tmux_popup_keybind_present_and_not_duplicated() {
 }
 
 test_install_tmux_popup_default_and_override_sizing() {
-    # Verify omp_popup.sh wrapper exists and contains the override variable
-    # and default 80%x80% fallback.
+    # Verify omp_popup.sh wrapper exists and includes sizing override,
+    # binary override, and active-pane cwd parity.
     assert_file_exists "$REPO_DIR/lib/omp_popup.sh"
     assert_executable "$REPO_DIR/lib/omp_popup.sh"
 
@@ -614,6 +614,14 @@ test_install_tmux_popup_default_and_override_sizing() {
     grep -q '80%x80%' "$REPO_DIR/lib/omp_popup.sh" \
         && pass "omp_popup.sh includes 80%x80% default fallback" \
         || fail "omp_popup.sh missing 80%x80% default fallback"
+
+    grep -q 'OPEN_CHAD_OMP_BIN' "$REPO_DIR/lib/omp_popup.sh" \
+        && pass "omp_popup.sh supports OPEN_CHAD_OMP_BIN override" \
+        || fail "omp_popup.sh missing OPEN_CHAD_OMP_BIN override"
+
+    grep -q '#{pane_current_path}' "$REPO_DIR/lib/omp_popup.sh" \
+        && pass "omp_popup.sh resolves popup cwd from active pane" \
+        || fail "omp_popup.sh missing active pane cwd parity"
 
     # theme.conf should delegate to omp_popup.sh
     grep -q 'omp_popup.sh' "$REPO_DIR/lib/theme.conf" \
