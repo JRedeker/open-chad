@@ -10,6 +10,38 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 
 ---
 
+## Highlights
+
+- **Complete context-engineering stack:** layered instructions, priority-ranked rules, and scoped agents wired by default
+- **Spec-driven workflow included:** ADV plugin with 6 quality gates (research -> prep -> implementation -> review -> harden -> signoff)
+- **MCP and tooling pre-wired:** Vision daemon + Context7, grep.app, lgrep, Firecrawl, and morph-fast-apply
+- **Ops-ready terminal UX:** themed two-row tmux dashboard, live CPU/RAM/load, and per-provider LLM fuel gauges
+- **Multi-session workflow built in:** isolated `oc-<timestamp>-<pid>` sessions, `oc attach/switch`, `oc-list`, `oc-killall`, and `cds`
+- **Quality-of-life extras:** `omp` model-preferences TUI popup, Discord Rich Presence, zsh + completions, CI/release automation
+
+## Included Components
+
+| Area | Included by default |
+|------|---------------------|
+| Agents | `scout`, `build`, `refine`, `plan`, `explore`, `librarian`, `general`, `adv-researcher` |
+| Instructions | identity, rules, shell strategy, MCP tool guide, worktree guide, LBP, post-install verification |
+| Plugins | ADV (spec-driven change management), morph-fast-apply |
+| MCP servers | Context7, grep.app, lgrep, Firecrawl (via Vision daemon) |
+| Shell + UX | zsh environment, Powerlevel10k, autosuggestions, syntax highlighting, completions |
+| Session tooling | `openchad`, `oc`, `cds`, `oc-list`, `oc-killall` |
+| Status + metrics | 2-row ayu-dark tmux status, session title correlation, system metrics, dynamic LLM gauges |
+| Collaboration extras | Discord Rich Presence, WSL bridge support, Windows Terminal keybinding helper |
+
+## Quick Navigation
+
+- [Context Engineering, Out of the Box](#context-engineering-out-of-the-box)
+- [What Else You Get](#what-else-you-get)
+- [Install](#install)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Requirements](#requirements)
+
 ## Context Engineering, Out of the Box
 
 AI coding tools are only as good as the context they operate in. openchad ships a complete context engineering stack so your agents start every session with the right knowledge, the right tools, and the right constraints — no manual wiring required.
@@ -142,28 +174,11 @@ After launching OpenCode, paste the verification prompt from `~/.config/opencode
 openchad uninstall
 ```
 
-Removes symlinks and shell profile blocks. Your OpenCode config and plugins are left intact.
+Removes managed shell profile blocks and disables managed runtime integrations. Your OpenCode config, plugin checkouts, and project files are left intact.
 
 ### Upgrading from `open-chad`
 
 The command was renamed from `open-chad` to `openchad`. Running `openchad update` or `bash install.sh` auto-cleans stale aliases and PATH entries. Run `openchad doctor` to verify.
-
----
-
-## Worktree Flow
-
-When the ADV plugin creates a git worktree for an isolated change, openchad may open a new tmux window for it. The agent continues working inline — but you can navigate to the new tab with:
-
-| Key | Action |
-|-----|--------|
-| `Ctrl+b n` | Next tmux window |
-| `Ctrl+b l` | Last (previously active) window |
-| `Ctrl+b w` | Interactive window chooser |
-| `oc switch` | Switch between openchad sessions |
-
-The agent emits this hint automatically after every `worktree_create` so you never have to remember the keybinds.
-
----
 
 ## Usage
 
@@ -244,6 +259,19 @@ To cut a release:
 git tag v1.2.3
 git push origin v1.2.3
 ```
+
+### Worktree Flow
+
+When the ADV plugin creates a git worktree for an isolated change, openchad may open a new tmux window for it. The agent continues working inline — but you can navigate to the new tab with:
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+b n` | Next tmux window |
+| `Ctrl+b l` | Last (previously active) window |
+| `Ctrl+b w` | Interactive window chooser |
+| `oc switch` | Switch between openchad sessions |
+
+The agent emits this hint automatically after every `worktree_create` so you never have to remember the keybinds.
 
 ---
 
