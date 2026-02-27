@@ -1,5 +1,10 @@
 # openchad
 
+[![CI](https://github.com/JRedeker/open-chad/actions/workflows/ci.yml/badge.svg?branch=trunk)](https://github.com/JRedeker/open-chad/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JRedeker/open-chad)](https://github.com/JRedeker/open-chad/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![OpenCode](https://img.shields.io/badge/Built%20for-OpenCode-0D1017)](https://github.com/opencode-ai/opencode)
+
 **A context engineering platform for AI-assisted development.** One install gives you a complete environment where every layer — agents, rules, tools, specs, and instructions — is designed to shape what your AI sees, what it can do, and how it behaves.
 
 For developers who run multiple concurrent AI coding sessions and want everything configured out of the box.
@@ -13,11 +18,11 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 ## Highlights
 
 - **Complete context-engineering stack:** layered instructions, priority-ranked rules, and scoped agents wired by default
-- **Spec-driven workflow included:** ADV plugin with 6 quality gates (research -> prep -> implementation -> review -> harden -> signoff)
-- **MCP and tooling pre-wired:** Vision daemon + Context7, grep.app, lgrep, Firecrawl, and morph-fast-apply
+- **Spec-driven workflow included:** [ADV](https://github.com/Sharper-Flow/Advance) plugin with 6 quality gates (research -> prep -> implementation -> review -> harden -> signoff)
+- **MCP and tooling pre-wired:** [Vision](https://github.com/Sharper-Flow/vision) daemon + [Context7](https://context7.com), [grep.app](https://grep.app), [lgrep](https://github.com/Sharper-Flow/lgrep), [Firecrawl](https://www.firecrawl.dev), and [morph-fast-apply](https://github.com/steipete/morph-fast-apply)
 - **Ops-ready terminal UX:** themed two-row tmux dashboard, live session count/CPU/RAM/load, and per-provider LLM fuel gauges
 - **Multi-session workflow built in:** isolated `oc-<timestamp>-<pid>` sessions, `oc attach/switch`, `oc-list`, `oc-killall`, and `cds`
-- **Quality-of-life extras:** `omp` model-preferences TUI popup, Discord Rich Presence, zsh + completions, CI/release automation
+- **Quality-of-life extras:** [`omp`](https://github.com/Joshuaalbert/omp) model-preferences TUI popup, [Discord Rich Presence](https://discord.com/developers/docs/rich-presence/overview), [zsh](https://www.zsh.org) + completions, CI/release automation
 
 ## Included Components
 
@@ -25,22 +30,32 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 |------|---------------------|
 | Agents | `scout`, `build`, `refine`, `plan`, `explore`, `librarian`, `general`, `adv-researcher` |
 | Instructions | identity, rules, shell strategy, MCP tool guide, worktree guide, LBP, post-install verification |
-| Plugins | ADV (spec-driven change management), morph-fast-apply |
-| MCP servers | Context7, grep.app, lgrep, Firecrawl (via Vision daemon) |
-| Shell + UX | zsh environment, Powerlevel10k, autosuggestions, syntax highlighting, completions |
+| Plugins | [ADV](https://github.com/Sharper-Flow/Advance) (spec-driven change management), [morph-fast-apply](https://github.com/steipete/morph-fast-apply) |
+| MCP servers | [Context7](https://context7.com), [grep.app](https://grep.app), [lgrep](https://github.com/Sharper-Flow/lgrep), [Firecrawl](https://www.firecrawl.dev) (via [Vision](https://github.com/Sharper-Flow/vision) daemon) |
+| Shell + UX | [zsh](https://www.zsh.org) environment, [Powerlevel10k](https://github.com/romkatv/powerlevel10k), [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions), [fast-syntax-highlighting](https://github.com/zdharma-continuum/fast-syntax-highlighting), completions |
 | Session tooling | `openchad`, `oc`, `cds`, `oc-list`, `oc-killall` |
 | Status + metrics | 2-row ayu-dark tmux status, session title correlation, system metrics, dynamic LLM gauges |
-| Collaboration extras | Discord Rich Presence, WSL bridge support, Windows Terminal keybinding helper |
+| Collaboration extras | [Discord Rich Presence](https://discord.com/developers/docs/rich-presence/overview), WSL bridge support, [Windows Terminal](https://github.com/microsoft/terminal) keybinding helper |
 
 ## Quick Navigation
 
 - [Context Engineering, Out of the Box](#context-engineering-out-of-the-box)
 - [What Else You Get](#what-else-you-get)
 - [Install](#install)
+- [First Run Checklist](#first-run-checklist)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Requirements](#requirements)
+
+## Quick Links
+
+- [Latest Releases](https://github.com/JRedeker/open-chad/releases)
+- [CI Workflow](https://github.com/JRedeker/open-chad/actions/workflows/ci.yml)
+- [ADV Plugin](https://github.com/Sharper-Flow/Advance)
+- [Vision MCP Daemon](https://github.com/Sharper-Flow/vision)
+- [Discord Setup Guide](lib/discord/SETUP.md)
+- [Architecture + Internals](AGENTS.md)
 
 ## Context Engineering, Out of the Box
 
@@ -128,7 +143,16 @@ All dynamic input is sanitized — no project names, file paths, tokens, or secr
 **WSL2:** openchad auto-starts the Discord IPC bridge (`socat` + `npiperelay.exe`) as a singleton on every launch — no manual setup after the one-time dep install:
 ```bash
 sudo apt install socat && go install github.com/jstarks/npiperelay@latest
+ln -sf "$(go env GOPATH)/bin/windows_amd64/npiperelay.exe" "$(go env GOPATH)/bin/npiperelay.exe"
 ```
+
+`openchad discord status` bridge states on WSL2:
+
+| Status | Meaning |
+|--------|---------|
+| `ready` | Bridge process is running and Discord IPC forwarding is active |
+| `not running` | Bridge deps are present, but no active bridge process was found |
+| `missing socat` / `missing npiperelay.exe` | One-time dependency setup is incomplete |
 
 ---
 
@@ -159,6 +183,18 @@ The interactive wizard walks you through 10 steps:
 For CI or unattended installs: `bash install.sh --yes`
 
 After install, reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and you're ready.
+
+## First Run Checklist
+
+Run these once after install to validate the environment end-to-end:
+
+```bash
+openchad doctor            # verify PATH, tmux wiring, Vision daemon, and health checks
+openchad discord status    # confirm Discord mode/bridge state (if enabled)
+openchad ~/dev/your-project
+```
+
+If you use WSL2 + Discord, keep `openchad doctor` and `openchad discord status` as your first debug commands whenever presence is not updating.
 
 ### Update
 
@@ -339,6 +375,7 @@ export OPEN_CHAD_OMP_BIN="$HOME/.local/bin/omp"
 | `openchad doctor` reports issues | Follow the remediation instructions it prints |
 | `prefix+m` popup not working | Requires tmux ≥3.2; run `tmux -V` to check |
 | Discord not updating | Run `openchad discord status`; check `openchad doctor` for bridge status (WSL2) |
+| Discord status shows `Bridge: not running` (WSL2) | Re-run one-time deps (`socat`, `npiperelay.exe`), then launch any `openchad` session to auto-start bridge |
 
 For detailed installer internals, CI flags, architecture, and contributor docs, see [AGENTS.md](AGENTS.md).
 
