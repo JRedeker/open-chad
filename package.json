@@ -1,10 +1,10 @@
 {
   "name": "open-chad",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Retro tmux launcher for OpenCode AI coding sessions",
   "private": true,
   "scripts": {
-    "test": "bash tests/install_test.sh && bash tests/llm_fuel_test.sh && bash tests/animation_test.sh && bash tests/session_title_test.sh && bash tests/discord_sanitizer_test.sh && bash tests/discord_setup_test.sh && bash tests/discord_bridge_test.sh && bash tests/cds_test.sh && bash tests/integration_test.sh && bash tests/installer_robustness_test.sh && bash tests/setup_zsh_test.sh && bash tests/shell_profile_test.sh && bash tests/oc_sessions_test.sh && bash tests/vision_test.sh"
+    "test": "bash tests/install_test.sh && bash tests/llm_fuel_test.sh && bash tests/animation_test.sh && bash tests/session_title_test.sh && bash tests/discord_sanitizer_test.sh && bash tests/discord_setup_test.sh && bash tests/discord_bridge_test.sh && bash tests/cds_test.sh && bash tests/integration_test.sh && bash tests/installer_robustness_test.sh && bash tests/installer_validation_test.sh && bash tests/setup_zsh_test.sh && bash tests/shell_profile_test.sh && bash tests/oc_sessions_test.sh && bash tests/oc_launch_test.sh && bash tests/vision_test.sh && bash tests/worktree_hint_parity_test.sh"
   },
   "dependencies": {
     "@xhayper/discord-rpc": "^1.3.1"

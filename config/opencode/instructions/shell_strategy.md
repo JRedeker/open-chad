@@ -57,12 +57,9 @@ These prevent interactive prompts and should be set in the shell environment:
 
 ## Sub-Agent Restrictions
 
-**Read-Only Policy:** The `explore` and `librarian` sub-agents are strictly restricted to **read-only bash operations**. 
+**No Shell Access:** The `explore` and `librarian` sub-agents have `bash: false` in their tool permissions. They cannot execute shell commands at all — read-only or otherwise. This is enforced at the capability level, not by convention.
 
-- **ALLOWED**: `ls`, `git status`, `git diff`, `git log`, `rg`, `grep`, `cat`, `head`, `tail`, `find`, `pwd`, `du`, `df`, etc.
-- **BLOCKED**: `sed -i`, `rm`, `mv`, `cp`, `mkdir`, `touch`, `git add`, `git commit`, redirection (`>`), package installs, etc.
-
-Any attempt to mutate the filesystem via `bash` from these agents will be technically blocked by a policy guard. Use primary agents (like `general` or `build`) if you need to perform modifications.
+These agents use `read`, `glob`, `grep`, and `lgrep_search` for codebase exploration. If you need to run shell commands (even read-only ones like `git log` or `rg`), use a primary agent (`general` or `build`) instead.
 
 ## Fallback Patterns
 

@@ -2,17 +2,17 @@
 # tests/installer_robustness_test.sh — Scenario-driven robustness tests
 #
 # Tests the installer and updater against real-world "dirty" machine states:
-#   1. Symlink collision: target is a regular file (not a symlink)
-#   2. Symlink collision: target is a directory
+#   1. PATH-based install: bin/ directory wired into shell profile
+#   2. Stale file collision: target path has a regular file or directory
 #   3. Corrupted opencode.json: auto-recovery (backup + reinitialize + merge)
 #   4. Partial plugin checkout: non-git dir quarantined, reclone triggered
 #   5. Reinstall on top of existing valid OpenCode config: user keys preserved
 #   6. --yes flag suppresses all prompts in conflict scenarios
-#   7. update.sh symlink repair handles file/dir collisions same as install.sh
+#   7. update.sh PATH repair handles stale entries
 #
 # NOTE: Tests that call install.sh use || true because the wizard may fail
-# on sub-steps (e.g. setup_ubuntu_deps.sh needs sudo). Symlink creation
-# happens BEFORE the wizard exec, so we can still verify symlink state.
+# on sub-steps (e.g. setup_ubuntu_deps.sh needs sudo). PATH setup
+# happens BEFORE the wizard exec, so we can still verify PATH state.
 #
 # Usage: bash tests/installer_robustness_test.sh
 # Exit code: number of failed tests (0 = all passed)
@@ -69,93 +69,111 @@ _run_install() {
     # install.sh does `exec wizard.sh` which replaces the process and spawns
     # sub-processes (setup_ubuntu_deps.sh etc). Use setsid to create a new
     # process group so timeout --signal=KILL kills the entire tree.
-    INSTALL_OUTPUT=$(timeout --signal=KILL 3 bash -c "
+    # 5s timeout: PATH setup happens early (step 3) but wizard exec follows.
+    INSTALL_OUTPUT=$(timeout --signal=KILL 5 bash -c "
         export HOME='$TMP_HOME'
         export OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache'
+        export XDG_RUNTIME_DIR='$TMP_DIR/runtime'
         bash '$REPO_DIR/install.sh' $*
     " 2>&1) || INSTALL_EXIT=$?
 }
 
-# ─── Section 1: Symlink collision — target is a regular file ─────────────────
-# install.sh _install_symlink should replace regular files with symlinks.
-# The symlink step runs BEFORE the wizard exec, so we check symlink state
-# regardless of wizard exit code.
+# ─── Section 1: PATH-based install — bin/ wired into shell profile ───────────
+# v1.1 replaced symlinks with PATH-based installation. install.sh should wire
+# the repo's bin/ directory into the user's shell profile via setup_shell_profile.sh.
 
-section "Symlink collision: target is a regular file"
+section "PATH-based install: bin/ wired into shell profile"
 
-test_install_replaces_regular_file_with_yes() {
+test_install_wires_path_into_profile() {
     setup_tmp
-    # Test with openchad (the canonical name after rename)
+    # Create a .profile for the fallback shell detection
+    touch "$TMP_HOME/.profile"
+
+    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
+
+    # PATH block should be written to the shell profile (marker-guarded)
+    if grep -q "BEGIN open-chad" "$TMP_HOME/.profile" 2>/dev/null; then
+        pass "install: PATH block wired into .profile"
+    else
+        fail "install: PATH block not found in .profile"
+    fi
+    teardown_tmp
+}
+
+test_install_path_block_is_idempotent() {
+    setup_tmp
+    touch "$TMP_HOME/.profile"
+
+    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
+    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
+
+    local count
+    count=$(grep -c "BEGIN open-chad" "$TMP_HOME/.profile" 2>/dev/null || echo 0)
+    [ "$count" -eq 1 ] && \
+        pass "install: PATH block not duplicated after re-run (count=$count)" || \
+        fail "install: PATH block duplicated (count=$count, expected 1)"
+    teardown_tmp
+}
+
+test_install_path_includes_bin_directory() {
+    setup_tmp
+    touch "$TMP_HOME/.profile"
+
+    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
+
+    if grep -q 'export PATH=.*bin' "$TMP_HOME/.profile" 2>/dev/null; then
+        pass "install: PATH export includes bin directory"
+    else
+        fail "install: PATH export should include bin directory"
+    fi
+    teardown_tmp
+}
+
+test_install_wires_path_into_profile
+test_install_path_block_is_idempotent
+test_install_path_includes_bin_directory
+
+# ─── Section 2: Stale file collision — installer handles gracefully ──────────
+# When stale files exist at target paths, the installer should proceed
+# without error (PATH-based approach doesn't create symlinks).
+
+section "Stale file collision: installer handles gracefully"
+
+test_install_succeeds_with_stale_file_in_local_bin() {
+    setup_tmp
+    touch "$TMP_HOME/.profile"
+    # Simulate a stale regular file from a previous v1.0 install
     echo "#!/bin/bash" > "$TMP_HOME/.local/bin/openchad"
-    chmod +x "$TMP_HOME/.local/bin/openchad"
 
     _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
 
-    [ -L "$TMP_HOME/.local/bin/openchad" ] && \
-        pass "install: openchad is now a symlink after replacing regular file" || \
-        fail "install: openchad should be a symlink after replacement"
-    teardown_tmp
-}
-
-test_install_replaces_regular_file_cds_with_yes() {
-    setup_tmp
-    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/cds"
-    chmod +x "$TMP_HOME/.local/bin/cds"
-
-    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
-
-    [ -L "$TMP_HOME/.local/bin/cds" ] && \
-        pass "install: cds is now a symlink after replacing regular file" || \
-        fail "install: cds should be a symlink after replacement"
-    teardown_tmp
-}
-
-test_install_regular_file_replacement_is_logged() {
-    setup_tmp
-    echo "#!/bin/bash" > "$TMP_HOME/.local/bin/open-chad"
-
-    _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
-
-    if echo "$INSTALL_OUTPUT" | grep -qi "replac\|overwrite\|exist\|backup\|Symlink"; then
-        pass "install: logs message when replacing regular file"
+    # PATH block should still be written (stale file doesn't block PATH setup)
+    if grep -q "BEGIN open-chad" "$TMP_HOME/.profile" 2>/dev/null; then
+        pass "install: PATH setup succeeds despite stale file in ~/.local/bin"
     else
-        fail "install: should log a message when replacing a regular file"
+        fail "install: PATH setup should succeed despite stale file"
     fi
     teardown_tmp
 }
 
-test_install_replaces_regular_file_with_yes
-test_install_replaces_regular_file_cds_with_yes
-test_install_regular_file_replacement_is_logged
-
-# ─── Section 2: Symlink collision — target is a directory ────────────────────
-# When the target path is a directory, the installer should abort with a clear
-# error rather than silently creating a broken symlink inside the directory.
-
-section "Symlink collision: target is a directory"
-
-test_install_aborts_when_target_is_directory() {
+test_install_succeeds_with_stale_directory_in_local_bin() {
     setup_tmp
-    mkdir -p "$TMP_HOME/.local/bin/open-chad"
+    touch "$TMP_HOME/.profile"
+    mkdir -p "$TMP_HOME/.local/bin/openchad"
 
     _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
 
-    # Should fail with non-zero exit (directory collision detected)
-    # INSTALL_EXIT 124 = timeout (wizard hung after symlink step), also counts as non-zero
-    [ "$INSTALL_EXIT" -ne 0 ] && \
-        pass "install: exits non-zero when target is a directory" || \
-        fail "install: should exit non-zero when target is a directory (got $INSTALL_EXIT)"
-
-    # Should print a clear error message about the directory
-    if echo "$INSTALL_OUTPUT" | grep -qi "directory\|dir\|cannot\|error\|collision"; then
-        pass "install: prints error message when target is a directory"
+    # PATH-based approach doesn't touch ~/.local/bin targets, so directory is irrelevant
+    if grep -q "BEGIN open-chad" "$TMP_HOME/.profile" 2>/dev/null; then
+        pass "install: PATH setup succeeds despite stale directory in ~/.local/bin"
     else
-        fail "install: should print error when target is a directory"
+        fail "install: PATH setup should succeed despite stale directory"
     fi
     teardown_tmp
 }
 
-test_install_aborts_when_target_is_directory
+test_install_succeeds_with_stale_file_in_local_bin
+test_install_succeeds_with_stale_directory_in_local_bin
 
 # ─── Section 3: Corrupted opencode.json — fail-fast (no silent wipe) ─────────
 # setup_mcp.sh should detect invalid JSON and fail with guidance. It must not
@@ -363,49 +381,50 @@ test_reinstall_preserves_user_keybinds
 
 section "--yes flag: suppresses prompts in all conflict scenarios"
 
-test_yes_flag_suppresses_file_collision_prompt() {
+test_yes_flag_completes_without_hanging() {
     setup_tmp
-    # Test with openchad (the canonical name after rename)
+    touch "$TMP_HOME/.profile"
+    # Pre-existing stale file should not cause a prompt
     echo "#!/bin/bash" > "$TMP_HOME/.local/bin/openchad"
 
     _run_install --yes --no-adv --no-omp --no-opencode-setup --no-env-check
 
-    # Symlink step completes in <1s. The wizard may timeout (124/137) — that's fine.
-    # What matters: the symlink was replaced (proves no prompt blocked it).
-    [ -L "$TMP_HOME/.local/bin/openchad" ] && \
-        pass "--yes: symlink replaced without hanging (exit $INSTALL_EXIT)" || \
-        fail "--yes: symlink not replaced — prompt may have blocked (exit $INSTALL_EXIT)"
+    # PATH setup completes in <1s. The wizard may timeout (124/137) — that's fine.
+    # What matters: PATH block was written (proves no prompt blocked it).
+    if grep -q "BEGIN open-chad" "$TMP_HOME/.profile" 2>/dev/null; then
+        pass "--yes: PATH setup completed without hanging (exit $INSTALL_EXIT)"
+    else
+        fail "--yes: PATH setup not completed — prompt may have blocked (exit $INSTALL_EXIT)"
+    fi
     teardown_tmp
 }
 
-test_yes_flag_suppresses_file_collision_prompt
+test_yes_flag_completes_without_hanging
 
-# ─── Section 7: update.sh symlink repair handles collisions ──────────────────
-# Verify update.sh has the same collision-handling logic as install.sh.
+# ─── Section 7: update.sh PATH repair handles stale entries ──────────────────
+# Verify update.sh calls setup_shell_profile.sh and removes stale aliases.
 
-section "update.sh: symlink repair handles file/dir collisions"
+section "update.sh: PATH repair handles stale entries"
 
-test_update_repair_symlink_handles_regular_file() {
-    # Verify update.sh _repair_symlink handles regular file collision
-    if grep -q '_repair_symlink\|repair.*symlink\|symlink.*repair' "$REPO_DIR/lib/update.sh"; then
-        pass "update.sh: contains symlink repair function"
+test_update_calls_setup_shell_profile() {
+    if grep -q 'setup_shell_profile' "$REPO_DIR/lib/update.sh"; then
+        pass "update.sh: calls setup_shell_profile.sh for PATH repair"
     else
-        fail "update.sh: missing symlink repair function"
+        fail "update.sh: missing setup_shell_profile.sh call"
     fi
 }
 
-test_update_repair_handles_file_not_symlink() {
-    # The repair function should handle regular-file collisions safely.
-    # Current implementation validates source and uses ln -sfn for atomic replacement.
-    if grep -qE 'ln -sfn.*\$src.*\$dest|\[ ! -e.*\$src\]' "$REPO_DIR/lib/update.sh"; then
-        pass "update.sh: repair function uses atomic replacement and source validation"
+test_update_removes_stale_aliases() {
+    # update.sh should clean up stale 'alias oc=' entries from rc files
+    if grep -qE "alias oc=|stale.*alias|remove.*alias" "$REPO_DIR/lib/update.sh"; then
+        pass "update.sh: removes stale aliases from rc files"
     else
-        fail "update.sh: repair function should use ln -sfn and source existence check"
+        fail "update.sh: should remove stale aliases from rc files"
     fi
 }
 
-test_update_repair_symlink_handles_regular_file
-test_update_repair_handles_file_not_symlink
+test_update_calls_setup_shell_profile
+test_update_removes_stale_aliases
 
 # ─── Section 8: check_environment.sh — conflict classification ───────────────
 # Verify conflict checks are properly classified (blocker vs. warning).

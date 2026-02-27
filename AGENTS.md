@@ -145,23 +145,26 @@ Makefile                    Project task runner — install, test, verify, updat
 tests/
   animation_test.sh         39 tests — centering math, palette, phases, regression guards
   session_title_test.sh     31 tests — SQLite correlation, no-fallback, filtering, format
-  llm_fuel_test.sh          72 tests — gauge rendering, API parsing, toggle, dynamic providers,
+  llm_fuel_test.sh          80 tests — gauge rendering, API parsing, toggle, dynamic providers,
                             active_providers robustness, ordering
-  install_test.sh           131 tests — idempotency, flags, file creation, MCP regression,
-                            openchad/oc manifest, rename regression
-  installer_validation_test.sh  115 tests — error paths, wizard flags, MCP schema/enabled/disabled,
-                            dev bundle config, subcommand routing, handler files
+  install_test.sh           183 tests — idempotency, flags, file creation, MCP regression,
+                            openchad/oc manifest, rename regression, sandbox infrastructure
+  installer_validation_test.sh  148 tests — error paths, wizard flags, MCP schema/enabled/disabled,
+                            dev bundle config, subcommand routing, handler files, agent colors
   discord_sanitizer_test.sh 34 tests — sanitizer pattern matching
-  discord_setup_test.sh     20 tests — setup wizard, config read/write
+  discord_setup_test.sh     45 tests — setup wizard, config read/write, Discord presence
+  discord_bridge_test.sh    20 tests — WSL2 IPC bridge, socat singleton, stale PID cleanup
   cds_test.sh               19 tests — date-stamped scratch dir launcher, openchad reference
   integration_test.sh       11 tests — end-to-end installer flow
-  installer_robustness_test.sh  24 tests — scenario-driven robustness
+  installer_robustness_test.sh  24 tests — scenario-driven robustness, PATH-based install
   setup_zsh_test.sh         32 tests — zsh plugin setup, managed .zshrc block
   shell_profile_test.sh     33 tests — shell profile PATH wiring, completions
-  oc_sessions_test.sh       33 tests — oc-list, oc-killall, rename regression
-  vision_test.sh            49 tests — Vision daemon setup, singleton startup, port health,
+  oc_sessions_test.sh       45 tests — oc-list, oc-killall, rename regression
+  oc_launch_test.sh         36 tests — oc alias resolution, subcommand forwarding, edge cases
+  vision_test.sh            51 tests — Vision daemon setup, singleton startup, port health,
                             doctor checks, wizard/update/uninstall wiring, idempotency,
                             security (0600 perms), AGENTS.md documentation
+  worktree_hint_parity_test.sh  2 tests — worktree navigation hint parity across docs
 
 docs/
   STATUS_BAR_IMPLEMENTATION.md   Implementation examples for status bar data sources
@@ -383,7 +386,7 @@ Exit code = number of failures (0 = all pass).
 ### Running tests
 
 ```bash
-# All tests (via npm — runs all 13 suites):
+# All tests (via npm — runs all 17 suites):
 npm test
 
 # Or run individual suites:
@@ -393,34 +396,41 @@ bash tests/animation_test.sh
 bash tests/session_title_test.sh
 bash tests/discord_sanitizer_test.sh
 bash tests/discord_setup_test.sh
-bash tests/installer_validation_test.sh
+bash tests/discord_bridge_test.sh
 bash tests/cds_test.sh
 bash tests/integration_test.sh
 bash tests/installer_robustness_test.sh
+bash tests/installer_validation_test.sh
 bash tests/setup_zsh_test.sh
 bash tests/shell_profile_test.sh
 bash tests/oc_sessions_test.sh
+bash tests/oc_launch_test.sh
+bash tests/vision_test.sh
+bash tests/worktree_hint_parity_test.sh
 ```
 
 ### Test counts
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 131 | Idempotency, flags, file creation, MCP regression, openchad/oc manifest |
-| `llm_fuel_test.sh` | 72 | Gauge rendering, API parsing, toggle, dynamic providers, active_providers robustness |
+| `install_test.sh` | 183 | Idempotency, flags, file creation, MCP regression, openchad/oc manifest, sandbox infrastructure |
+| `llm_fuel_test.sh` | 80 | Gauge rendering, API parsing, toggle, dynamic providers, active_providers robustness |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
-| `installer_validation_test.sh` | 115 | Error paths, wizard flags, MCP schema/enabled/disabled, bundle config, subcommand routing |
+| `installer_validation_test.sh` | 148 | Error paths, wizard flags, MCP schema/enabled/disabled, bundle config, subcommand routing, agent colors |
 | `discord_sanitizer_test.sh` | 34 | Sanitizer pattern matching |
-| `discord_setup_test.sh` | 20 | Setup wizard, config read/write |
+| `discord_setup_test.sh` | 45 | Setup wizard, config read/write, Discord presence |
+| `discord_bridge_test.sh` | 20 | WSL2 IPC bridge, socat singleton, stale PID cleanup |
 | `cds_test.sh` | 19 | Date-stamped scratch dir launcher, openchad reference |
 | `integration_test.sh` | 11 | End-to-end installer flow |
-| `installer_robustness_test.sh` | 24 | Scenario-driven robustness |
+| `installer_robustness_test.sh` | 24 | Scenario-driven robustness, PATH-based install |
 | `setup_zsh_test.sh` | 32 | Zsh plugin setup, managed .zshrc block |
 | `shell_profile_test.sh` | 33 | Shell profile PATH wiring, completions |
-| `oc_sessions_test.sh` | 33 | oc-list, oc-killall, rename regression |
-| `vision_test.sh` | 49 | Vision daemon setup, singleton startup, port health, doctor checks, wizard/update/uninstall wiring, security |
-| **Total** | **643** | |
+| `oc_sessions_test.sh` | 45 | oc-list, oc-killall, rename regression |
+| `oc_launch_test.sh` | 36 | oc alias resolution, subcommand forwarding, edge cases |
+| `vision_test.sh` | 51 | Vision daemon setup, singleton startup, port health, doctor checks, wizard/update/uninstall wiring, security |
+| `worktree_hint_parity_test.sh` | 2 | Worktree navigation hint parity across docs |
+| **Total** | **833** | |
 
 ### Testing conventions
 

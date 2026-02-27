@@ -11,8 +11,8 @@ tools:
   todowrite: false
   patch: false
   morph_edit: false
+  bash: false
   # === ALLOWED: Research tools ===
-  bash: true # READ-ONLY ONLY: technically enforced
   read: true
   glob: true
   grep: true

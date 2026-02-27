@@ -10,8 +10,8 @@ tools:
   todowrite: false
   patch: false
   morph_edit: false
+  bash: false
   # === ALLOWED: Exploration tools ===
-  bash: true # READ-ONLY ONLY
   read: true
   glob: true
   grep: true

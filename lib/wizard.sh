@@ -208,7 +208,7 @@ _multiselect() {
 clear 2>/dev/null || true
 echo ""
 echo -e "${C_STRING}  ╔═══════════════════════════════════════════════╗${C_RESET}"
-echo -e "${C_STRING}  ║${C_RESET}     ${C_ACCENT}open-chad v1.0 — Installation Wizard${C_RESET}     ${C_STRING}║${C_RESET}"
+echo -e "${C_STRING}  ║${C_RESET}     ${C_ACCENT}open-chad v1.2 — Installation Wizard${C_RESET}     ${C_STRING}║${C_RESET}"
 echo -e "${C_STRING}  ╚═══════════════════════════════════════════════╝${C_RESET}"
 echo ""
 echo -e "  ${C_FG}This wizard installs open-chad and configures OpenCode${C_RESET}"
