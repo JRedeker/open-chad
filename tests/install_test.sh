@@ -349,6 +349,49 @@ test_setup_opencode_syncs_agents
 test_setup_opencode_syncs_instructions
 test_setup_opencode_is_idempotent
 
+test_setup_opencode_wires_md_table_formatter() {
+    setup_tmp_env
+    run_setup_opencode_sandboxed --skip-commands
+
+    local plugin_json="$TMP_HOME/.config/opencode/opencode.json"
+    assert_file_exists "$plugin_json"
+
+    # Verify md-table-formatter plugin is present in plugin array
+    if node -e "
+const c=JSON.parse(require('fs').readFileSync('$plugin_json','utf8'));
+process.exit((c.plugin||[]).includes('@franlol/opencode-md-table-formatter@latest')?0:1);
+" 2>/dev/null; then
+        pass "setup_opencode.sh: md-table-formatter plugin wired into opencode.json"
+    else
+        fail "setup_opencode.sh: md-table-formatter plugin missing from opencode.json"
+    fi
+    teardown_tmp_env
+}
+
+test_setup_opencode_md_table_formatter_idempotent() {
+    setup_tmp_env
+    # Run twice, should only have one entry
+    run_setup_opencode_sandboxed --skip-commands
+    run_setup_opencode_sandboxed --skip-commands
+
+    local plugin_json="$TMP_HOME/.config/opencode/opencode.json"
+    local count
+    count=$(node -e "
+const c=JSON.parse(require('fs').readFileSync('$plugin_json','utf8'));
+console.log((c.plugin||[]).filter(p=>p==='@franlol/opencode-md-table-formatter@latest').length);
+" 2>/dev/null || echo "0")
+
+    if [ "$count" -eq 1 ]; then
+        pass "setup_opencode.sh: md-table-formatter plugin idempotent (count=$count)"
+    else
+        fail "setup_opencode.sh: md-table-formatter plugin not idempotent (count=$count, expected 1)"
+    fi
+    teardown_tmp_env
+}
+
+test_setup_opencode_wires_md_table_formatter
+test_setup_opencode_md_table_formatter_idempotent
+
 # ─── Section 4: setup_omp.sh — go install ─────────────────────────────────────
 
 section "lib/setup_omp.sh — go install omp"

@@ -654,6 +654,7 @@ The following migration fixes were applied in the v1.2 rename pass:
 | ADV lock | `config/opencode/adv-lock.json` | Pinned commit SHA for ADV install |
 | ADV commands (bundled) | `config/opencode/command/adv-*.md` | Offline fallback command docs |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
+| md-table-formatter | npm package | Markdown table formatting for OpenCode (concealment mode) |
 | Agents | `~/.config/opencode/agents/` | build, general, plan, scout, refine, librarian, explore, adv-researcher |
 | Instructions | `~/.config/opencode/instructions/` | identity, rules, shell_strategy, mcp-tools, worktree-guide, lbp, post_install_verification |
 | Commands | `~/.config/opencode/command/adv-*.md` | ADV slash commands |

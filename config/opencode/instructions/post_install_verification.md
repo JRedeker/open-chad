@@ -38,6 +38,11 @@ confirm each item works:
    Note: adv-researcher is a hidden sub-agent used by /adv-research; it may
    not appear in the primary agent picker but should exist as a file.
 
+7. MD-TABLE-FORMATTER — Check your opencode.json plugin array contains:
+   `@franlol/opencode-md-table-formatter@latest`
+   Expected: markdown tables are auto-formatted after AI text completion.
+   If missing, the plugin won't load and tables may appear misaligned.
+
 Please report the status of each item (OK / FAIL + error message).
 ```
 
@@ -51,6 +56,7 @@ Please report the status of each item (OK / FAIL + error message).
 | ADV missing | `bash lib/setup_adv.sh` |
 | lgrep missing | Check `~/.config/opencode/opencode.json` for lgrep MCP entry |
 | morph missing | `bash lib/setup_morph.sh` |
+| md-table-formatter missing | `bash lib/setup_opencode.sh` (wires default plugins) |
 | Theme wrong | `bash lib/setup_opencode.sh` |
 | Agents missing | `bash lib/setup_opencode.sh` |
 

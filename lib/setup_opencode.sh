@@ -406,7 +406,7 @@ INSTRUCTIONS_JSON="[$(
 )]"
 
 bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-    "{\"instructions\":$INSTRUCTIONS_JSON,\"theme\":\"ayu-dark\"}"
-ok "Instructions and theme merged into $OPENCODE_JSON"
+    "{\"instructions\":$INSTRUCTIONS_JSON,\"theme\":\"ayu-dark\",\"plugin\":[\"@franlol/opencode-md-table-formatter@latest\"]}"
+ok "Instructions, theme, and default plugins merged into $OPENCODE_JSON"
 
 ok "OpenCode setup complete."
