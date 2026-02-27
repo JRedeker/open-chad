@@ -86,10 +86,11 @@ bridges the gap using `socat` + `npiperelay.exe`. Install the two dependencies o
 # 1. Install socat (Linux side)
 sudo apt install socat
 
-# 2. Install npiperelay (Windows side, accessible from WSL)
-go install github.com/jstarks/npiperelay@latest
-# Ensure $GOPATH/bin is on PATH — add to ~/.bashrc or ~/.zshrc:
-export PATH="$PATH:$(go env GOPATH)/bin"
+# 2. Install npiperelay (cross-compiled for Windows)
+GOOS=windows GOARCH=amd64 go install github.com/jstarks/npiperelay@latest
+
+# 3. Optional: add to PATH for easier access
+ln -sf "$(go env GOPATH)/bin/windows_amd64/npiperelay.exe" "$(go env GOPATH)/bin/npiperelay.exe"
 ```
 
 After installing, the bridge starts automatically on the next `openchad` launch.

@@ -9,7 +9,7 @@ For user-facing documentation, see [README.md](README.md).
 
 **openchad** is a tmux-powered command center for [OpenCode](https://github.com/opencode-ai/opencode). It wraps each OpenCode session in an isolated tmux session with a themed two-row status bar, boot animation, live LLM quota gauges, system metrics, and optional Discord Rich Presence.
 
-> **Note:** The canonical command is `openchad` (one word). The short alias `oc` is also installed. The old hyphenated name `open-chad` is no longer used as a command — stale aliases and symlinks are auto-cleaned by `install.sh` and `openchad update`.
+> **Note:** The canonical command is `openchad` (one word). The short alias `oc` is also installed. The old hyphenated name `open-chad` is no longer used as a command — stale aliases and are auto-cleaned by `install.sh` and `openchad update`.
 
 - **Repo**: `https://github.com/JRedeker/open-chad.git`
 - **Branch**: `trunk` (default), remote `origin`
@@ -36,9 +36,6 @@ bin/
 lib/
   opencode_env.sh           Cache dir setup (XDG_RUNTIME_DIR/open-chad or /tmp fallback).
                             Sourced by most scripts. Exports OPEN_CHAD_CACHE_DIR.
-  symlink_manifest.sh       Single source of truth for all managed ~/.local/bin symlinks.
-                            MANAGED_SYMLINKS associative array consumed by install.sh,
-                            update.sh, doctor, uninstall, and installer tests.
   animation.sh              Boot animation — centered logo, 6-frame color cycling,
                             typewriter subtitle, project context. True-color ANSI.
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
@@ -60,9 +57,9 @@ lib/
   json_merge.sh             Idempotent additive JSON merge (Node.js). Arrays deduped,
                             scalars only added if not present, nested objects recursed.
   openchad_version.sh       `openchad version` handler — git describe or hardcoded fallback
-  openchad_doctor.sh        `openchad doctor` handler — validates symlinks, tmux theme,
-                            cache dir, legacy open-chad migration (symlinks + aliases)
-  openchad_uninstall.sh     `openchad uninstall` handler — removes managed symlinks,
+  openchad_doctor.sh        `openchad doctor` handler — validates PATH setup, tmux theme,
+                            cache dir, legacy open-chad migration
+  openchad_uninstall.sh     `openchad uninstall` handler — removes PATH block,
                             tmux theme block, shell profile blocks via manifest
   openchad_metrics.sh       `openchad metrics` handler — show/log/export system metrics
   openchad_changelog.sh     `openchad changelog` handler — git log since last tag
@@ -114,7 +111,7 @@ lib/
                             fast-syntax-highlighting). Opt-in chsh prompt in interactive
                             mode. Called by wizard.sh (Step 8) and update.sh (non-fatal).
   update.sh                 `openchad update` backend: git pull --ff-only, re-runs all
-                            setup modules, repairs symlinks via manifest, removes stale
+                            setup modules, repairs via manifest, removes stale
                             open-chad aliases/PATH from rc files. .git detection +
                             releases URL. Diverged branch recovery guide.
   wizard.sh                 Interactive 10-step install wizard. YES_MODE for CI/--yes.
@@ -151,7 +148,7 @@ tests/
   llm_fuel_test.sh          72 tests — gauge rendering, API parsing, toggle, dynamic providers,
                             active_providers robustness, ordering
   install_test.sh           131 tests — idempotency, flags, file creation, MCP regression,
-                            openchad/oc symlinks, manifest, rename regression
+                            openchad/oc manifest, rename regression
   installer_validation_test.sh  115 tests — error paths, wizard flags, MCP schema/enabled/disabled,
                             dev bundle config, subcommand routing, handler files
   discord_sanitizer_test.sh 34 tests — sanitizer pattern matching
@@ -409,7 +406,7 @@ bash tests/oc_sessions_test.sh
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 131 | Idempotency, flags, file creation, MCP regression, openchad/oc symlinks, manifest |
+| `install_test.sh` | 131 | Idempotency, flags, file creation, MCP regression, openchad/oc manifest |
 | `llm_fuel_test.sh` | 72 | Gauge rendering, API parsing, toggle, dynamic providers, active_providers robustness |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
@@ -552,8 +549,8 @@ The following migration fixes were applied in the v1.2 rename pass:
 |----|--------|-----|
 | RENAME-001 | `bin/openchad` | Renamed from `bin/open-chad`. Thin dispatcher routes subcommands via `case` statement to dedicated handler scripts. |
 | RENAME-002 | `bin/oc` | New short alias. Forwards all args to openchad; adds `oc attach` and `oc switch` session helpers. |
-| RENAME-003 | `lib/symlink_manifest.sh` | New. Single source of truth for all managed `~/.local/bin` symlinks. Consumed by install.sh, update.sh, doctor, uninstall, and tests. |
-| RENAME-004 | `install.sh`, `lib/update.sh` | Auto-removes stale `alias oc='open-chad'` and `export PATH=.../open-chad/bin` from `~/.zshrc`, `~/.bashrc`, `~/.bash_profile`. Also removes stale `open-chad` symlink from `~/.local/bin`. |
+| RENAME-003 | `lib/setup_shell_profile.sh` | Adds `~/dev/open-chad/bin` directly to PATH in shell rc files. No symlink management. |
+| RENAME-004 | `install.sh`, `lib/update.sh` | Auto-removes stale `alias oc='open-chad'` and `export PATH=.../open-chad/bin` from `~/.zshrc`, `~/.bashrc`, `~/.bash_profile`. |
 | RENAME-005 | `lib/openchad_doctor.sh` | Detects stale `oc` alias in shell rc files and warns with remediation instructions. |
 | RENAME-006 | `lib/collect_metrics.sh`, `lib/status_right.sh` | Dynamic provider configuration. Collector reads `providers` array from `open-chad.json`, writes `active_providers` cache. Renderer reads cache for dynamic gauge rendering. |
 

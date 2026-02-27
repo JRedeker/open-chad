@@ -47,30 +47,6 @@ else
     ok "Vision binary not found — skipping daemon stop"
 fi
 
-step "Removing managed symlinks from ~/.local/bin"
-
-# Source the shared manifest
-# shellcheck source=symlink_manifest.sh
-source "$REPO_DIR/lib/symlink_manifest.sh"
-
-DEST_DIR="$HOME/.local/bin"
-for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
-    _link_path="$DEST_DIR/$_link_name"
-    if [ -L "$_link_path" ]; then
-        rm -f "$_link_path"
-        ok "Removed symlink: $_link_path"
-    elif [ -e "$_link_path" ]; then
-        warn "Skipping non-symlink: $_link_path (remove manually if needed)"
-    fi
-done
-unset _link_name
-
-# Also remove legacy open-chad symlink if present
-if [ -L "$DEST_DIR/open-chad" ]; then
-    rm -f "$DEST_DIR/open-chad"
-    ok "Removed legacy symlink: $DEST_DIR/open-chad"
-fi
-
 # ─── Remove tmux theme block ──────────────────────────────────────────────────
 step "Removing tmux theme block from ~/.tmux.conf"
 TMUX_CONF="$HOME/.tmux.conf"
@@ -98,6 +74,7 @@ unset _profile
 
 echo ""
 echo -e "${C_GREEN}openchad uninstalled.${C_RESET}"
+echo "Shell profile PATH blocks removed."
 echo "The repo at $REPO_DIR was not removed."
 echo "To fully remove: rm -rf $REPO_DIR"
 echo ""

@@ -7,17 +7,16 @@
 #
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  WARNING: THIS TEST SUITE RUNS THE REAL INSTALLER (install.sh) AND SETUP   ║
-# ║  SCRIPTS (setup_opencode.sh, etc.) WHICH CREATE SYMLINKS AND OVERWRITE     ║
-# ║  CONFIG FILES.                                                             ║
+# ║  SCRIPTS (setup_opencode.sh, etc.) WHICH MODIFY CONFIG FILES.              ║
 # ║                                                                            ║
 # ║  ALL mutating operations are sandboxed to a temp directory. If the sandbox ║
 # ║  is bypassed or broken, the following REAL paths can be damaged:           ║
 # ║                                                                            ║
-# ║    ~/.local/bin/openchad, oc, cds, oc-list, oc-killall  (symlinks)        ║
 # ║    ~/.config/opencode/agents/*                           (agent files)     ║
 # ║    ~/.config/opencode/instructions/*                     (instructions)    ║
 # ║    ~/.config/opencode/command/*                          (ADV commands)    ║
 # ║    ~/.tmux.conf                                          (tmux theme)      ║
+# ║    ~/.zshrc / ~/.bashrc                                  (shell PATH)      ║
 # ║                                                                            ║
 # ║  DO NOT run this test from inside an OpenCode/tmux session that you care   ║
 # ║  about. If something goes wrong, run: bash install.sh --yes                ║
@@ -60,7 +59,30 @@ assert_count_eq() {
     actual=$(grep -c "$2" "$1" 2>/dev/null || echo 0)
     [ "$actual" -eq "$3" ] && pass "count($2)=$3 in $1" || fail "count($2)=$actual (expected $3) in $1"
 }
-assert_symlink() { [ -L "$1" ] && pass "symlink: $1" || fail "not a symlink: $1"; }
+# Check that an rc file contains the open-chad PATH block
+assert_path_in_rc() {
+    local rc_file="$1"
+    if [ -f "$rc_file" ] && grep -qF "BEGIN open-chad" "$rc_file"; then
+        pass "PATH block in $(basename "$rc_file")"
+    else
+        fail "PATH block missing in $(basename "$rc_file")"
+    fi
+}
+
+# Check that PATH block is in ANY of the common rc files
+assert_path_in_any_rc() {
+    local found=0
+    for rc in "$TMP_HOME/.zshrc" "$TMP_HOME/.bashrc" "$TMP_HOME/.profile"; do
+        if [ -f "$rc" ] && grep -qF "BEGIN open-chad" "$rc" 2>/dev/null; then
+            pass "PATH block found in $(basename "$rc")"
+            found=1
+            break
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        fail "PATH block not found in any rc file (.zshrc, .bashrc, .profile)"
+    fi
+}
 
 section() { echo ""; echo "── $1 ──"; }
 
@@ -473,34 +495,32 @@ test_install_no_opencode_setup_includes_skip_adv
 
 # ─── Section 7: install.sh idempotency ────────────────────────────────────────
 
-section "install.sh — idempotency (tmux theme + symlink)"
+section "install.sh — idempotency (tmux theme + PATH)"
 
-test_install_symlink_idempotent() {
+test_install_path_idempotent() {
     setup_tmp_env
-    # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
+    # Run install twice with all sub-steps skipped (isolates tmux+PATH behavior)
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/openchad"
-    assert_symlink "$TMP_HOME/.local/bin/cds"
+    # PATH block should be present in one of the shell rc files
+    assert_path_in_any_rc
     teardown_tmp_env
 }
 
-test_install_cds_symlink_created() {
+test_install_path_includes_bin_dir() {
     setup_tmp_env
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/cds"
-    teardown_tmp_env
-}
-
-test_install_cds_symlink_points_to_bin_cds() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    local target
-    target=$(readlink "$TMP_HOME/.local/bin/cds" 2>/dev/null || echo "")
-    if echo "$target" | grep -q "bin/cds"; then
-        pass "cds symlink points to bin/cds"
-    else
-        fail "cds symlink target unexpected: $target"
+    # The PATH export should include the repo's bin directory in one of the rc files
+    local found=0
+    for rc in "$TMP_HOME/.zshrc" "$TMP_HOME/.bashrc" "$TMP_HOME/.profile"; do
+        if [ -f "$rc" ] && grep -qE 'export PATH=.*bin.*PATH' "$rc" 2>/dev/null; then
+            pass "PATH export includes bin directory in $(basename "$rc")"
+            found=1
+            break
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        fail "PATH export missing bin directory in all rc files"
     fi
     teardown_tmp_env
 }
@@ -558,57 +578,25 @@ test_install_tmux_popup_default_and_override_sizing() {
         || fail "theme.conf does not reference omp_popup.sh"
 }
 
-test_install_symlink_idempotent
-test_install_cds_symlink_created
-test_install_cds_symlink_points_to_bin_cds
+test_install_path_idempotent
+test_install_path_includes_bin_dir
 test_install_tmux_theme_not_duplicated
 test_install_tmux_popup_keybind_present_and_not_duplicated
 test_install_tmux_popup_default_and_override_sizing
 
-test_install_oc_list_symlink_created() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/oc-list"
-    teardown_tmp_env
+# Verify all required binaries exist in the repo's bin/ directory
+test_install_binaries_exist_in_repo() {
+    local binaries=("openchad" "oc" "cds" "oc-list" "oc-killall")
+    for bin in "${binaries[@]}"; do
+        if [ -f "$REPO_DIR/bin/$bin" ]; then
+            pass "binary exists in repo: bin/$bin"
+        else
+            fail "binary missing from repo: bin/$bin"
+        fi
+    done
 }
 
-test_install_oc_killall_symlink_created() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/oc-killall"
-    teardown_tmp_env
-}
-
-test_install_oc_list_symlink_points_to_bin() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    local target
-    target=$(readlink "$TMP_HOME/.local/bin/oc-list" 2>/dev/null || echo "")
-    if echo "$target" | grep -q "bin/oc-list"; then
-        pass "oc-list symlink points to bin/oc-list"
-    else
-        fail "oc-list symlink target unexpected: $target"
-    fi
-    teardown_tmp_env
-}
-
-test_install_oc_killall_symlink_points_to_bin() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    local target
-    target=$(readlink "$TMP_HOME/.local/bin/oc-killall" 2>/dev/null || echo "")
-    if echo "$target" | grep -q "bin/oc-killall"; then
-        pass "oc-killall symlink points to bin/oc-killall"
-    else
-        fail "oc-killall symlink target unexpected: $target"
-    fi
-    teardown_tmp_env
-}
-
-test_install_oc_list_symlink_created
-test_install_oc_killall_symlink_created
-test_install_oc_list_symlink_points_to_bin
-test_install_oc_killall_symlink_points_to_bin
+test_install_binaries_exist_in_repo
 
 # ─── Section 8: lib/opencode_env.sh — cache dir setup ────────────────────────
 
@@ -1156,26 +1144,34 @@ test_open_chad_discord_log_created_with_0600() {
 test_open_chad_discord_stderr_logged_not_devnull
 test_open_chad_discord_log_created_with_0600
 
-# ─── Section 21: ISSUE-006 — Atomic ln -sfn in install.sh and update.sh ───────
+# ─── Section 21: PATH-based approach (v1.1) ──────────────────────────────────────
 
-section "ISSUE-006 — Atomic ln -sfn in install.sh and update.sh"
+section "PATH-based approach (v1.1 — no symlinks)"
 
-test_install_sh_uses_ln_sfn() {
-    assert_contains "$REPO_DIR/install.sh" "ln -sfn"
+test_install_sh_calls_setup_shell_profile() {
+    # Since v1.1, install.sh calls setup_shell_profile.sh to add bin/ to PATH
+    assert_contains "$REPO_DIR/install.sh" "setup_shell_profile"
 }
 
-test_update_sh_uses_ln_sfn() {
-    assert_contains "$REPO_DIR/lib/update.sh" "ln -sfn"
+test_update_sh_calls_setup_shell_profile() {
+    # update.sh also ensures PATH is current
+    assert_contains "$REPO_DIR/lib/update.sh" "setup_shell_profile"
 }
 
-test_install_sh_no_rm_then_ln() {
-    # Should not have the old non-atomic rm -f + ln -s pattern
-    assert_not_contains "$REPO_DIR/install.sh" 'rm -f.*&&.*ln -s '
+test_install_sh_no_symlink_manifest() {
+    # install.sh should NOT reference symlink_manifest.sh anymore
+    assert_not_contains "$REPO_DIR/install.sh" "symlink_manifest"
 }
 
-test_install_sh_uses_ln_sfn
-test_update_sh_uses_ln_sfn
-test_install_sh_no_rm_then_ln
+test_update_sh_no_symlink_manifest() {
+    # update.sh should NOT reference symlink_manifest.sh anymore
+    assert_not_contains "$REPO_DIR/lib/update.sh" "symlink_manifest"
+}
+
+test_install_sh_calls_setup_shell_profile
+test_update_sh_calls_setup_shell_profile
+test_install_sh_no_symlink_manifest
+test_update_sh_no_symlink_manifest
 
 # ─── Section 22: ISSUE-008 — Secure wizard log creation ──────────────────────
 
@@ -1290,43 +1286,28 @@ test_oc_bin_syntax_ok
 test_oc_execs_openchad
 test_oc_forwards_all_args
 
-section "install.sh — openchad/oc symlink set"
+section "install.sh — openchad/oc binaries and PATH setup"
 
-test_install_creates_openchad_symlink() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/openchad"
-    teardown_tmp_env
+test_install_binaries_exist() {
+    local binaries=("openchad" "oc" "cds" "oc-list" "oc-killall")
+    for bin in "${binaries[@]}"; do
+        assert_file_exists "$REPO_DIR/bin/$bin"
+    done
 }
 
-test_install_creates_oc_symlink() {
+test_install_path_written_to_rc() {
     setup_tmp_env
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    assert_symlink "$TMP_HOME/.local/bin/oc"
-    teardown_tmp_env
-}
-
-test_install_openchad_points_to_bin_openchad() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    local target
-    target=$(readlink "$TMP_HOME/.local/bin/openchad" 2>/dev/null || echo "")
-    echo "$target" | grep -q "bin/openchad" && pass "openchad symlink points to bin/openchad" || fail "openchad symlink target unexpected: $target"
-    teardown_tmp_env
-}
-
-test_install_oc_points_to_bin_oc() {
-    setup_tmp_env
-    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
-    local target
-    target=$(readlink "$TMP_HOME/.local/bin/oc" 2>/dev/null || echo "")
-    echo "$target" | grep -q "bin/oc" && pass "oc symlink points to bin/oc" || fail "oc symlink target unexpected: $target"
+    # The PATH block should be written to one of the shell rc files
+    assert_path_in_any_rc
     teardown_tmp_env
 }
 
 test_install_does_not_create_open_chad_symlink() {
     setup_tmp_env
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
+    # With new PATH-based approach, we don't create symlinks at all
+    # But we also shouldn't have a stale open-chad symlink
     if [ -L "$TMP_HOME/.local/bin/open-chad" ]; then
         fail "install.sh still creates open-chad symlink (should be removed)"
     else
@@ -1335,35 +1316,24 @@ test_install_does_not_create_open_chad_symlink() {
     teardown_tmp_env
 }
 
-test_install_creates_openchad_symlink
-test_install_creates_oc_symlink
-test_install_openchad_points_to_bin_openchad
-test_install_oc_points_to_bin_oc
+test_install_binaries_exist
+test_install_path_written_to_rc
 test_install_does_not_create_open_chad_symlink
 
-section "lib/update.sh — full symlink repair set"
+section "lib/update.sh — PATH repair"
 
-test_update_repairs_openchad_symlink() {
-    grep -q 'openchad' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references openchad" || fail "lib/update.sh does not reference openchad"
+test_update_ensures_path_is_current() {
+    # update.sh should call setup_shell_profile.sh to ensure PATH is current
+    grep -q 'setup_shell_profile' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh calls setup_shell_profile.sh" || fail "lib/update.sh does not call setup_shell_profile.sh"
 }
 
-test_update_repairs_oc_symlink() {
-    # update.sh uses manifest-based loop; verify it sources symlink_manifest.sh (which defines oc)
-    grep -q '"oc"\|bin/oc\|symlink_manifest' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc" || fail "lib/update.sh does not reference oc"
+test_update_removes_stale_aliases() {
+    # update.sh should still remove stale aliases
+    grep -q "alias.*oc.*open-chad\|_remove_stale_alias" "$REPO_DIR/lib/update.sh" && pass "lib/update.sh removes stale aliases" || fail "lib/update.sh does not remove stale aliases"
 }
 
-test_update_repairs_oc_list_symlink() {
-    grep -q 'oc-list' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc-list" || fail "lib/update.sh does not reference oc-list"
-}
-
-test_update_repairs_oc_killall_symlink() {
-    grep -q 'oc-killall' "$REPO_DIR/lib/update.sh" && pass "lib/update.sh references oc-killall" || fail "lib/update.sh does not reference oc-killall"
-}
-
-test_update_repairs_openchad_symlink
-test_update_repairs_oc_symlink
-test_update_repairs_oc_list_symlink
-test_update_repairs_oc_killall_symlink
+test_update_ensures_path_is_current
+test_update_removes_stale_aliases
 
 section "lib/check_environment.sh — warn() defined"
 
@@ -1390,38 +1360,19 @@ test_check_env_python3_uses_warn_not_echo() {
 test_check_env_warn_defined
 test_check_env_python3_uses_warn_not_echo
 
-section "lib/symlink_manifest.sh — shared manifest"
+section "No symlink manifest (v1.1 PATH-based approach)"
 
-test_symlink_manifest_exists() {
-    assert_file_exists "$REPO_DIR/lib/symlink_manifest.sh"
+test_symlink_manifest_not_created() {
+    # Since v1.1, we use PATH directly instead of symlinks
+    # The symlink_manifest.sh file should NOT exist
+    if [ -f "$REPO_DIR/lib/symlink_manifest.sh" ]; then
+        fail "symlink_manifest.sh still exists (should be removed in v1.1)"
+    else
+        pass "symlink_manifest.sh removed (PATH-based approach)"
+    fi
 }
 
-test_symlink_manifest_contains_openchad() {
-    grep -q 'openchad' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains openchad" || fail "symlink_manifest.sh missing openchad"
-}
-
-test_symlink_manifest_contains_oc() {
-    grep -q '"oc"\|bin/oc' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc" || fail "symlink_manifest.sh missing oc"
-}
-
-test_symlink_manifest_contains_cds() {
-    grep -q 'cds' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains cds" || fail "symlink_manifest.sh missing cds"
-}
-
-test_symlink_manifest_contains_oc_list() {
-    grep -q 'oc-list' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc-list" || fail "symlink_manifest.sh missing oc-list"
-}
-
-test_symlink_manifest_contains_oc_killall() {
-    grep -q 'oc-killall' "$REPO_DIR/lib/symlink_manifest.sh" 2>/dev/null && pass "symlink_manifest.sh contains oc-killall" || fail "symlink_manifest.sh missing oc-killall"
-}
-
-test_symlink_manifest_exists
-test_symlink_manifest_contains_openchad
-test_symlink_manifest_contains_oc
-test_symlink_manifest_contains_cds
-test_symlink_manifest_contains_oc_list
-test_symlink_manifest_contains_oc_killall
+test_symlink_manifest_not_created
 
 # ─── Section: ADV Bundling ────────────────────────────────────────────────────
 
@@ -1759,24 +1710,31 @@ test_sandbox_assert_catches_unsandboxed() {
 
 test_sandbox_install_writes_to_tmp_only() {
     setup_tmp_env
-    local real_symlink="$_REAL_HOME/.local/bin/openchad"
+    local real_rc=""
     local real_mtime_before=""
-    [ -L "$real_symlink" ] && real_mtime_before=$(stat -c '%Y' "$real_symlink" 2>/dev/null || echo "")
+    # Find the first real rc file that exists
+    for rc in "$_REAL_HOME/.zshrc" "$_REAL_HOME/.bashrc" "$_REAL_HOME/.profile"; do
+        if [ -f "$rc" ]; then
+            real_rc="$rc"
+            break
+        fi
+    done
+    [ -n "$real_rc" ] && real_mtime_before=$(stat -c '%Y' "$real_rc" 2>/dev/null || echo "")
 
     run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
 
-    # Verify the sandboxed install wrote to TMP, not real home
-    assert_symlink "$TMP_HOME/.local/bin/openchad"
+    # Verify the sandboxed install wrote PATH to TMP, not real home
+    assert_path_in_any_rc
 
-    # Verify real symlink was NOT modified
+    # Verify real rc file was NOT modified
     if [ -n "$real_mtime_before" ]; then
         local real_mtime_after
-        real_mtime_after=$(stat -c '%Y' "$real_symlink" 2>/dev/null || echo "")
+        real_mtime_after=$(stat -c '%Y' "$real_rc" 2>/dev/null || echo "")
         [ "$real_mtime_before" = "$real_mtime_after" ] \
-            && pass "sandbox: real ~/.local/bin/openchad not modified by sandboxed install" \
-            || fail "sandbox: real ~/.local/bin/openchad WAS modified (mtime changed)"
+            && pass "sandbox: real $(basename "$real_rc") not modified by sandboxed install" \
+            || fail "sandbox: real $(basename "$real_rc") WAS modified (mtime changed)"
     else
-        pass "sandbox: real symlink check skipped (no pre-existing symlink)"
+        pass "sandbox: real rc check skipped (no pre-existing rc file)"
     fi
     teardown_tmp_env
 }
@@ -1816,8 +1774,9 @@ test_no_raw_installer_calls_outside_helpers() {
         local lineno="${line%%:*}"
         local content="${line#*:}"
 
-        # Skip the helper function bodies (run_install_sandboxed / run_setup_opencode_sandboxed)
-        [ "$lineno" -ge 120 ] && [ "$lineno" -le 155 ] && continue
+        # Skip the helper function bodies (run_install_sandboxed: 143-153, run_setup_opencode_sandboxed: 158-171)
+        ([ "$lineno" -ge 143 ] && [ "$lineno" -le 153 ]) && continue
+        ([ "$lineno" -ge 158 ] && [ "$lineno" -le 171 ]) && continue
         # Skip comments
         echo "$content" | grep -qE '^\s*#' && continue
         # Skip assert_contains / grep -q (read-only checks on file content)

@@ -742,20 +742,20 @@ test_cds_does_not_exec_opencode_directly() {
     fi
 }
 
-test_install_wires_cds_symlink() {
-    # install.sh uses manifest-based loop; verify it sources symlink_manifest.sh (which defines cds)
-    if grep -q 'bin/cds\|cds\|symlink_manifest' "$REPO_DIR/install.sh"; then
-        pass "install.sh wires cds symlink"
+test_install_wires_cds_path() {
+    # install.sh calls setup_shell_profile.sh which adds bin/ to PATH
+    if grep -q 'setup_shell_profile\|cds' "$REPO_DIR/install.sh"; then
+        pass "install.sh sets up PATH for cds"
     else
-        fail "install.sh does not wire cds symlink"
+        fail "install.sh does not set up PATH for cds"
     fi
 }
 
-test_update_wires_cds_symlink() {
-    if grep -q 'bin/cds\|cds' "$REPO_DIR/lib/update.sh"; then
-        pass "lib/update.sh wires cds symlink"
+test_update_wires_cds_path() {
+    if grep -q 'setup_shell_profile\|cds' "$REPO_DIR/lib/update.sh"; then
+        pass "lib/update.sh sets up PATH for cds"
     else
-        fail "lib/update.sh does not wire cds symlink"
+        fail "lib/update.sh does not set up PATH for cds"
     fi
 }
 
@@ -764,8 +764,8 @@ test_cds_bin_executable
 test_cds_bin_syntax_ok
 test_cds_references_open_chad
 test_cds_does_not_exec_opencode_directly
-test_install_wires_cds_symlink
-test_update_wires_cds_symlink
+test_install_wires_cds_path
+test_update_wires_cds_path
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Bundle selection regression tests
@@ -1230,31 +1230,28 @@ test_openchad_routes_doctor
 test_openchad_routes_uninstall
 test_openchad_help_mentions_all_subcommands
 
-section "lib/update.sh — full symlink repair parity"
+section "lib/update.sh — PATH setup (v1.1)"
 
-test_update_repairs_all_five_symlinks() {
-    local missing=0
-    for name in openchad oc cds oc-list oc-killall; do
-        if grep -q "$name" "$REPO_DIR/lib/update.sh" 2>/dev/null; then
-            pass "lib/update.sh: repairs $name symlink"
-        else
-            fail "lib/update.sh: missing repair for $name symlink"
-            missing=$((missing + 1))
-        fi
-    done
-}
-
-test_update_does_not_repair_open_chad() {
-    # The old hyphenated name should not be re-created by update
-    if grep -q '"open-chad"\|bin/open-chad' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
-        fail "lib/update.sh still references open-chad symlink (should be removed)"
+test_update_ensures_path_is_current() {
+    # update.sh should call setup_shell_profile.sh to ensure PATH is current
+    if grep -q 'setup_shell_profile' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+        pass "lib/update.sh: calls setup_shell_profile.sh"
     else
-        pass "lib/update.sh does not reference open-chad symlink"
+        fail "lib/update.sh: missing setup_shell_profile.sh call"
     fi
 }
 
-test_update_repairs_all_five_symlinks
-test_update_does_not_repair_open_chad
+test_update_removes_stale_aliases() {
+    # update.sh should remove stale aliases from rc files
+    if grep -q '_remove_stale_alias\|stale.*alias' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+        pass "lib/update.sh: removes stale aliases"
+    else
+        fail "lib/update.sh: missing stale alias removal"
+    fi
+}
+
+test_update_ensures_path_is_current
+test_update_removes_stale_aliases
 
 section "lib/openchad_version.sh — version subcommand handler"
 
@@ -1304,15 +1301,16 @@ test_uninstall_handler_syntax_ok() {
     bash -n "$REPO_DIR/lib/openchad_uninstall.sh" 2>/dev/null && pass "lib/openchad_uninstall.sh syntax OK" || fail "lib/openchad_uninstall.sh syntax error"
 }
 
-test_uninstall_uses_manifest() {
-    grep -q 'symlink_manifest\|MANAGED_SYMLINKS' "$REPO_DIR/lib/openchad_uninstall.sh" 2>/dev/null \
-        && pass "lib/openchad_uninstall.sh uses symlink manifest" \
-        || fail "lib/openchad_uninstall.sh does not use symlink manifest"
+test_uninstall_removes_path_block() {
+    # uninstall should remove PATH blocks from rc files
+    grep -q 'OPEN-CHAD\|BEGIN open-chad\|profile' "$REPO_DIR/lib/openchad_uninstall.sh" 2>/dev/null \
+        && pass "lib/openchad_uninstall.sh removes PATH blocks" \
+        || fail "lib/openchad_uninstall.sh does not remove PATH blocks"
 }
 
 test_uninstall_handler_exists
 test_uninstall_handler_syntax_ok
-test_uninstall_uses_manifest
+test_uninstall_removes_path_block
 
 section "Makefile — project task runner"
 

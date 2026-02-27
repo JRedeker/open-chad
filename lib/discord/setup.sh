@@ -236,7 +236,18 @@ cmd_status() {
                 # Native Linux — hide bridge section entirely
                 ;;
             missing-deps)
-                echo -e "  Bridge:    ${C_CORAL}missing deps${C_RESET} (install: sudo apt install socat && go install github.com/jstarks/npiperelay@latest)"
+                # Show which specific dep is missing
+                local _socat_path _npiperelay_path
+                _socat_path=$(command -v socat 2>/dev/null)
+                _npiperelay_path=$(_wsl_bridge_get_npiperelay 2>/dev/null)
+                if [ -z "$_socat_path" ]; then
+                    echo -e "  Bridge:    ${C_CORAL}missing socat${C_RESET} (install: sudo apt install socat)"
+                elif [ -z "$_npiperelay_path" ]; then
+                    echo -e "  Bridge:    ${C_CORAL}missing npiperelay.exe${C_RESET}"
+                    echo -e "             ${C_GOLD}GOOS=windows GOARCH=amd64 go install github.com/jstarks/npiperelay@latest${C_RESET}"
+                else
+                    echo -e "  Bridge:    ${C_CORAL}missing deps${C_RESET}"
+                fi
                 ;;
             not-running)
                 local bridge_pid_file="${cache_dir}/discord-bridge.pid"

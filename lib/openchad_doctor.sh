@@ -263,21 +263,26 @@ if [ -f "$_wsl_bridge_sh" ]; then
         echo ""
         echo "WSL Discord IPC bridge:"
 
-        # Dependency check
-        if type -P socat &>/dev/null; then
-            ok "socat: $(type -P socat)"
+        # Dependency check - socat
+        local _socat_path
+        _socat_path=$(command -v socat 2>/dev/null)
+        if [ -n "$_socat_path" ]; then
+            ok "socat: $_socat_path"
         else
             fail "socat not found on PATH"
             info "  Install: sudo apt install socat"
             _issues=$((_issues + 1))
         fi
 
-        if type -P npiperelay.exe &>/dev/null; then
-            ok "npiperelay.exe: $(type -P npiperelay.exe)"
+        # Dependency check - npiperelay.exe (via helper for windows_amd64 fallback)
+        local _npiperelay_path
+        _npiperelay_path=$(_wsl_bridge_get_npiperelay 2>/dev/null)
+        if [ -n "$_npiperelay_path" ]; then
+            ok "npiperelay.exe: $_npiperelay_path"
         else
-            fail "npiperelay.exe not found on PATH"
-            info "  Install: go install github.com/jstarks/npiperelay@latest"
-            info "  Then ensure \$GOPATH/bin is on PATH"
+            fail "npiperelay.exe not found on PATH or in GOPATH/bin/windows_amd64/"
+            info "  Install: GOOS=windows GOARCH=amd64 go install github.com/jstarks/npiperelay@latest"
+            info "  Optional: ln -sf \"\$(go env GOPATH)/bin/windows_amd64/npiperelay.exe\" \"\$(go env GOPATH)/bin/npiperelay.exe\""
             _issues=$((_issues + 1))
         fi
 

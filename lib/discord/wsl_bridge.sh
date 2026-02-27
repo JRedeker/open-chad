@@ -47,12 +47,42 @@ _is_wsl() {
     return 1
 }
 
+# ─── _wsl_bridge_get_npiperelay ──────────────────────────────────────────────
+# Returns the path to npiperelay.exe, or empty string if not found.
+# Checks PATH first, then GOPATH/bin/windows_amd64/ for cross-compiled binary.
+# Set OPEN_CHAD_BRIDGE_NO_GOPATH_FALLBACK=1 to skip GOPATH check (for testing).
+_wsl_bridge_get_npiperelay() {
+    local _npiperelay
+    
+    # Check PATH first
+    _npiperelay=$(command -v npiperelay.exe 2>/dev/null) && echo "$_npiperelay" && return 0
+    
+    # Fallback: check GOPATH/bin/windows_amd64/ for cross-compiled binary
+    # Skip if explicitly disabled (for isolated testing)
+    if [ "${OPEN_CHAD_BRIDGE_NO_GOPATH_FALLBACK:-0}" != "1" ]; then
+        local _gopath
+        _gopath="${GOPATH:-$(go env GOPATH 2>/dev/null || echo "$HOME/go")}"
+        if [ -x "$_gopath/bin/windows_amd64/npiperelay.exe" ]; then
+            echo "$_gopath/bin/windows_amd64/npiperelay.exe"
+            return 0
+        fi
+    fi
+    
+    # Not found
+    echo ""
+    return 1
+}
+
 # ─── _wsl_bridge_deps_ok ─────────────────────────────────────────────────────
 # Returns 0 if both socat and npiperelay.exe are on PATH, 1 otherwise.
-# Uses type -P (not command -v) so bash function shadows in tests don't
-# produce false positives — type -P only finds executables on PATH.
+# Uses command -v (POSIX) instead of bash-specific 'type -P' for zsh compatibility.
+# Also checks GOPATH/bin/windows_amd64 for cross-compiled npiperelay.exe.
 _wsl_bridge_deps_ok() {
-    type -P socat &>/dev/null && type -P npiperelay.exe &>/dev/null
+    # Check for socat (required)
+    command -v socat &>/dev/null || return 1
+    
+    # Check for npiperelay.exe via helper (PATH or GOPATH/bin/windows_amd64)
+    _wsl_bridge_get_npiperelay &>/dev/null
 }
 
 # ─── _wsl_bridge_pid_alive ───────────────────────────────────────────────────
@@ -112,10 +142,16 @@ _wsl_bridge_ensure() {
         return 0
     fi
 
+    # Get npiperelay.exe path (required for deps check and bridge start)
+    local _npiperelay_path
+    _npiperelay_path=$(_wsl_bridge_get_npiperelay)
+
     # Missing deps: log actionable hint, exit 0 (non-fatal)
-    if ! _wsl_bridge_deps_ok; then
-        echo "[open-chad-discord] WSL bridge: missing deps (socat and/or npiperelay.exe not on PATH)" >&2
-        echo "[open-chad-discord] Install: sudo apt install socat && go install github.com/jstarks/npiperelay@latest" >&2
+    if [ -z "$_npiperelay_path" ] || ! command -v socat &>/dev/null; then
+        echo "[open-chad-discord] WSL bridge: missing deps (socat and/or npiperelay.exe not found)" >&2
+        echo "[open-chad-discord] Install: sudo apt install socat" >&2
+        echo "[open-chad-discord] Install: GOOS=windows GOARCH=amd64 go install github.com/jstarks/npiperelay@latest" >&2
+        echo "[open-chad-discord] Then add to PATH: ln -sf \"\$(go env GOPATH)/bin/windows_amd64/npiperelay.exe\" \"\$(go env GOPATH)/bin/npiperelay.exe\"" >&2
         return 0
     fi
 
@@ -148,7 +184,7 @@ _wsl_bridge_ensure() {
     # Start bridge: socat listens on Unix socket, forks npiperelay.exe per connection
     nohup socat \
         UNIX-LISTEN:"$_BRIDGE_SOCKET",fork \
-        EXEC:"npiperelay.exe -ei -s $_BRIDGE_PIPE",nofork \
+        EXEC:"$_npiperelay_path -ei -s $_BRIDGE_PIPE",nofork \
         >>"$_BRIDGE_LOG" 2>&1 &
     local bridge_pid=$!
 
