@@ -4,11 +4,41 @@
 #
 # Usage: bash tests/install_test.sh
 # Exit code: number of failed tests (0 = all passed)
+#
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  WARNING: THIS TEST SUITE RUNS THE REAL INSTALLER (install.sh) AND SETUP   ║
+# ║  SCRIPTS (setup_opencode.sh, etc.) WHICH CREATE SYMLINKS AND OVERWRITE     ║
+# ║  CONFIG FILES.                                                             ║
+# ║                                                                            ║
+# ║  ALL mutating operations are sandboxed to a temp directory. If the sandbox ║
+# ║  is bypassed or broken, the following REAL paths can be damaged:           ║
+# ║                                                                            ║
+# ║    ~/.local/bin/openchad, oc, cds, oc-list, oc-killall  (symlinks)        ║
+# ║    ~/.config/opencode/agents/*                           (agent files)     ║
+# ║    ~/.config/opencode/instructions/*                     (instructions)    ║
+# ║    ~/.config/opencode/command/*                          (ADV commands)    ║
+# ║    ~/.tmux.conf                                          (tmux theme)      ║
+# ║                                                                            ║
+# ║  DO NOT run this test from inside an OpenCode/tmux session that you care   ║
+# ║  about. If something goes wrong, run: bash install.sh --yes                ║
+# ║  to restore your personal setup.                                           ║
+# ║                                                                            ║
+# ║  The sandbox enforces:                                                     ║
+# ║    - HOME is redirected to a temp directory                                ║
+# ║    - OPEN_CHAD_CACHE_DIR is redirected to a temp directory                 ║
+# ║    - OPENCODE_CONFIG_DIR is redirected to a temp directory                 ║
+# ║    - XDG_RUNTIME_DIR is redirected to a temp directory                     ║
+# ║    - A fail-fast guard aborts if HOME points to a real user directory      ║
+# ║      during any sandboxed operation                                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Save the real HOME so we can restore it after each test and detect leaks
+_REAL_HOME="$HOME"
 
 # ─── Test Infrastructure ──────────────────────────────────────────────────────
 
@@ -34,7 +64,28 @@ assert_symlink() { [ -L "$1" ] && pass "symlink: $1" || fail "not a symlink: $1"
 
 section() { echo ""; echo "── $1 ──"; }
 
-# ─── Temp Environment Setup ───────────────────────────────────────────────────
+# ─── Sandbox Infrastructure ───────────────────────────────────────────────────
+# All mutating operations MUST go through these helpers. Direct calls to
+# install.sh or setup_opencode.sh outside the sandbox are forbidden.
+
+# Fail-fast: abort immediately if HOME points to a real user directory
+# during a sandboxed operation. This catches env leaks.
+_assert_sandboxed() {
+    if [ "$HOME" = "$_REAL_HOME" ]; then
+        echo "FATAL: Sandbox violation — HOME=$HOME is the real user home." >&2
+        echo "       A test is running outside the sandbox. Aborting." >&2
+        exit 99
+    fi
+    # Double-check: HOME must be under /tmp
+    case "$HOME" in
+        /tmp/*) ;; # OK
+        *)
+            echo "FATAL: Sandbox violation — HOME=$HOME is not under /tmp." >&2
+            echo "       Expected HOME to be a temp directory. Aborting." >&2
+            exit 99
+            ;;
+    esac
+}
 
 setup_tmp_env() {
     TMP_DIR=$(mktemp -d)
@@ -43,17 +94,58 @@ setup_tmp_env() {
     mkdir -p "$TMP_HOME/.local/bin"
     mkdir -p "$TMP_HOME/.config/opencode"
     mkdir -p "$TMP_DIR/cache"
+    mkdir -p "$TMP_DIR/runtime"
     mkdir -p "$TMP_INSTALL_DIR"
     # Copy repo into temp install dir to simulate fresh checkout
     cp -r "$REPO_DIR"/. "$TMP_INSTALL_DIR/"
+    # Redirect ALL paths that could touch real user state
     export HOME="$TMP_HOME"
-    # Sandbox cache dir so opencode_env.sh doesn't touch real XDG_RUNTIME_DIR
     export OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache"
+    export XDG_RUNTIME_DIR="$TMP_DIR/runtime"
 }
 
 teardown_tmp_env() {
     rm -rf "$TMP_DIR"
-    unset TMP_DIR TMP_HOME TMP_INSTALL_DIR OPEN_CHAD_CACHE_DIR
+    unset TMP_DIR TMP_HOME TMP_INSTALL_DIR OPEN_CHAD_CACHE_DIR XDG_RUNTIME_DIR
+    # CRITICAL: Restore real HOME so between-test code doesn't use stale temp path
+    export HOME="$_REAL_HOME"
+}
+
+# ─── Sandboxed Runner Helpers ─────────────────────────────────────────────────
+# These are the ONLY approved ways to invoke install.sh or setup_opencode.sh
+# from tests. They enforce full env isolation via env(1).
+
+# Run install.sh in a fully sandboxed subprocess.
+# Usage: run_install_sandboxed [extra flags...]
+# Requires: setup_tmp_env has been called (TMP_HOME, TMP_DIR set)
+run_install_sandboxed() {
+    _assert_sandboxed
+    timeout --signal=KILL 5 env \
+        HOME="$TMP_HOME" \
+        OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
+        PATH="$PATH" \
+        USER="${USER:-$(whoami)}" \
+        TERM="${TERM:-dumb}" \
+        bash "$REPO_DIR/install.sh" --no-env-check "$@" > /dev/null 2>&1 || true
+}
+
+# Run setup_opencode.sh in a fully sandboxed subprocess.
+# Usage: run_setup_opencode_sandboxed [extra flags...]
+# Optional env overrides: ADV_CHECKOUT_DIR (defaults to $TMP_DIR/fake-adv)
+run_setup_opencode_sandboxed() {
+    _assert_sandboxed
+    local adv_dir="${ADV_CHECKOUT_DIR:-$TMP_DIR/fake-adv}"
+    env \
+        HOME="$TMP_HOME" \
+        OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+        ADV_CHECKOUT_DIR="$adv_dir" \
+        OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
+        PATH="$PATH" \
+        USER="${USER:-$(whoami)}" \
+        TERM="${TERM:-dumb}" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" "$@" 2>/dev/null || true
 }
 
 # ─── Section 1: Repository Structure ─────────────────────────────────────────
@@ -175,9 +267,7 @@ section "lib/setup_opencode.sh — sync agents, instructions, commands"
 test_setup_opencode_syncs_agents() {
     setup_tmp_env
     # Run setup with fake ADV checkout path (no ADV checkout needed for agent/instruction sync)
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    run_setup_opencode_sandboxed --skip-commands
 
     assert_file_exists "$TMP_HOME/.config/opencode/agents/scout.md"
     assert_file_exists "$TMP_HOME/.config/opencode/agents/librarian.md"
@@ -191,9 +281,7 @@ test_setup_opencode_syncs_agents() {
 
 test_setup_opencode_syncs_instructions() {
     setup_tmp_env
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    run_setup_opencode_sandboxed --skip-commands
 
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/shell_strategy.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/mcp-tools.md"
@@ -208,13 +296,11 @@ test_setup_opencode_syncs_adv_commands() {
     setup_tmp_env
     # Create a fake ADV checkout with a command dir
     local fake_adv="$TMP_DIR/fake-adv"
-    mkdir -p "$fake_adv/plugin/commands"
-    echo "# adv-status" > "$fake_adv/plugin/commands/adv-status.md"
-    echo "# adv-apply" > "$fake_adv/plugin/commands/adv-apply.md"
+    mkdir -p "$fake_adv/.opencode/command"
+    echo "# adv-status" > "$fake_adv/.opencode/command/adv-status.md"
+    echo "# adv-apply" > "$fake_adv/.opencode/command/adv-apply.md"
 
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" 2>/dev/null || true
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed
 
     assert_file_exists "$TMP_HOME/.config/opencode/command/adv-status.md"
     assert_file_exists "$TMP_HOME/.config/opencode/command/adv-apply.md"
@@ -227,13 +313,8 @@ test_setup_opencode_is_idempotent() {
     mkdir -p "$fake_adv/plugin/commands"
     echo "# adv-status" > "$fake_adv/plugin/commands/adv-status.md"
 
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" 2>/dev/null || true
-
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" 2>/dev/null || true
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed
 
     # Files should exist, not duplicated
     assert_file_exists "$TMP_HOME/.config/opencode/agents/scout.md"
@@ -324,9 +405,13 @@ section "install.sh — flag parsing"
 
 test_install_accepts_no_adv_flag() {
     setup_tmp_env
+    _assert_sandboxed
     # Pass all --no-* flags to avoid sub-script execution in test environment
     local output
-    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
+    output=$(timeout --signal=KILL 5 env \
+        HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup --no-env-check 2>&1) || true
     # Should not error on unknown-flag
     echo "$output" | grep -qi "unknown.*--no-adv\|invalid.*--no-adv\|illegal.*--no-adv" && fail "--no-adv flag caused error" || pass "--no-adv flag parsed without error"
     teardown_tmp_env
@@ -334,16 +419,24 @@ test_install_accepts_no_adv_flag() {
 
 test_install_accepts_no_omp_flag() {
     setup_tmp_env
+    _assert_sandboxed
     local output
-    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
+    output=$(timeout --signal=KILL 5 env \
+        HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup --no-env-check 2>&1) || true
     echo "$output" | grep -qi "unknown.*--no-omp\|invalid.*--no-omp\|illegal.*--no-omp" && fail "--no-omp flag caused error" || pass "--no-omp flag parsed without error"
     teardown_tmp_env
 }
 
 test_install_accepts_no_opencode_setup_flag() {
     setup_tmp_env
+    _assert_sandboxed
     local output
-    output=$(timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --no-adv --no-omp --no-opencode-setup --no-env-check" 2>&1) || true
+    output=$(timeout --signal=KILL 5 env \
+        HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash "$REPO_DIR/install.sh" --no-adv --no-omp --no-opencode-setup --no-env-check 2>&1) || true
     echo "$output" | grep -qi "unknown\|invalid\|error.*flag\|illegal" && fail "--no-opencode-setup flag caused error" || pass "--no-opencode-setup flag parsed without error"
     teardown_tmp_env
 }
@@ -377,8 +470,8 @@ section "install.sh — idempotency (tmux theme + symlink)"
 test_install_symlink_idempotent() {
     setup_tmp_env
     # Run install twice with all sub-steps skipped (isolates tmux+symlink behavior)
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/openchad"
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
@@ -386,14 +479,14 @@ test_install_symlink_idempotent() {
 
 test_install_cds_symlink_created() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/cds"
     teardown_tmp_env
 }
 
 test_install_cds_symlink_points_to_bin_cds() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     local target
     target=$(readlink "$TMP_HOME/.local/bin/cds" 2>/dev/null || echo "")
     if echo "$target" | grep -q "bin/cds"; then
@@ -409,8 +502,8 @@ test_install_tmux_theme_not_duplicated() {
     # Create existing tmux.conf
     echo "# existing config" > "$TMP_HOME/.tmux.conf"
 
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
 
     # Theme source should appear exactly once
     local count
@@ -423,8 +516,8 @@ test_install_tmux_popup_keybind_present_and_not_duplicated() {
     setup_tmp_env
     echo "# existing config" > "$TMP_HOME/.tmux.conf"
 
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
 
     local bind_count
     bind_count=$(grep -c "omp_popup.sh" "$REPO_DIR/lib/theme.conf" 2>/dev/null || true)
@@ -466,21 +559,21 @@ test_install_tmux_popup_default_and_override_sizing
 
 test_install_oc_list_symlink_created() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/oc-list"
     teardown_tmp_env
 }
 
 test_install_oc_killall_symlink_created() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/oc-killall"
     teardown_tmp_env
 }
 
 test_install_oc_list_symlink_points_to_bin() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     local target
     target=$(readlink "$TMP_HOME/.local/bin/oc-list" 2>/dev/null || echo "")
     if echo "$target" | grep -q "bin/oc-list"; then
@@ -493,7 +586,7 @@ test_install_oc_list_symlink_points_to_bin() {
 
 test_install_oc_killall_symlink_points_to_bin() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     local target
     target=$(readlink "$TMP_HOME/.local/bin/oc-killall" 2>/dev/null || echo "")
     if echo "$target" | grep -q "bin/oc-killall"; then
@@ -613,12 +706,12 @@ test_json_merge_mcp_nested_objects() {
     # Step 1: Merge first MCP server
     echo '{}' > "$tmp_json"
     bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" \
-        '{"mcp":{"context7":{"type":"local","command":["npx","-y","context7-mcp"],"enabled":true}}}' \
+        '{"mcp":{"context7":{"type":"local","command":["npx","-y","context7"],"enabled":true}}}' \
         2>/dev/null
 
     # Step 2: Merge second MCP server (should ADD, not REPLACE)
     bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" \
-        '{"mcp":{"grep-app":{"type":"local","command":["npx","-y","grep-app-mcp"],"enabled":true}}}' \
+        '{"mcp":{"grep-app":{"type":"local","command":["npx","-y","grep-app"],"enabled":true}}}' \
         2>/dev/null
 
     # Step 3: Verify BOTH servers are present
