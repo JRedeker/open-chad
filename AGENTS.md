@@ -68,7 +68,7 @@ lib/
                             Two-tier fallback: network clone/build -> bundled command docs.
                             Non-fatal: all failures fall back to bundled and exit 0.
                             ADV_INSTALL_MODE env var controls mode.
-  setup_omp.sh              Model preferences TUI installer (go build)
+  setup_omp.sh              Model preferences TUI installer (`go install`)
   setup_opencode.sh         OpenCode config/agent/theme sync
   setup_vision.sh           Vision MCP daemon setup — verifies vision binary on PATH
                             (non-fatal warn if missing), creates/merges

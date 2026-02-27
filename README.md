@@ -308,6 +308,17 @@ export OPEN_CHAD_OMP_POPUP_SIZE="120x40"    # absolute cells
 
 Format: `WxH` where W and H are any tmux size spec (percent or absolute).
 
+For terminal-equivalent behavior, the popup runs from the active pane directory and resolves `omp` in this order:
+1) `OPEN_CHAD_OMP_BIN` (if set and executable)
+2) `$HOME/.local/bin/omp`
+3) `omp` from `PATH`
+
+Optional binary override:
+
+```bash
+export OPEN_CHAD_OMP_BIN="$HOME/.local/bin/omp"
+```
+
 ### Re-running Install
 
 `install.sh` is idempotent — safe to re-run anytime. It re-syncs config, pulls latest plugins, and merges opencode.json without duplicating entries.
@@ -321,6 +332,7 @@ Format: `WxH` where W and H are any tmux size spec (percent or absolute).
 | `openchad: command not found` | Reload shell: `source ~/.zshrc` or `source ~/.bashrc` |
 | opencode.json parse error | See [recovery steps](AGENTS.md#recovering-from-opencodejson-conflicts) |
 | ADV plugin not loading | `bash lib/setup_adv.sh` |
+| `prefix+m` says `omp` not found | Install/reinstall with `bash lib/setup_omp.sh` or set `OPEN_CHAD_OMP_BIN` |
 | Missing MCP server | Check `~/.config/opencode/opencode.json` for the server entry |
 | Theme looks wrong | `bash lib/setup_opencode.sh` |
 | Vision MCP tools unavailable | Run `openchad doctor` to check daemon status; ensure `vision` binary is on PATH |
