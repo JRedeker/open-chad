@@ -419,10 +419,50 @@ test_install_tmux_theme_not_duplicated() {
     teardown_tmp_env
 }
 
+test_install_tmux_popup_keybind_present_and_not_duplicated() {
+    setup_tmp_env
+    echo "# existing config" > "$TMP_HOME/.tmux.conf"
+
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+
+    local bind_count
+    bind_count=$(grep -c "omp_popup.sh" "$REPO_DIR/lib/theme.conf" 2>/dev/null || true)
+    [ "$bind_count" -ge 1 ] && pass "tmux popup keybind present in theme.conf (count=$bind_count)" || fail "tmux popup keybind missing in theme.conf"
+
+    local marker_count
+    marker_count=$(grep -c "OPEN-CHAD THEME" "$TMP_HOME/.tmux.conf" 2>/dev/null || true)
+    [ "$marker_count" -le 1 ] && pass "tmux theme source marker not duplicated (count=$marker_count)" || fail "tmux theme source marker duplicated (count=$marker_count)"
+
+    teardown_tmp_env
+}
+
+test_install_tmux_popup_default_and_override_sizing() {
+    # Verify omp_popup.sh wrapper exists and contains the override variable
+    # and default 80%x80% fallback.
+    assert_file_exists "$REPO_DIR/lib/omp_popup.sh"
+    assert_executable "$REPO_DIR/lib/omp_popup.sh"
+
+    grep -q 'OPEN_CHAD_OMP_POPUP_SIZE' "$REPO_DIR/lib/omp_popup.sh" \
+        && pass "omp_popup.sh references OPEN_CHAD_OMP_POPUP_SIZE override" \
+        || fail "omp_popup.sh missing OPEN_CHAD_OMP_POPUP_SIZE override"
+
+    grep -q '80%x80%' "$REPO_DIR/lib/omp_popup.sh" \
+        && pass "omp_popup.sh includes 80%x80% default fallback" \
+        || fail "omp_popup.sh missing 80%x80% default fallback"
+
+    # theme.conf should delegate to omp_popup.sh
+    grep -q 'omp_popup.sh' "$REPO_DIR/lib/theme.conf" \
+        && pass "theme.conf delegates popup to omp_popup.sh" \
+        || fail "theme.conf does not reference omp_popup.sh"
+}
+
 test_install_symlink_idempotent
 test_install_cds_symlink_created
 test_install_cds_symlink_points_to_bin_cds
 test_install_tmux_theme_not_duplicated
+test_install_tmux_popup_keybind_present_and_not_duplicated
+test_install_tmux_popup_default_and_override_sizing
 
 test_install_oc_list_symlink_created() {
     setup_tmp_env
@@ -1439,6 +1479,143 @@ test_adv_parity_bundled_matches_upstream_count() {
 }
 
 test_adv_parity_bundled_matches_upstream_count
+
+# ─── Section: theme.conf + status_edges agent-order regression ───────────────
+# Ensures theme.conf wires dynamic edge renderer and status_edges.sh always emits
+# canonical color order: build (#59C2FF) → plan (#FFB454) → scout (#F07178) → refine (#AAD94C)
+
+THEME_CONF="$REPO_DIR/lib/theme.conf"
+STATUS_EDGES="$REPO_DIR/lib/status_edges.sh"
+
+section "theme.conf — agent-order edge palette"
+
+test_theme_conf_uses_dynamic_row0_left_edges() {
+    assert_contains "$THEME_CONF" "status_edges.sh left row0" "theme.conf row0 left uses dynamic edge renderer"
+}
+
+test_theme_conf_uses_dynamic_row0_right_edges() {
+    assert_contains "$THEME_CONF" "status_edges.sh right row0" "theme.conf row0 right uses dynamic edge renderer"
+}
+
+test_theme_conf_uses_dynamic_row1_left_edges() {
+    assert_contains "$THEME_CONF" "status_edges.sh left row1" "theme.conf row1 left uses dynamic edge renderer"
+}
+
+test_theme_conf_passes_session_name_to_status_right() {
+    assert_contains "$THEME_CONF" "status_right.sh \"#{session_name}\"" "theme.conf row1 right passes session_name to status_right.sh"
+}
+
+test_status_edges_order_row0_left() {
+    local content blue_pos yellow_pos pink_pos green_pos
+    content=$(bash "$STATUS_EDGES" left row0 "oc-123")
+    blue_pos=$(echo "$content" | grep -bo "#59C2FF" | head -1 | cut -d: -f1)
+    yellow_pos=$(echo "$content" | grep -bo "#FFB454" | head -1 | cut -d: -f1)
+    pink_pos=$(echo "$content" | grep -bo "#F07178" | head -1 | cut -d: -f1)
+    green_pos=$(echo "$content" | grep -bo "#AAD94C" | head -1 | cut -d: -f1)
+    if [ -n "$blue_pos" ] && [ -n "$yellow_pos" ] && [ -n "$pink_pos" ] && [ -n "$green_pos" ] \
+        && [ "$blue_pos" -lt "$yellow_pos" ] && [ "$yellow_pos" -lt "$pink_pos" ] && [ "$pink_pos" -lt "$green_pos" ]; then
+        pass "status_edges row0-left order: build→plan→scout→refine"
+    else
+        fail "status_edges row0-left order wrong (blue=$blue_pos yellow=$yellow_pos pink=$pink_pos green=$green_pos)"
+    fi
+}
+
+test_status_edges_order_row1_right() {
+    local content blue_pos yellow_pos pink_pos green_pos
+    content=$(bash "$STATUS_EDGES" right row1 "oc-456")
+    blue_pos=$(echo "$content" | grep -bo "#59C2FF" | head -1 | cut -d: -f1)
+    yellow_pos=$(echo "$content" | grep -bo "#FFB454" | head -1 | cut -d: -f1)
+    pink_pos=$(echo "$content" | grep -bo "#F07178" | head -1 | cut -d: -f1)
+    green_pos=$(echo "$content" | grep -bo "#AAD94C" | head -1 | cut -d: -f1)
+    if [ -n "$blue_pos" ] && [ -n "$yellow_pos" ] && [ -n "$pink_pos" ] && [ -n "$green_pos" ] \
+        && [ "$blue_pos" -lt "$yellow_pos" ] && [ "$yellow_pos" -lt "$pink_pos" ] && [ "$pink_pos" -lt "$green_pos" ]; then
+        pass "status_edges row1-right order: build→plan→scout→refine"
+    else
+        fail "status_edges row1-right order wrong (blue=$blue_pos yellow=$yellow_pos pink=$pink_pos green=$green_pos)"
+    fi
+}
+
+test_status_edges_differs_across_sessions() {
+    local a b
+    a=$(bash "$STATUS_EDGES" left row1 "oc-111")
+    b=$(bash "$STATUS_EDGES" left row1 "oc-222")
+    [ "$a" != "$b" ] && pass "status_edges varies glyph shape by session" || fail "status_edges session variation missing"
+}
+
+# ─── Per-position independence (256 combinations) ─────────────────────────────
+# Each of 4 positions (left-row0, right-row0, left-row1, right-row1) picks its
+# own variant independently, giving 4^4 = 256 possible session looks.
+
+test_status_edges_positions_can_differ_in_same_session() {
+    # With per-position variants, different positions in the same session
+    # should be able to have different glyph patterns
+    local left0 right0 left1 right1
+    left0=$(bash "$STATUS_EDGES" left row0 "oc-test-session")
+    right0=$(bash "$STATUS_EDGES" right row0 "oc-test-session")
+    left1=$(bash "$STATUS_EDGES" left row1 "oc-test-session")
+    right1=$(bash "$STATUS_EDGES" right row1 "oc-test-session")
+    
+    # At least one pair should differ (not all positions use same variant)
+    if [ "$left0" != "$right0" ] || [ "$left0" != "$left1" ] || [ "$left0" != "$right1" ] || \
+       [ "$right0" != "$left1" ] || [ "$right0" != "$right1" ] || [ "$left1" != "$right1" ]; then
+        pass "status_edges positions can differ within same session (independence)"
+    else
+        fail "status_edges all positions identical — per-position independence missing"
+    fi
+}
+
+test_status_edges_deterministic_per_position() {
+    # Same session + same position should always produce same output
+    local a b c d
+    a=$(bash "$STATUS_EDGES" left row0 "oc-determinism-test")
+    b=$(bash "$STATUS_EDGES" left row0 "oc-determinism-test")
+    c=$(bash "$STATUS_EDGES" right row1 "oc-determinism-test")
+    d=$(bash "$STATUS_EDGES" right row1 "oc-determinism-test")
+    
+    if [ "$a" = "$b" ] && [ "$c" = "$d" ]; then
+        pass "status_edges deterministic per position (stable within session)"
+    else
+        fail "status_edges not deterministic — output changes for same session+position"
+    fi
+}
+
+test_status_edges_all_positions_vary_across_sessions() {
+    # Each position should vary across different sessions
+    local left0_a left0_b right0_a right0_b left1_a left1_b right1_a right1_b
+    
+    left0_a=$(bash "$STATUS_EDGES" left row0 "oc-session-alpha")
+    left0_b=$(bash "$STATUS_EDGES" left row0 "oc-session-beta")
+    right0_a=$(bash "$STATUS_EDGES" right row0 "oc-session-alpha")
+    right0_b=$(bash "$STATUS_EDGES" right row0 "oc-session-beta")
+    left1_a=$(bash "$STATUS_EDGES" left row1 "oc-session-alpha")
+    left1_b=$(bash "$STATUS_EDGES" left row1 "oc-session-beta")
+    right1_a=$(bash "$STATUS_EDGES" right row1 "oc-session-alpha")
+    right1_b=$(bash "$STATUS_EDGES" right row1 "oc-session-beta")
+    
+    # Each position should show variation across sessions
+    local vary_count=0
+    [ "$left0_a" != "$left0_b" ] && vary_count=$((vary_count + 1))
+    [ "$right0_a" != "$right0_b" ] && vary_count=$((vary_count + 1))
+    [ "$left1_a" != "$left1_b" ] && vary_count=$((vary_count + 1))
+    [ "$right1_a" != "$right1_b" ] && vary_count=$((vary_count + 1))
+    
+    if [ "$vary_count" -ge 3 ]; then
+        pass "status_edges all positions vary across sessions ($vary_count/4 varied)"
+    else
+        fail "status_edges insufficient position variation ($vary_count/4 varied)"
+    fi
+}
+
+test_theme_conf_uses_dynamic_row0_left_edges
+test_theme_conf_uses_dynamic_row0_right_edges
+test_theme_conf_uses_dynamic_row1_left_edges
+test_theme_conf_passes_session_name_to_status_right
+test_status_edges_order_row0_left
+test_status_edges_order_row1_right
+test_status_edges_differs_across_sessions
+test_status_edges_positions_can_differ_in_same_session
+test_status_edges_deterministic_per_position
+test_status_edges_all_positions_vary_across_sessions
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

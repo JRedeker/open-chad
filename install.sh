@@ -208,6 +208,19 @@ else
     echo -e "Created ${C_GOLD}$TMUX_CONF${C_RESET} with theme source"
 fi
 
+# OMP popup availability note (theme binds prefix+m with a tmux >=3.2 guard)
+if command -v tmux >/dev/null 2>&1; then
+    _tmux_version_raw=$(tmux -V 2>/dev/null | awk '{print $2}')
+    _tmux_major=$(printf '%s' "${_tmux_version_raw:-0}" | awk -F. '{gsub(/[^0-9]/, "", $1); print ($1==""?0:$1)}')
+    _tmux_minor=$(printf '%s' "${_tmux_version_raw:-0}" | awk -F. '{gsub(/[^0-9]/, "", $2); print ($2==""?0:$2)}')
+
+    if [ "$_tmux_major" -gt 3 ] || { [ "$_tmux_major" -eq 3 ] && [ "$_tmux_minor" -ge 2 ]; }; then
+        echo -e "OMP popup keybind ${C_GOLD}prefix+m${C_RESET}: enabled (tmux ${C_GOLD}${_tmux_version_raw}${C_RESET})"
+    else
+        echo -e "OMP popup keybind ${C_GOLD}prefix+m${C_RESET}: tmux ${C_GOLD}${_tmux_version_raw}${C_RESET} < 3.2 (fallback message only)"
+    fi
+fi
+
 # ─── 5. Route to wizard or silent mode ────────────────────────────────────────
 echo ""
 

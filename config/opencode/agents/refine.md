@@ -1,7 +1,7 @@
 ---
 description: Focused refinement and course correction — investigates, decides, and implements fixes within a locked scope. Owns /adv-prep and /adv-harden gates end-to-end including architectural decisions and code changes.
 mode: primary
-color: "#00d4aa"
+color: "#AAD94C"
 temperature: 0.2
 ---
 

@@ -51,6 +51,11 @@ Two-row ayu-dark status bar with repo/branch context, session titles correlated 
 
 A terminal UI for managing OpenCode model preferences — switch models, set defaults, and configure per-project overrides without editing JSON.
 
+- Quick access in-session: press `Ctrl+b m` to open `omp` in a tmux popup.
+- Popup behavior uses `display-popup -EE`: success closes automatically; failures stay visible.
+- Default popup size is 80%×80%. Override with `OPEN_CHAD_OMP_POPUP_SIZE` (e.g. `export OPEN_CHAD_OMP_POPUP_SIZE="90%x85%"`).
+- Requires tmux `>=3.2` for popup support. On older tmux versions, `prefix+m` shows a fallback hint.
+
 ![omp model preferences](ompscreenshot.png)
 
 ### Discord Rich Presence

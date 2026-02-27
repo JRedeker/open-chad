@@ -571,6 +571,87 @@ test_malformed_active_providers_missing_key
 test_active_providers_extra_whitespace
 test_end_to_end_provider_ordering
 
+# ─── Section 9: Agent-order edge palette regression ──────────────────────────
+# Ensures the trailing edge of status_right.sh encodes the canonical agent
+# color order: build (#59C2FF) → plan (#FFB454) → scout (#F07178) → refine (#AAD94C)
+
+section "Agent-order edge palette (status_right.sh)"
+
+test_edge_contains_build_blue() {
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    assert_contains "$result" "#59C2FF" "trailing edge contains build blue (#59C2FF)"
+}
+
+test_edge_contains_plan_yellow() {
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    assert_contains "$result" "#FFB454" "trailing edge contains plan yellow (#FFB454)"
+}
+
+test_edge_contains_scout_pink() {
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    assert_contains "$result" "#F07178" "trailing edge contains scout pink (#F07178)"
+}
+
+test_edge_contains_refine_green() {
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    assert_contains "$result" "#AAD94C" "trailing edge contains refine green (#AAD94C)"
+}
+
+test_edge_order_build_before_plan() {
+    local result blue_pos yellow_pos
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    blue_pos=$(echo "$result" | grep -bo "#59C2FF" | tail -1 | cut -d: -f1)
+    yellow_pos=$(echo "$result" | grep -bo "#FFB454" | tail -1 | cut -d: -f1)
+    if [ -n "$blue_pos" ] && [ -n "$yellow_pos" ] && [ "$blue_pos" -lt "$yellow_pos" ]; then
+        pass "edge order: build (#59C2FF) before plan (#FFB454)"
+    else
+        fail "edge order: expected build before plan (blue_pos=$blue_pos yellow_pos=$yellow_pos)"
+    fi
+}
+
+test_edge_order_plan_before_scout() {
+    local result yellow_pos pink_pos
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    yellow_pos=$(echo "$result" | grep -bo "#FFB454" | tail -1 | cut -d: -f1)
+    pink_pos=$(echo "$result" | grep -bo "#F07178" | tail -1 | cut -d: -f1)
+    if [ -n "$yellow_pos" ] && [ -n "$pink_pos" ] && [ "$yellow_pos" -lt "$pink_pos" ]; then
+        pass "edge order: plan (#FFB454) before scout (#F07178)"
+    else
+        fail "edge order: expected plan before scout (yellow_pos=$yellow_pos pink_pos=$pink_pos)"
+    fi
+}
+
+test_edge_order_scout_before_refine() {
+    local result pink_pos green_pos
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    pink_pos=$(echo "$result" | grep -bo "#F07178" | tail -1 | cut -d: -f1)
+    green_pos=$(echo "$result" | grep -bo "#AAD94C" | tail -1 | cut -d: -f1)
+    if [ -n "$pink_pos" ] && [ -n "$green_pos" ] && [ "$pink_pos" -lt "$green_pos" ]; then
+        pass "edge order: scout (#F07178) before refine (#AAD94C)"
+    else
+        fail "edge order: expected scout before refine (pink_pos=$pink_pos green_pos=$green_pos)"
+    fi
+}
+
+test_edge_uses_block_glyph() {
+    local result
+    result=$(OPEN_CHAD_CACHE_DIR="$TMP_DIR" bash "$STATUS_RIGHT" 2>/dev/null)
+    assert_contains "$result" "▐" "trailing edge uses ▐ block glyph"
+}
+
+test_edge_contains_build_blue
+test_edge_contains_plan_yellow
+test_edge_contains_scout_pink
+test_edge_contains_refine_green
+test_edge_order_build_before_plan
+test_edge_order_plan_before_scout
+test_edge_order_scout_before_refine
+test_edge_uses_block_glyph
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

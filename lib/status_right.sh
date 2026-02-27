@@ -16,6 +16,8 @@ set -euo pipefail
 # shellcheck source=opencode_env.sh
 source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
+session_name="${1:-default}"
+
 # --- Color thresholds ---
 _color_for_pct() {
     local pct="$1"
@@ -145,4 +147,4 @@ elif [ "$gauges_enabled" -eq 1 ]; then
     _render_gauges
 fi
 
-printf ' #[fg=#00D7AF]▐#[fg=#FF5FD7]▐#[fg=#D7AF5F]▐#[fg=#5FAFFF]▐'
+printf ' %s' "$("$(dirname "${BASH_SOURCE[0]}")/status_edges.sh" right row1 "$session_name")"
