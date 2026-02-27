@@ -254,7 +254,7 @@ test_mcp_does_not_merge_servers_when_json_is_corrupted() {
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
     # No server merge should occur when base JSON is invalid.
-    for server in context7 grep-app lgrep firecrawl brave-web-search; do
+    for server in context7 grep-app lgrep firecrawl; do
         node -e "
 const fs=require('fs');
 try {

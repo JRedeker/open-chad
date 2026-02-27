@@ -213,9 +213,9 @@ test_update_error_message_content
 # ═══════════════════════════════════════════════════════════════════════════════
 section "setup_mcp.sh — end-to-end MCP wiring"
 
-test_mcp_integration_all_five_servers() {
+test_mcp_integration_all_four_servers() {
     if ! command -v node &>/dev/null; then
-        skip "test_mcp_integration_all_five_servers (node not found)"
+        skip "test_mcp_integration_all_four_servers (node not found)"
         return
     fi
 
@@ -227,17 +227,17 @@ test_mcp_integration_all_five_servers() {
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
     local present=0
-    for server in context7 grep-app lgrep firecrawl brave-web-search; do
+    for server in context7 grep-app lgrep firecrawl; do
         node -e "
 const c=JSON.parse(require('fs').readFileSync('$tmp_oc/opencode.json','utf8'));
 process.exit((c.mcp&&c.mcp['$server'])?0:1);
 " 2>/dev/null && present=$((present + 1)) || true
     done
 
-    if [ "$present" -eq 5 ]; then
-        pass "setup_mcp.sh: all 5 MCP servers present in opencode.json"
+    if [ "$present" -eq 4 ]; then
+        pass "setup_mcp.sh: all 4 MCP servers present in opencode.json"
     else
-        fail "setup_mcp.sh: only $present/5 servers found in opencode.json"
+        fail "setup_mcp.sh: only $present/4 servers found in opencode.json"
     fi
 }
 
@@ -254,7 +254,7 @@ test_mcp_integration_enabled_state() {
     OPEN_CHAD_INSTALL_LOG="$TMP_ROOT/mcp-test2.log" \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
-    local enabled_count=0 disabled_count=0
+    local enabled_count=0
 
     for server in context7 grep-app lgrep firecrawl; do
         node -e "
@@ -263,17 +263,8 @@ process.exit((c.mcp&&c.mcp['$server']&&c.mcp['$server'].enabled===true)?0:1);
 " 2>/dev/null && enabled_count=$((enabled_count + 1)) || true
     done
 
-    for server in brave-web-search; do
-        node -e "
-const c=JSON.parse(require('fs').readFileSync('$tmp_oc/opencode.json','utf8'));
-process.exit((c.mcp&&c.mcp['$server']&&c.mcp['$server'].enabled===false)?0:1);
-" 2>/dev/null && disabled_count=$((disabled_count + 1)) || true
-    done
-
     [ "$enabled_count" -eq 4 ] && pass "setup_mcp.sh: 4 servers correctly enabled" || \
         fail "setup_mcp.sh: expected 4 enabled servers, got $enabled_count"
-    [ "$disabled_count" -eq 1 ] && pass "setup_mcp.sh: 1 server correctly disabled" || \
-        fail "setup_mcp.sh: expected 1 disabled server, got $disabled_count"
 }
 
 test_mcp_integration_idempotent() {
@@ -299,14 +290,14 @@ const c=JSON.parse(require('fs').readFileSync('$tmp_oc/opencode.json','utf8'));
 console.log(Object.keys(c.mcp||{}).length);
 " 2>/dev/null || echo "0")
 
-    if [ "$server_count" -eq 5 ]; then
-        pass "setup_mcp.sh: idempotent — still exactly 5 servers after double run"
+    if [ "$server_count" -eq 4 ]; then
+        pass "setup_mcp.sh: idempotent — still exactly 4 servers after double run"
     else
-        fail "setup_mcp.sh: expected 5 servers after double run, got $server_count"
+        fail "setup_mcp.sh: expected 4 servers after double run, got $server_count"
     fi
 }
 
-test_mcp_integration_all_five_servers
+test_mcp_integration_all_four_servers
 test_mcp_integration_enabled_state
 test_mcp_integration_idempotent
 

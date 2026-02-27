@@ -342,7 +342,6 @@ if [ "$SKIP_MCP" -eq 1 ]; then
     skip "MCP servers (--skip-mcp)"
 else
     info "Wiring context7, grep-app, lgrep, firecrawl (enabled)"
-    info "Registering brave-web-search (disabled — needs API key)"
     echo ""
     OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
     OPENCODE_CONFIG_DIR="$OPENCODE_CONFIG_DIR" \

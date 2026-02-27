@@ -6,11 +6,10 @@
 #   grep-app       (enabled)  — Code search across GitHub (vision remote)
 #   lgrep          (enabled)  — Semantic local code search (vision remote)
 #   firecrawl      (enabled)   — Web scraping (vision remote)
-#   brave-web-search (disabled) — Web search (requires BRAVE_API_KEY; key-required)
 #
 # NOTE: opencode.json has NO per-server tool restriction field. Tool filtering
-# for firecrawl and brave-web-search is handled via wizard fallback instructions
-# and the vision server manager — not via config.
+# for firecrawl is handled via wizard fallback instructions and the vision
+# server manager — not via config.
 #
 # Environment overrides:
 #   OPENCODE_CONFIG_DIR  — opencode config dir (default: ~/.config/opencode)
@@ -167,19 +166,6 @@ _merge "firecrawl" '{
 ok "firecrawl (enabled)"
 audit "firecrawl registered (enabled)"
 
-# brave-web-search — disabled — Requires BRAVE_API_KEY
-_merge "brave-web-search" '{
-  "mcp": {
-    "brave-web-search": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-brave-search@latest"],
-      "enabled": false
-    }
-  }
-}'
-ok "brave-web-search (disabled — requires BRAVE_API_KEY env var)"
-audit "brave-web-search registered (disabled, key-required)"
-
 # ─── Final validation ─────────────────────────────────────────────────────────
 step "Validating final opencode.json"
 _final_valid=$(_validate_json "$OPENCODE_JSON" 2>&1) || {
@@ -189,9 +175,9 @@ _final_valid=$(_validate_json "$OPENCODE_JSON" 2>&1) || {
     exit 1
 }
 
-# Verify all 5 servers are present in the output
+# Verify all 4 servers are present in the output
 _servers_ok=1
-for server in context7 grep-app lgrep firecrawl brave-web-search; do
+for server in context7 grep-app lgrep firecrawl; do
     if node - "$OPENCODE_JSON" "$server" <<'EOF' 2>/dev/null
 const fs=require('fs');
 const c=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -210,8 +196,7 @@ if [ "$_servers_ok" -eq 0 ]; then
     exit 1
 fi
 
-audit "All 5 MCP servers verified in opencode.json"
-ok "MCP setup complete. 5 servers registered (4 enabled, 1 disabled)."
+audit "All 4 MCP servers verified in opencode.json"
+ok "MCP setup complete. 4 servers registered (all enabled)."
 echo ""
 echo -e "  ${C_SAGE}Enabled:${C_RESET}  context7, grep-app, lgrep, firecrawl"
-echo -e "  ${C_GOLD}Disabled:${C_RESET} brave-web-search (needs API key)"

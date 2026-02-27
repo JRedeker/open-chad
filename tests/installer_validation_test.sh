@@ -199,7 +199,7 @@ test_mcp_all_servers_registered() {
     OPEN_CHAD_INSTALL_LOG="$TMP_DIR/test.log" \
         bash "$REPO_DIR/lib/setup_mcp.sh" > /dev/null 2>&1 || true
 
-    for server in context7 grep-app lgrep firecrawl brave-web-search; do
+    for server in context7 grep-app lgrep firecrawl; do
         node -e "
 const fs=require('fs');
 try {
@@ -237,17 +237,6 @@ process.exit(enabled===true ? 0 : 1);
             fail "setup_mcp: '$server' should be enabled but isn't"
     done
 
-    # brave-web-search should be disabled (requires API key)
-    for server in brave-web-search; do
-        node -e "
-const fs=require('fs');
-const c=JSON.parse(fs.readFileSync('$tmp/opencode.json','utf8'));
-const enabled=(c.mcp&&c.mcp['$server']||{}).enabled;
-process.exit(enabled===false ? 0 : 1);
-" 2>/dev/null && \
-            pass "setup_mcp: '$server' is disabled (as expected)" || \
-            fail "setup_mcp: '$server' should be disabled but enabled=$?"
-    done
 }
 
 test_mcp_vision_remote_schema() {

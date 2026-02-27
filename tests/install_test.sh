@@ -801,9 +801,9 @@ JSON.parse(fs.readFileSync('$tmp_json','utf8'));
     rm -rf "$tmp_dir"
 }
 
-test_json_merge_mcp_five_servers() {
+test_json_merge_mcp_four_servers() {
     if ! command -v node &>/dev/null; then
-        skip "test_json_merge_mcp_five_servers (node not found)"
+        skip "test_json_merge_mcp_four_servers (node not found)"
         return
     fi
 
@@ -812,20 +812,19 @@ test_json_merge_mcp_five_servers() {
     local tmp_json="$tmp_dir/opencode.json"
     echo '{}' > "$tmp_json"
 
-    # Simulate setup_mcp.sh: merge all 5 servers sequentially
+    # Simulate setup_mcp.sh: merge all 4 servers sequentially
     local servers=(
         '{"mcp":{"context7":{"type":"local","command":["npx","-y","context7"],"enabled":true}}}'
         '{"mcp":{"grep-app":{"type":"local","command":["npx","-y","grep-app"],"enabled":true}}}'
         '{"mcp":{"lgrep":{"type":"local","command":["npx","-y","lgrep"],"enabled":true}}}'
         '{"mcp":{"firecrawl":{"type":"local","command":["npx","-y","firecrawl"],"enabled":false}}}'
-        '{"mcp":{"brave-web-search":{"type":"local","command":["npx","-y","brave"],"enabled":false}}}'
     )
 
     for patch in "${servers[@]}"; do
         bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" "$patch" 2>/dev/null
     done
 
-    # Verify all 5 are present
+    # Verify all 4 are present
     local count
     count=$(node -e "
 const fs=require('fs');
@@ -834,15 +833,15 @@ const servers=Object.keys(c.mcp||{});
 process.stdout.write(String(servers.length));
 " 2>/dev/null)
 
-    [ "$count" = "5" ] && \
-        pass "All 5 MCP servers present after sequential merge (got: $count)" || \
-        fail "Expected 5 MCP servers after sequential merge, got: $count"
+    [ "$count" = "4" ] && \
+        pass "All 4 MCP servers present after sequential merge (got: $count)" || \
+        fail "Expected 4 MCP servers after sequential merge, got: $count"
 
     rm -rf "$tmp_dir"
 }
 
 test_json_merge_mcp_nested_objects
-test_json_merge_mcp_five_servers
+test_json_merge_mcp_four_servers
 
 # ─── Section 11: Refine agent ADV compatibility ───────────────────────────────
 

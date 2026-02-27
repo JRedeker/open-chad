@@ -90,11 +90,10 @@ lib/
                             Called by install.sh and update.sh before any changes.
   setup_ubuntu_deps.sh      Silent apt bootstrap — core tools + language toolchain prereqs.
                             DEBIAN_FRONTEND=noninteractive, logs to /tmp/open-chad-install.log.
-  setup_mcp.sh              Wires 5 MCP servers into opencode.json via json_merge.sh.
+  setup_mcp.sh              Wires 4 MCP servers into opencode.json via json_merge.sh.
                             context7/grep-app/lgrep/firecrawl registered as type=remote
                             pointing at Vision daemon ports (6276/6288/6285/6281).
-                            brave-web-search registered as type=local (disabled, key-required).
-                            context7/grep-app/lgrep/firecrawl enabled; brave-web-search disabled.
+                            context7/grep-app/lgrep/firecrawl enabled.
                             Validates JSON before and after merge.
   setup_morph.sh            Clone/pull morph-fast-apply, pnpm install+build, wire plugin
                             path and MORPH_INSTRUCTIONS.md into opencode.json.
