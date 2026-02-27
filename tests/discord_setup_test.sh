@@ -714,15 +714,25 @@ test_status_shows_bridge_missing_deps_on_wsl() {
 EOF
     local fake_proc="$TMP_DIR/proc_version"
     echo "Linux version 5.15.90.1-microsoft-standard-WSL2" > "$fake_proc"
-    # No socat or npiperelay.exe in isolated PATH
+    
+    # Check if we can isolate from socat
+    # On Ubuntu, /bin is a symlink to /usr/bin where socat may be installed
+    # setup.sh needs many utilities (dirname, cut, node, etc.) so we can't use minimal PATH
+    if command -v socat &>/dev/null; then
+        skip "status bridge missing-deps test: socat installed, cannot isolate"
+        teardown_tmp_env
+        return
+    fi
+    
     local isolated_path="/usr/bin:/bin"
 
     local result
     result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
         OPEN_CHAD_CACHE_DIR="$cache_dir" \
         OPEN_CHAD_PROC_VERSION="$fake_proc" \
+        OPEN_CHAD_BRIDGE_NO_GOPATH_FALLBACK=1 \
         PATH="$isolated_path" \
-        bash "$SETUP_SH" --status 2>&1) || true
+        /bin/bash "$SETUP_SH" --status 2>&1) || true
 
     assert_contains "$result" "Bridge" "status shows Bridge line when deps missing on WSL"
     assert_contains "$result" "missing" "status shows missing-deps hint"

@@ -228,7 +228,9 @@ if [ -f "$LIB_DIR/discord/update.sh" ]; then
             chmod 0600 "$_discord_log" 2>/dev/null || true
         }
     fi
-    OPEN_CHAD_DISCORD_HOLD_SEC="${OPEN_CHAD_DISCORD_HOLD_SEC:-300}" \
+    # Hold presence for 8 hours by default (covers typical work session)
+    # Users can override via OPEN_CHAD_DISCORD_HOLD_SEC env var
+    OPEN_CHAD_DISCORD_HOLD_SEC="${OPEN_CHAD_DISCORD_HOLD_SEC:-28800}" \
         bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>>"$_discord_log" &
 
     # Cleanup trap: remove lockfiles on exit
