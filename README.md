@@ -64,6 +64,11 @@ openchad discord status          # Check current mode and last update time
 
 All dynamic input is sanitized — no project names, file paths, tokens, or secrets are ever transmitted. See [`lib/discord/SETUP.md`](lib/discord/SETUP.md) for the full guide.
 
+**WSL2:** openchad auto-bridges Windows Discord via `socat` + `npiperelay.exe`. One-time dep install:
+```bash
+sudo apt install socat && go install github.com/jstarks/npiperelay@latest
+```
+
 ---
 
 ## Install

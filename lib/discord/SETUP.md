@@ -77,12 +77,45 @@ through a sanitizer that redacts paths, tokens, and environment variables.
 
 ---
 
+## WSL2 Setup
+
+On WSL2, Discord runs on Windows but openchad runs in Linux. openchad automatically
+bridges the gap using `socat` + `npiperelay.exe`. Install the two dependencies once:
+
+```bash
+# 1. Install socat (Linux side)
+sudo apt install socat
+
+# 2. Install npiperelay (Windows side, accessible from WSL)
+go install github.com/jstarks/npiperelay@latest
+# Ensure $GOPATH/bin is on PATH — add to ~/.bashrc or ~/.zshrc:
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+After installing, the bridge starts automatically on the next `openchad` launch.
+No additional configuration needed.
+
+**Verify bridge status:**
+```bash
+openchad discord status   # shows Bridge: ready (PID ...)
+openchad doctor           # section 7: WSL Discord IPC bridge
+```
+
+**Bridge log** (for troubleshooting):
+```bash
+cat "$OPEN_CHAD_CACHE_DIR/discord-bridge.log"
+# or: cat /run/user/$(id -u)/open-chad/discord-bridge.log
+```
+
+---
+
 ## Troubleshooting
 
 **Presence not showing?**
 - Make sure Discord desktop app is running (not just web)
 - Verify `discordPresence.enabled: true` in your config: `openchad discord status`
-- Check debug log: `cat "$(openchad discord status | grep 'Debug log' | awk '{print $NF}')"`
+- Check debug log: `cat "$OPEN_CHAD_CACHE_DIR/discord.log"`
+- On WSL2: check bridge status with `openchad discord status` and `openchad doctor`
 
 **"Invalid Client ID" error?**
 - Client IDs are 17–20 digit numbers
@@ -90,3 +123,8 @@ through a sanitizer that redacts paths, tokens, and environment variables.
 
 **Rate limit warning in log?**
 - Normal — openchad enforces its own 15-second rate limit to stay within Discord's spec
+
+**WSL2: Bridge not starting?**
+- Run `openchad doctor` to check socat and npiperelay.exe are on PATH
+- Ensure `npiperelay.exe` is accessible from WSL (usually via `$GOPATH/bin`)
+- Check bridge log: `cat "$OPEN_CHAD_CACHE_DIR/discord-bridge.log"`

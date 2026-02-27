@@ -29,6 +29,10 @@ source "$REPO_DIR/lib/opencode_env.sh"
 # shellcheck source=lib/discord/defaults.sh
 source "$SCRIPT_DIR/defaults.sh"
 
+# WSL Discord IPC bridge helper (non-fatal if missing)
+# shellcheck source=lib/discord/wsl_bridge.sh
+source "$SCRIPT_DIR/wsl_bridge.sh"
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 RATE_LIMIT_SEC="${DISCORD_RATE_LIMIT_SEC:-15}"
@@ -132,7 +136,12 @@ main() {
     # 6. Touch lockfile BEFORE spawning node (prevents double-fire on concurrent calls)
     touch "$LOCK_FILE" 2>/dev/null || true
 
-    # 7. Invoke update.js (exits 0 on Discord-not-running per SC-10)
+    # 7. Ensure WSL Discord IPC bridge is running (WSL only, non-fatal)
+    # On WSL2, bridges Windows Discord named pipe to /tmp/discord-ipc-0 so
+    # @xhayper/discord-rpc can connect. No-op on native Linux or macOS.
+    _wsl_bridge_ensure 2>>"${OPEN_CHAD_CACHE_DIR}/discord.log" || true
+
+    # 8. Invoke update.js (exits 0 on Discord-not-running per SC-10)
     DISCORD_CLIENT_ID="$client_id" \
         node "$REPO_DIR/lib/discord/update.js" \
             "$session_count" "$elapsed_seconds" "$tagline" \

@@ -156,6 +156,29 @@ if command -v vision &>/dev/null; then
     fi
 fi
 
+# 3b. Ensure WSL Discord IPC bridge is running (WSL2 only, singleton, non-fatal)
+# On WSL2, bridges Windows Discord named pipe to /tmp/discord-ipc-0 so that
+# @xhayper/discord-rpc can connect from WSL to the Windows Discord client.
+# _wsl_bridge_ensure is a no-op on native Linux and when deps are missing.
+# Uses atomic-mkdir singleton to prevent duplicate starts under concurrent launches.
+if [ -f "$LIB_DIR/discord/wsl_bridge.sh" ]; then
+    # shellcheck source=lib/discord/wsl_bridge.sh
+    source "$LIB_DIR/discord/wsl_bridge.sh"
+    _wsl_bridge_startlock="${OPEN_CHAD_CACHE_DIR}/discord-bridge-start.lock"
+    if mkdir "$_wsl_bridge_startlock" 2>/dev/null; then
+        _discord_log="${OPEN_CHAD_CACHE_DIR}/discord.log"
+        if [ ! -f "$_discord_log" ]; then
+            install -m 0600 /dev/null "$_discord_log" 2>/dev/null || {
+                touch "$_discord_log" 2>/dev/null || true
+                chmod 0600 "$_discord_log" 2>/dev/null || true
+            }
+        fi
+        # Fire-and-forget: _wsl_bridge_ensure is idempotent and always exits 0
+        _wsl_bridge_ensure 2>>"$_discord_log" || true
+        (sleep 2; rmdir "$_wsl_bridge_startlock" 2>/dev/null || true) &
+    fi
+fi
+
 # 4. Check for tmux dependency
 if ! command -v tmux &>/dev/null; then
     echo "tmux not installed - running opencode directly (no isolation or theme)"

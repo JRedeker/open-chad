@@ -32,6 +32,12 @@ fi
 # shellcheck source=lib/discord/defaults.sh
 source "$SCRIPT_DIR/defaults.sh"
 
+# WSL Discord IPC bridge helper (non-fatal if missing)
+# shellcheck source=lib/discord/wsl_bridge.sh
+if [ -f "$SCRIPT_DIR/wsl_bridge.sh" ]; then
+    source "$SCRIPT_DIR/wsl_bridge.sh"
+fi
+
 # ─── Colors ──────────────────────────────────────────────────────────────────
 
 C_SAGE="\e[38;5;107m"
@@ -219,6 +225,29 @@ cmd_status() {
 
     if [ -f "$log_file" ]; then
         echo -e "  Debug log: ${C_GOLD}$log_file${C_RESET}"
+    fi
+
+    # Bridge status (WSL only — hidden on native Linux)
+    if declare -f _wsl_bridge_status &>/dev/null; then
+        local bridge_status
+        bridge_status=$(_wsl_bridge_status 2>/dev/null || echo "not-wsl")
+        case "$bridge_status" in
+            not-wsl)
+                # Native Linux — hide bridge section entirely
+                ;;
+            missing-deps)
+                echo -e "  Bridge:    ${C_CORAL}missing deps${C_RESET} (install: sudo apt install socat && go install github.com/jstarks/npiperelay@latest)"
+                ;;
+            not-running)
+                local bridge_pid_file="${cache_dir}/discord-bridge.pid"
+                echo -e "  Bridge:    ${C_CORAL}not running${C_RESET} (start: openchad discord enable)"
+                ;;
+            ready)
+                local bridge_pid
+                bridge_pid=$(cat "${cache_dir}/discord-bridge.pid" 2>/dev/null || echo "?")
+                echo -e "  Bridge:    ${C_SAGE}ready${C_RESET} (PID $bridge_pid)"
+                ;;
+        esac
     fi
 
     echo -e "  Config:    ${C_GOLD}$CONFIG_FILE${C_RESET}\n"

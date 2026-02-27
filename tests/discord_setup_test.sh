@@ -598,6 +598,163 @@ test_status_shows_custom_mode_when_client_id_set
 test_status_no_tmp_hardcode
 test_status_lock_path_uses_cache_dir
 
+# ─── Section 8: update.sh wires wsl_bridge.sh ────────────────────────────────
+
+section "update.sh sources wsl_bridge.sh"
+
+UPDATE_SH="$REPO_DIR/lib/discord/update.sh"
+
+test_update_sh_sources_wsl_bridge() {
+    # update.sh must source wsl_bridge.sh so _wsl_bridge_ensure is available
+    grep -q "wsl_bridge.sh" "$UPDATE_SH" \
+        && pass "update.sh references wsl_bridge.sh" \
+        || fail "update.sh does not reference wsl_bridge.sh"
+}
+
+test_update_sh_calls_wsl_bridge_ensure() {
+    # update.sh must call _wsl_bridge_ensure (WSL bridge auto-start)
+    grep -q "_wsl_bridge_ensure" "$UPDATE_SH" \
+        && pass "update.sh calls _wsl_bridge_ensure" \
+        || fail "update.sh does not call _wsl_bridge_ensure"
+}
+
+test_update_js_log_file_uses_cache_dir() {
+    # update.js LOG_FILE must prefer OPEN_CHAD_CACHE_DIR over a bare os.tmpdir() hardcode.
+    # The old pattern was: path.join(os.tmpdir(), 'open-chad-discord.log') with no env check.
+    # The new pattern uses OPEN_CHAD_CACHE_DIR as primary with os.tmpdir() as fallback only.
+    local update_js="$REPO_DIR/lib/discord/update.js"
+    # The primary assignment must reference OPEN_CHAD_CACHE_DIR (not just os.tmpdir())
+    grep -q "OPEN_CHAD_CACHE_DIR" "$update_js" \
+        && pass "update.js LOG_FILE uses OPEN_CHAD_CACHE_DIR as primary path" \
+        || fail "update.js LOG_FILE does not use OPEN_CHAD_CACHE_DIR (still hardcoded to os.tmpdir())"
+}
+
+test_update_js_log_file_references_cache_dir_env() {
+    # update.js LOG_FILE must reference OPEN_CHAD_CACHE_DIR
+    local update_js="$REPO_DIR/lib/discord/update.js"
+    grep -q "OPEN_CHAD_CACHE_DIR" "$update_js" \
+        && pass "update.js references OPEN_CHAD_CACHE_DIR for log path" \
+        || fail "update.js does not reference OPEN_CHAD_CACHE_DIR"
+}
+
+test_update_sh_sources_wsl_bridge
+test_update_sh_calls_wsl_bridge_ensure
+test_update_js_log_file_uses_cache_dir
+test_update_js_log_file_references_cache_dir_env
+
+# ─── Section 9: bin/openchad wires WSL bridge auto-start ─────────────────────
+
+section "bin/openchad wires WSL bridge auto-start"
+
+OPENCHAD_BIN="$REPO_DIR/bin/openchad"
+
+test_openchad_sources_wsl_bridge() {
+    grep -q "wsl_bridge.sh" "$OPENCHAD_BIN" \
+        && pass "bin/openchad sources wsl_bridge.sh" \
+        || fail "bin/openchad does not source wsl_bridge.sh"
+}
+
+test_openchad_calls_wsl_bridge_ensure() {
+    grep -q "_wsl_bridge_ensure" "$OPENCHAD_BIN" \
+        && pass "bin/openchad calls _wsl_bridge_ensure" \
+        || fail "bin/openchad does not call _wsl_bridge_ensure"
+}
+
+test_openchad_uses_bridge_startlock() {
+    grep -q "discord-bridge-start.lock" "$OPENCHAD_BIN" \
+        && pass "bin/openchad uses discord-bridge-start.lock singleton" \
+        || fail "bin/openchad missing discord-bridge-start.lock singleton guard"
+}
+
+test_openchad_sources_wsl_bridge
+test_openchad_calls_wsl_bridge_ensure
+test_openchad_uses_bridge_startlock
+
+# ─── Section 10: discord status shows bridge state on WSL ────────────────────
+
+section "discord status bridge state"
+
+test_status_shows_bridge_ready_on_wsl() {
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+    # Write enabled config
+    cat > "$OPEN_CHAD_CONFIG_FILE" <<'EOF'
+{"discordPresence":{"enabled":true}}
+EOF
+    # Simulate WSL: fake /proc/version with Microsoft kernel
+    local fake_proc="$TMP_DIR/proc_version"
+    echo "Linux version 5.15.90.1-microsoft-standard-WSL2" > "$fake_proc"
+    # Fake deps in PATH
+    local fake_bin="$TMP_DIR/bin"
+    mkdir -p "$fake_bin"
+    echo '#!/bin/sh' > "$fake_bin/socat" && chmod +x "$fake_bin/socat"
+    echo '#!/bin/sh' > "$fake_bin/npiperelay.exe" && chmod +x "$fake_bin/npiperelay.exe"
+    # Write a live PID (our own shell)
+    echo "$$" > "$cache_dir/discord-bridge.pid"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_CACHE_DIR="$cache_dir" \
+        OPEN_CHAD_PROC_VERSION="$fake_proc" \
+        PATH="$fake_bin:$PATH" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    assert_contains "$result" "Bridge" "status shows Bridge line on WSL"
+    assert_contains "$result" "ready" "status shows bridge ready when PID alive"
+    teardown_tmp_env
+}
+
+test_status_shows_bridge_missing_deps_on_wsl() {
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+    cat > "$OPEN_CHAD_CONFIG_FILE" <<'EOF'
+{"discordPresence":{"enabled":true}}
+EOF
+    local fake_proc="$TMP_DIR/proc_version"
+    echo "Linux version 5.15.90.1-microsoft-standard-WSL2" > "$fake_proc"
+    # No socat or npiperelay.exe in isolated PATH
+    local isolated_path="/usr/bin:/bin"
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_CACHE_DIR="$cache_dir" \
+        OPEN_CHAD_PROC_VERSION="$fake_proc" \
+        PATH="$isolated_path" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    assert_contains "$result" "Bridge" "status shows Bridge line when deps missing on WSL"
+    assert_contains "$result" "missing" "status shows missing-deps hint"
+    teardown_tmp_env
+}
+
+test_status_hides_bridge_on_native_linux() {
+    setup_tmp_env
+    local cache_dir="$TMP_DIR/cache"
+    mkdir -p "$cache_dir"
+    cat > "$OPEN_CHAD_CONFIG_FILE" <<'EOF'
+{"discordPresence":{"enabled":true}}
+EOF
+    local fake_proc="$TMP_DIR/proc_version"
+    echo "Linux version 5.15.0-generic (Ubuntu)" > "$fake_proc"
+    local fake_interop="$TMP_DIR/no_interop"  # does not exist
+
+    local result
+    result=$(OPEN_CHAD_CONFIG_FILE="$OPEN_CHAD_CONFIG_FILE" \
+        OPEN_CHAD_CACHE_DIR="$cache_dir" \
+        OPEN_CHAD_PROC_VERSION="$fake_proc" \
+        OPEN_CHAD_WSL_INTEROP="$fake_interop" \
+        bash "$SETUP_SH" --status 2>&1) || true
+
+    assert_not_contains "$result" "Bridge" "status hides Bridge line on native Linux"
+    teardown_tmp_env
+}
+
+test_status_shows_bridge_ready_on_wsl
+test_status_shows_bridge_missing_deps_on_wsl
+test_status_hides_bridge_on_native_linux
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""
