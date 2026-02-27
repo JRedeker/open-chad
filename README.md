@@ -94,6 +94,8 @@ These four colors are treated as official constants and centralized in `lib/agen
 ### Crash-Isolated Sessions
 Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). If one crashes, the rest are unaffected. Run 5, 10, or 20+ concurrent sessions without cascade failures.
 
+Session teardown is session-scoped: `openchad` configures tmux to destroy only the launched `oc-*` session when the last attached client exits/detaches. It never uses `tmux kill-server`, so non-`oc-*` and unrelated tmux sessions remain untouched.
+
 ### Themed tmux Dashboard
 Two-row ayu-dark status bar with repo/branch context, session titles correlated from OpenCode's database, live system metrics (CPU, RAM, load), and a retro boot animation.
 
@@ -199,6 +201,8 @@ cds 2026-01-15                  # Specific date
 oc-list                         # List all running sessions
 oc-killall                      # Kill all sessions (--yes to skip prompt)
 ```
+
+Exit behavior: when the last client leaves a given `oc-*` session, that session is closed automatically. If multiple clients are attached to the same session, detaching one client does not close it; teardown happens only after the final client detaches.
 
 ### Project shorthand (`oc <name>`)
 

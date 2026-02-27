@@ -459,6 +459,10 @@ Auth tokens are read from `~/.local/share/opencode/auth.json`.
 
 Each `openchad` invocation creates a unique tmux session: `oc-<epoch_seconds>-<pid>`. If one OpenCode instance crashes, others are unaffected. The epoch is embedded in the session name to enable timestamp-based correlation with the OpenCode SQLite DB.
 
+### Session teardown safety
+
+`bin/openchad` configures `destroy-unattached on` for the newly created session using a session-targeted tmux command (`set-option -t "$session_name" ...`). This ensures only that `oc-*` session is destroyed when the last client detaches/exits, preserving multi-client behavior and never requiring `tmux kill-server`.
+
 ### No fallback in session title
 
 `session_title.sh` deliberately has **no fallback query**. If the timestamp correlation doesn't find a match within the 120-second window, it outputs nothing. A previous fallback that grabbed the most recently created session caused cross-session title bleed (wrong titles rotating across tabs).

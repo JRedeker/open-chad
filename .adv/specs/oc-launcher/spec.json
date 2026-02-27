@@ -3,8 +3,8 @@
   "name": "oc-launcher",
   "title": "Oc Launcher",
   "purpose": "Capability: Oc Launcher",
-  "version": "1.0.0",
-  "updated_at": "2026-02-26T17:15:27.523Z",
+  "version": "1.1.0",
+  "updated_at": "2026-02-27T04:38:00.000Z",
   "requirements": [
     {
       "id": "rq-ocLaunch1",
@@ -55,6 +55,68 @@
             "launcher exits with status 1",
             "a disambiguation list is printed to stderr",
             "no automatic selection is made"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rq-ocLaunch2",
+      "title": "openchad exit closes only its own oc-* session when the last client detaches",
+      "body": "Each openchad launch creates one isolated `oc-<epoch>-<pid>` tmux session and must configure teardown so only that session is destroyed when no clients remain. The launcher must never invoke `tmux kill-server`, must not affect non-`oc-*` sessions, and must preserve `oc attach` / `oc switch` semantics including multi-client safety.",
+      "priority": "must",
+      "tags": [
+        "session-lifecycle",
+        "tmux",
+        "safety"
+      ],
+      "scenarios": [
+        {
+          "id": "rq-ocLaunch2.1",
+          "title": "Scope is limited to current openchad session",
+          "given": [
+            "`openchad` starts session `oc-<epoch>-<pid>`",
+            "other tmux sessions (including non-`oc-*`) may already exist"
+          ],
+          "when": "the openchad client exits and no clients remain attached to that session",
+          "then": [
+            "only the current `oc-<epoch>-<pid>` session is closed",
+            "no other tmux sessions are terminated"
+          ]
+        },
+        {
+          "id": "rq-ocLaunch2.2",
+          "title": "Launcher uses session-scoped teardown command path",
+          "given": [
+            "launcher created a new tmux session for opencode"
+          ],
+          "when": "launcher configures session lifecycle behavior",
+          "then": [
+            "teardown is configured through a session-targeted tmux option path",
+            "launcher never uses `tmux kill-server`"
+          ]
+        },
+        {
+          "id": "rq-ocLaunch2.3",
+          "title": "Two attached clients do not cause premature teardown",
+          "given": [
+            "two clients are attached to the same `oc-*` session via `openchad` and/or `oc attach`"
+          ],
+          "when": "one client detaches or exits",
+          "then": [
+            "the session remains alive while at least one client stays attached",
+            "session teardown occurs only after the last attached client detaches"
+          ]
+        },
+        {
+          "id": "rq-ocLaunch2.4",
+          "title": "Attach and switch workflows remain available",
+          "given": [
+            "multiple `oc-*` sessions exist"
+          ],
+          "when": "user runs `oc attach` or `oc switch`",
+          "then": [
+            "session selection behavior is unchanged",
+            "no automatic teardown is triggered by listing or switching operations"
           ]
         }
       ]

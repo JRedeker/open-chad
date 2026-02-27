@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OC_LIST_BIN="$REPO_DIR/bin/oc-list"
 OC_KILLALL_BIN="$REPO_DIR/bin/oc-killall"
+OPENCHAD_BIN="$REPO_DIR/bin/openchad"
+OC_BIN="$REPO_DIR/bin/oc"
 
 # ─── Test Infrastructure ──────────────────────────────────────────────────────
 
@@ -76,6 +78,40 @@ echo "$mem_output"
 exit 0
 EOF
     chmod +x "$fake_bin_dir/ps"
+}
+
+# Helper: fake runtime binaries for executing bin/openchad safely in tests
+_make_fake_openchad_runtime() {
+    local fake_bin_dir="$1"
+    local tmux_log_file="$2"
+
+    mkdir -p "$fake_bin_dir"
+
+    cat > "$fake_bin_dir/tmux" <<EOF
+#!/usr/bin/env bash
+set -u
+printf '%s\n' "\$*" >> "$tmux_log_file"
+
+case "\${1:-}" in
+    list-sessions)
+        echo 'oc-123: 1 windows (created Mon Jan  1 00:00:00 2024)'
+        ;;
+esac
+exit 0
+EOF
+    chmod +x "$fake_bin_dir/tmux"
+
+    cat > "$fake_bin_dir/nohup" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$fake_bin_dir/nohup"
+
+    cat > "$fake_bin_dir/vision" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$fake_bin_dir/vision"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -411,6 +447,121 @@ test_oc_list_does_not_reference_old_binary
 test_oc_killall_does_not_reference_old_binary
 test_oc_alias_exists
 test_oc_alias_references_openchad
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Session lifecycle regression: openchad exit teardown safety
+# ═══════════════════════════════════════════════════════════════════════════════
+
+section "openchad session lifecycle — exit teardown safety"
+
+test_openchad_configures_destroy_unattached() {
+    grep -q 'destroy-unattached' "$OPENCHAD_BIN" \
+        && pass "bin/openchad configures destroy-unattached teardown" \
+        || fail "bin/openchad missing destroy-unattached teardown configuration"
+}
+
+test_openchad_executes_session_scoped_destroy_unattached() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/fake_bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    touch "$tmux_log"
+    _make_fake_openchad_runtime "$fake_bin" "$tmux_log"
+
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        PATH="$fake_bin:$PATH" \
+        TERM=dumb \
+        bash "$OPENCHAD_BIN" --no-anim >/dev/null 2>&1 || true
+
+    local new_session_line set_option_line session_from_new session_from_set
+    new_session_line=$(grep '^new-session -d -s oc-' "$tmux_log" | head -1)
+    set_option_line=$(grep '^set-option -t oc-' "$tmux_log" | grep 'destroy-unattached on' | head -1)
+    session_from_new=$(echo "$new_session_line" | awk '{print $4}')
+    session_from_set=$(echo "$set_option_line" | awk '{print $3}')
+
+    [ -n "$new_session_line" ] \
+        && pass "bin/openchad executes tmux new-session for oc-*"
+    [ -z "$new_session_line" ] \
+        && fail "bin/openchad did not execute tmux new-session"
+
+    [ -n "$set_option_line" ] \
+        && pass "bin/openchad executes session-scoped destroy-unattached"
+    [ -z "$set_option_line" ] \
+        && fail "bin/openchad did not execute session-scoped destroy-unattached"
+
+    if [ -n "$session_from_new" ] && [ -n "$session_from_set" ] && [ "$session_from_new" = "$session_from_set" ]; then
+        pass "bin/openchad sets destroy-unattached on the created session"
+    else
+        fail "bin/openchad destroy-unattached target does not match created session"
+    fi
+
+    teardown_tmp_env
+}
+
+test_openchad_targets_current_session_for_teardown() {
+    grep -qE 'set-option\s+-t\s+"?\$session_name"?\s+destroy-unattached\s+on' "$OPENCHAD_BIN" \
+        && pass "bin/openchad targets current session for teardown" \
+        || fail "bin/openchad does not set destroy-unattached on current session"
+}
+
+test_openchad_does_not_invoke_tmux_kill_server() {
+    grep -qE '^\s*tmux\s+kill-server' "$OPENCHAD_BIN" \
+        && fail "bin/openchad invokes tmux kill-server (too destructive)" \
+        || pass "bin/openchad does not invoke tmux kill-server"
+}
+
+test_openchad_warns_once_when_destroy_unattached_unsupported() {
+    grep -q 'destroy-unattached.warned' "$OPENCHAD_BIN" \
+        && pass "bin/openchad caches destroy-unattached warning to avoid repeated noise" \
+        || fail "bin/openchad missing one-time warning cache for destroy-unattached"
+}
+
+test_openchad_configures_destroy_unattached
+test_openchad_executes_session_scoped_destroy_unattached
+test_openchad_targets_current_session_for_teardown
+test_openchad_does_not_invoke_tmux_kill_server
+test_openchad_warns_once_when_destroy_unattached_unsupported
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Regression: attach/switch + multi-session isolation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+section "oc attach/switch + multi-session isolation regression"
+
+test_oc_attach_uses_tmux_attach_session() {
+    grep -qE '^\s*exec\s+tmux\s+attach-session' "$OC_BIN" \
+        && pass "bin/oc attach path uses tmux attach-session" \
+        || fail "bin/oc missing tmux attach-session path"
+}
+
+test_oc_switch_uses_tmux_switch_client() {
+    grep -qE '^\s*exec\s+tmux\s+switch-client' "$OC_BIN" \
+        && pass "bin/oc switch path uses tmux switch-client" \
+        || fail "bin/oc missing tmux switch-client path"
+}
+
+test_oc_attach_and_switch_filter_oc_sessions() {
+    grep -q "grep '\^oc-'" "$OC_BIN" \
+        && pass "bin/oc attach/switch filter to oc-* sessions" \
+        || fail "bin/oc attach/switch missing oc-* session filtering"
+}
+
+test_openchad_uses_unique_oc_session_names() {
+    grep -qE 'session_name="oc-\$\(date \+%s\)-\$\$"' "$OPENCHAD_BIN" \
+        && pass "bin/openchad keeps per-launch unique oc-* session naming" \
+        || fail "bin/openchad missing unique oc-* session naming"
+}
+
+test_openchad_teardown_is_session_scoped_not_global() {
+    grep -qE 'set-option\s+-t\s+"?\$session_name"?\s+destroy-unattached\s+on' "$OPENCHAD_BIN" \
+        && pass "bin/openchad teardown remains session-scoped (multi-session safe)" \
+        || fail "bin/openchad teardown is not explicitly session-scoped"
+}
+
+test_oc_attach_uses_tmux_attach_session
+test_oc_switch_uses_tmux_switch_client
+test_oc_attach_and_switch_filter_oc_sessions
+test_openchad_uses_unique_oc_session_names
+test_openchad_teardown_is_session_scoped_not_global
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
