@@ -170,42 +170,42 @@ test_center_y_16_rows
 
 section "Color palette"
 
-test_has_6_colors() {
-    # The colors array should have 6 entries
+test_has_color_array() {
+    # The colors array should exist and drive logo cycling
     grep -q 'colors=(' "$ANIMATION" && pass "colors array defined" || fail "colors array not found"
 }
 
-test_palette_green() {
-    grep -q '170;217;76' "$ANIMATION" && pass "green (#AAD94C) present" || fail "green missing"
+test_palette_build_blue() {
+    grep -q '89;194;255' "$ANIMATION" && pass "build blue (#59C2FF) present" || fail "build blue missing"
 }
 
-test_palette_golden() {
-    grep -q '230;180;80' "$ANIMATION" && pass "golden (#E6B450) present" || fail "golden missing"
+test_palette_plan_orange() {
+    grep -q '255;180;84' "$ANIMATION" && pass "plan orange (#FFB454) present" || fail "plan orange missing"
 }
 
-test_palette_blue() {
-    grep -q '89;194;255' "$ANIMATION" && pass "blue (#59C2FF) present" || fail "blue missing"
+test_palette_scout_pink() {
+    grep -q '240;113;120' "$ANIMATION" && pass "scout pink (#F07178) present" || fail "scout pink missing"
 }
 
-test_palette_orange() {
-    grep -q '255;143;64' "$ANIMATION" && pass "orange (#FF8F40) present" || fail "orange missing"
-}
-
-test_palette_func_orange() {
-    grep -q '255;180;84' "$ANIMATION" && pass "func orange (#FFB454) present" || fail "func orange missing"
+test_palette_refine_green() {
+    grep -q '170;217;76' "$ANIMATION" && pass "refine green (#AAD94C) present" || fail "refine green missing"
 }
 
 test_palette_gray() {
     grep -q '98;109;122' "$ANIMATION" && pass "gray (#626d7a) present" || fail "gray missing"
 }
 
-test_has_6_colors
-test_palette_green
-test_palette_golden
-test_palette_blue
-test_palette_orange
-test_palette_func_orange
+test_palette_file_sourced() {
+    grep -q 'agent_palette.sh' "$ANIMATION" && pass "animation sources agent palette constants" || fail "animation does not source agent palette"
+}
+
+test_has_color_array
+test_palette_build_blue
+test_palette_plan_orange
+test_palette_scout_pink
+test_palette_refine_green
 test_palette_gray
+test_palette_file_sourced
 
 # ─── Section 5: Animation phases ─────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ test_subtitle_centered() {
 }
 
 test_subtitle_text() {
-    grep -q 'O P E N - C H A D' "$ANIMATION" && pass "subtitle text present" || fail "subtitle text missing"
+    grep -q 'O P E N C H A D' "$ANIMATION" && pass "subtitle text present" || fail "subtitle text missing"
 }
 
 test_launch_text_centered() {

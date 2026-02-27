@@ -2,7 +2,6 @@
 # lib/openchad_uninstall.sh — openchad uninstall subcommand handler
 #
 # Removes the openchad installation:
-#   - Removes managed symlinks from ~/.local/bin
 #   - Removes the OPEN-CHAD THEME block from ~/.tmux.conf
 #   - Removes the OPEN-CHAD PATH block from ~/.bashrc / ~/.zshrc
 #

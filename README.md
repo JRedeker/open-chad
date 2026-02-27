@@ -20,6 +20,19 @@ A priority-ranked rule system (25 rules, conflict resolution by priority) govern
 ### Scoped Agent Orchestration
 Eight specialized agents — **scout**, **build**, **refine**, **plan**, **explore**, **librarian**, **general**, and **adv-researcher** — each with explicitly scoped tool access. Scout is read-only. Plan blocks all writes. Refine has full access but is scope-locked to one objective. The right agent gets the right tools and nothing more.
 
+Primary agent accent colors (`build`, `plan`, `scout`, `refine`) are persisted in `~/.config/opencode/open-chad.json` under `agentColors` and re-applied on setup/update. They are not stored in the OpenCode theme JSON:
+
+```json
+{
+  "agentColors": {
+    "build": "#59C2FF",
+    "plan": "#FFB454",
+    "scout": "#F07178",
+    "refine": "#AAD94C"
+  }
+}
+```
+
 ### Spec-Driven Development (ADV)
 The [ADV plugin](https://github.com/Sharper-Flow/Advance) turns requirements into enforceable specs. A 6-gate quality workflow — research → prep → implementation → review → harden → signoff — ensures changes are validated against specs before archive. Accumulated wisdom carries forward across changes.
 
@@ -43,6 +56,8 @@ See remaining quota for Z.ai, GitHub Copilot, Claude, and OpenAI Codex directly 
 
 ### Synthwave Status Edges
 Each tmux status bar position (left/right × row0/row1) renders a unique block-glyph edge in the agent color palette — build (blue) → plan (yellow) → scout (pink) → refine (green). The variant is derived from your session name, giving 256 possible combinations across all four positions. Every session looks slightly different.
+
+These four colors are treated as official constants and centralized in `lib/agent_palette.sh`.
 
 ### Crash-Isolated Sessions
 Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). If one crashes, the rest are unaffected. Run 5, 10, or 20+ concurrent sessions without cascade failures.

@@ -11,12 +11,18 @@ side="${1:-left}"   # left | right
 row="${2:-row0}"    # row0 | row1
 session_name="${3:-default}"
 
+PALETTE_FILE="$(dirname "${BASH_SOURCE[0]}")/agent_palette.sh"
+if [ -f "$PALETTE_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$PALETTE_FILE"
+fi
+
 # Keep color order fixed as a mnemonic:
 # build (blue) -> plan (yellow) -> scout (pink) -> refine (green)
-c1="#59C2FF"
-c2="#FFB454"
-c3="#F07178"
-c4="#AAD94C"
+c1="${OPEN_CHAD_COLOR_BUILD:-#59C2FF}"
+c2="${OPEN_CHAD_COLOR_PLAN:-#FFB454}"
+c3="${OPEN_CHAD_COLOR_SCOUT:-#F07178}"
+c4="${OPEN_CHAD_COLOR_REFINE:-#AAD94C}"
 
 # Derive a numeric seed from a string (djb2-inspired hash)
 _hash_string() {

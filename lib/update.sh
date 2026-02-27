@@ -172,31 +172,10 @@ _new_head=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unkno
 ok "Pulled to $REPO_DIR ($_current_branch @ $_new_head)"
 log "git pull OK: HEAD=$_new_head"
 
-# ─── 4b. Repair symlinks (full managed set from manifest) ────────────────────
-step "Ensuring ~/.local/bin symlinks are current"
-_DEST_DIR="$HOME/.local/bin"
-mkdir -p "$_DEST_DIR"
-
-_repair_symlink() {
-    local src="$1"
-    local dest="$2"
-    if [ ! -e "$src" ]; then
-        warn "Symlink source missing, skipping: $src"
-        return 0
-    fi
-    ln -sfn "$src" "$dest"
-    ok "Symlink: $(basename "$src") -> $dest"
-}
-
-# Source the shared manifest to get MANAGED_SYMLINKS
-# shellcheck source=symlink_manifest.sh
-source "$REPO_DIR/lib/symlink_manifest.sh"
-
-for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
-    _repair_symlink "$REPO_DIR/${MANAGED_SYMLINKS[$_link_name]}" "$_DEST_DIR/$_link_name"
-done
-unset _link_name
-log "Symlinks repaired (openchad, oc, cds, oc-list, oc-killall)"
+# ─── 4b. Ensure shell profile PATH is current ─────────────────────────────────
+step "Ensuring shell profile PATH is current"
+bash "$REPO_DIR/lib/setup_shell_profile.sh" || warn "Shell profile setup had issues (non-fatal)"
+log "Shell profile PATH updated"
 
 # ─── 4c. Remove stale legacy aliases from shell rc files ─────────────────────
 step "Checking for stale 'open-chad' aliases in shell rc files"
@@ -217,31 +196,11 @@ _remove_stale_alias() {
         ok "Removed stale alias oc='open-chad' from $(basename "$rc_file")"
         log "Removed stale alias from $rc_file"
     fi
-    # Also remove stale PATH export for open-chad/bin (now managed via ~/.local/bin symlinks)
-    if grep -qE "^[[:space:]]*export[[:space:]]+PATH=.*open-chad/bin" "$rc_file"; then
-        local tmp_file
-        tmp_file=$(mktemp)
-        awk '
-            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*[Rr]etro tmux/ { next }
-            /^[[:space:]]*export[[:space:]]+PATH=.*open-chad\/bin/ { next }
-            { print }
-        ' "$rc_file" > "$tmp_file"
-        mv -f "$tmp_file" "$rc_file"
-        ok "Removed stale PATH export (open-chad/bin) from $(basename "$rc_file")"
-        log "Removed stale PATH from $rc_file"
-    fi
 }
 
 _remove_stale_alias "$HOME/.zshrc"
 _remove_stale_alias "$HOME/.bashrc"
 _remove_stale_alias "$HOME/.bash_profile"
-
-# Also remove stale open-chad symlink if present
-if [ -L "$_DEST_DIR/open-chad" ]; then
-    rm -f "$_DEST_DIR/open-chad"
-    ok "Removed stale open-chad symlink from $_DEST_DIR"
-    log "Removed stale open-chad symlink"
-fi
 
 # ─── 5. Re-run setup modules ──────────────────────────────────────────────────
 echo ""

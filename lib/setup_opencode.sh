@@ -21,6 +21,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PALETTE_FILE="$REPO_DIR/lib/agent_palette.sh"
+
+if [ -f "$PALETTE_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$PALETTE_FILE"
+fi
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 C_SAGE="\e[38;5;107m"
@@ -31,6 +37,208 @@ C_RESET="\e[0m"
 step()  { echo -e "${C_GOLD}[opencode]${C_RESET} $*"; }
 ok()    { echo -e "${C_SAGE}[opencode] OK:${C_RESET} $*"; }
 warn()  { echo -e "${C_CORAL}[opencode] WARN:${C_RESET} $*"; }
+
+_is_valid_hex_color() {
+    local value="${1:-}"
+    [[ "$value" =~ ^#[0-9A-Fa-f]{6}$ ]]
+}
+
+_default_color_for_agent() {
+    if declare -F open_chad_agent_color >/dev/null 2>&1; then
+        open_chad_agent_color "${1:-}"
+        return 0
+    fi
+
+    case "${1:-}" in
+        build) printf '%s' '#59C2FF' ;;
+        plan) printf '%s' '#FFB454' ;;
+        scout) printf '%s' '#F07178' ;;
+        refine) printf '%s' '#AAD94C' ;;
+        *) printf '%s' '' ;;
+    esac
+}
+
+_read_agent_frontmatter_color() {
+    local file="$1"
+    [ -f "$file" ] || return 0
+
+    awk '
+        BEGIN { in_frontmatter=0; delimiter_count=0 }
+        $0 == "---" && delimiter_count == 0 { in_frontmatter=1; delimiter_count=1; next }
+        $0 == "---" && in_frontmatter == 1 { exit }
+        in_frontmatter == 1 {
+            if ($0 ~ /^color:[[:space:]]*/) {
+                line=$0
+                sub(/^color:[[:space:]]*/, "", line)
+                gsub(/"/, "", line)
+                print line
+                exit
+            }
+        }
+    ' "$file"
+}
+
+_resolve_agent_color() {
+    local agent="$1"
+    local fallback="$2"
+
+    if ! command -v node &>/dev/null || [ ! -f "$OPEN_CHAD_CONFIG_FILE" ]; then
+        printf '%s' "$fallback"
+        return 0
+    fi
+
+    local configured
+    configured=$(node - "$OPEN_CHAD_CONFIG_FILE" "$agent" "$fallback" <<'EOF'
+const fs = require('fs');
+const cfgPath = process.argv[2];
+const agent = process.argv[3];
+const fallback = process.argv[4];
+
+try {
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  const value = cfg && cfg.agentColors ? cfg.agentColors[agent] : undefined;
+  if (typeof value === 'string') {
+    process.stdout.write(value);
+  } else {
+    process.stdout.write(fallback);
+  }
+} catch (_) {
+  process.stdout.write(fallback);
+}
+EOF
+)
+
+    if _is_valid_hex_color "$configured"; then
+        printf '%s' "$configured"
+    else
+        printf '%s' "$fallback"
+    fi
+}
+
+_seed_agent_colors_config() {
+    if ! command -v node &>/dev/null; then
+        warn "node not found; skipping persisted agent color migration"
+        return 0
+    fi
+
+    local has_agent_colors=0
+    if [ -f "$OPEN_CHAD_CONFIG_FILE" ]; then
+        if node - "$OPEN_CHAD_CONFIG_FILE" <<'EOF' >/dev/null 2>&1
+const fs = require('fs');
+const cfgPath = process.argv[2];
+try {
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  process.exit(cfg && cfg.agentColors && typeof cfg.agentColors === 'object' ? 0 : 1);
+} catch (_) {
+  process.exit(1);
+}
+EOF
+        then
+            has_agent_colors=0
+        else
+            has_agent_colors=1
+        fi
+    else
+        has_agent_colors=1
+    fi
+
+    if [ "$has_agent_colors" -eq 0 ]; then
+        return 0
+    fi
+
+    local build_color plan_color scout_color refine_color
+    local detected
+
+    build_color="$(_default_color_for_agent build)"
+    detected="$(_read_agent_frontmatter_color "$DEST_AGENTS_DIR/build.md")"
+    if _is_valid_hex_color "$detected"; then build_color="$detected"; fi
+
+    plan_color="$(_default_color_for_agent plan)"
+    detected="$(_read_agent_frontmatter_color "$DEST_AGENTS_DIR/plan.md")"
+    if _is_valid_hex_color "$detected"; then plan_color="$detected"; fi
+
+    scout_color="$(_default_color_for_agent scout)"
+    detected="$(_read_agent_frontmatter_color "$DEST_AGENTS_DIR/scout.md")"
+    if _is_valid_hex_color "$detected"; then scout_color="$detected"; fi
+
+    refine_color="$(_default_color_for_agent refine)"
+    detected="$(_read_agent_frontmatter_color "$DEST_AGENTS_DIR/refine.md")"
+    if _is_valid_hex_color "$detected"; then refine_color="$detected"; fi
+
+    local payload
+    payload=$(printf '{"agentColors":{"build":"%s","plan":"%s","scout":"%s","refine":"%s"}}' \
+        "$build_color" "$plan_color" "$scout_color" "$refine_color")
+
+    if bash "$REPO_DIR/lib/json_merge.sh" "$OPEN_CHAD_CONFIG_FILE" "$payload" >/dev/null 2>&1; then
+        ok "Persisted agent colors into $OPEN_CHAD_CONFIG_FILE"
+    else
+        warn "Failed to persist agent colors into $OPEN_CHAD_CONFIG_FILE"
+    fi
+}
+
+_upsert_agent_frontmatter_color() {
+    local file="$1"
+    local color="$2"
+    [ -f "$file" ] || return 0
+    _is_valid_hex_color "$color" || return 0
+
+    local tmp="${file}.$$"
+    awk -v new_color="$color" '
+        BEGIN { in_frontmatter=0; delimiter_count=0; color_set=0 }
+        {
+            if ($0 == "---" && delimiter_count == 0) {
+                in_frontmatter=1
+                delimiter_count=1
+                print
+                next
+            }
+
+            if ($0 == "---" && in_frontmatter == 1) {
+                if (color_set == 0) {
+                    print "color: \"" new_color "\""
+                    color_set=1
+                }
+                in_frontmatter=0
+                delimiter_count=2
+                print
+                next
+            }
+
+            if (in_frontmatter == 1 && $0 ~ /^color:[[:space:]]*/) {
+                if (color_set == 0) {
+                    print "color: \"" new_color "\""
+                    color_set=1
+                }
+                next
+            }
+
+            print
+        }
+    ' "$file" > "$tmp"
+    mv -f "$tmp" "$file"
+}
+
+_apply_primary_agent_colors() {
+    local agent default_color resolved_color agent_file
+    for agent in build plan scout refine; do
+        default_color="$(_default_color_for_agent "$agent")"
+        resolved_color="$(_resolve_agent_color "$agent" "$default_color")"
+        agent_file="$DEST_AGENTS_DIR/${agent}.md"
+
+        if [ ! -f "$agent_file" ]; then
+            warn "agent color skipped; missing file: $(basename "$agent_file")"
+            continue
+        fi
+
+        if ! _is_valid_hex_color "$resolved_color"; then
+            warn "agent color invalid for '$agent' ('$resolved_color'); using default '$default_color'"
+            resolved_color="$default_color"
+        fi
+
+        _upsert_agent_frontmatter_color "$agent_file" "$resolved_color"
+        ok "agent color: ${agent} -> $resolved_color"
+    done
+}
 
 _copy_if_regular() {
     local src="$1"
@@ -84,6 +292,7 @@ done
 ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
 OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"
+OPEN_CHAD_CONFIG_FILE="${OPEN_CHAD_CONFIG_FILE:-$OPENCODE_CONFIG_DIR/open-chad.json}"
 
 BUNDLE_AGENTS_DIR="$REPO_DIR/config/opencode/agents"
 BUNDLE_INSTRUCTIONS_DIR="$REPO_DIR/config/opencode/instructions"
@@ -93,6 +302,9 @@ DEST_AGENTS_DIR="$OPENCODE_CONFIG_DIR/agents"
 DEST_COMMANDS_DIR="$OPENCODE_CONFIG_DIR/command"
 DEST_INSTRUCTIONS_DIR="$OPENCODE_CONFIG_DIR/instructions"
 DEST_THEMES_DIR="$OPENCODE_CONFIG_DIR/themes"
+
+# Seed agent color persistence from existing local agent files before sync.
+_seed_agent_colors_config
 
 # ─── 1. Sync agent files ───────────────────────────────────────────────────────
 step "Syncing agent files -> $DEST_AGENTS_DIR"
@@ -155,6 +367,9 @@ if [ -d "$ADV_AGENTS_DIR" ]; then
         _copy_agent "$src" "$dest" "agent (adv)"
     done
 fi
+
+# Persisted primary agent accent colors always win over bundled defaults.
+_apply_primary_agent_colors
 
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
 step "Syncing instruction files -> $DEST_INSTRUCTIONS_DIR"

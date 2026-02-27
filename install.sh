@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# open-chad: Installation script (v1.0)
+# open-chad: Installation script (v1.1)
 #
 # Usage:
 #   bash install.sh                    — interactive wizard (TTY detected)
@@ -10,7 +10,7 @@
 #
 # What it does:
 #   1. Pre-flight environment checks (Ubuntu/Debian, git, disk space)
-#   2. Symlink bin/open-chad -> ~/.local/bin/open-chad
+#   2. Shell profile PATH setup (~/dev/open-chad/bin added to PATH)
 #   3. Tmux theme integration -> ~/.tmux.conf
 #   4. Delegate to lib/wizard.sh (interactive) or run silently (--yes/no-TTY)
 
@@ -121,41 +121,15 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 
-# ─── 3. Setup symlinks ────────────────────────────────────────────────────────
-DEST_DIR="$HOME/.local/bin"
-mkdir -p "$DEST_DIR"
+# ─── 3. Shell profile PATH setup ──────────────────────────────────────────────
+# The shell profile is configured in lib/setup_shell_profile.sh which adds
+# ~/dev/open-chad/bin to PATH. The wizard calls this, but we also call it here
+# for non-interactive installs so PATH is available immediately.
+step() { echo -e "${C_GOLD}[install]${C_RESET} $*"; }
+step "Setting up shell profile PATH"
+bash "$SCRIPT_DIR/lib/setup_shell_profile.sh" || echo -e "${C_CORAL}WARNING: Shell profile setup had issues (continuing)${C_RESET}"
 
-_install_symlink() {
-    local src="$1"
-    local dest="$2"
-    if [ ! -e "$src" ]; then
-        echo -e "${C_CORAL}ERROR: Cannot create symlink, source not found: $src${C_RESET}" >&2
-        exit 1
-    fi
-    if [ -d "$dest" ] && [ ! -L "$dest" ]; then
-        echo -e "${C_CORAL}ERROR: Cannot replace directory with symlink: $dest${C_RESET}" >&2
-        exit 1
-    fi
-    ln -sfn "$src" "$dest"
-    echo -e "Symlinked ${C_GOLD}$(basename "$src")${C_RESET} -> ${C_GOLD}$dest${C_RESET}"
-}
-
-# Source the shared manifest to get MANAGED_SYMLINKS
-# shellcheck source=lib/symlink_manifest.sh
-source "$SCRIPT_DIR/lib/symlink_manifest.sh"
-
-for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
-    _install_symlink "$SCRIPT_DIR/${MANAGED_SYMLINKS[$_link_name]}" "$DEST_DIR/$_link_name"
-done
-unset _link_name
-
-# Remove stale open-chad symlink from previous installs
-if [ -L "$DEST_DIR/open-chad" ]; then
-    rm -f "$DEST_DIR/open-chad"
-    echo -e "Removed stale ${C_CORAL}open-chad${C_RESET} symlink (renamed to openchad)"
-fi
-
-# Remove stale alias oc='open-chad' and PATH from shell rc files
+# Remove stale alias oc='open-chad' and PATH from shell rc files (legacy cleanup)
 _clean_stale_alias() {
     local rc_file="$1"
     [ -f "$rc_file" ] || return 0
@@ -165,16 +139,6 @@ _clean_stale_alias() {
         awk '
             /^[[:space:]]*#.*[Oo]pen-[Cc]had.*replaces old oc/ { next }
             /^[[:space:]]*alias[[:space:]]+oc=.open-chad/ { next }
-            { print }
-        ' "$rc_file" > "$tmp_file"
-        mv -f "$tmp_file" "$rc_file"
-        changed=1
-    fi
-    if grep -qE "^[[:space:]]*export[[:space:]]+PATH=.*open-chad/bin" "$rc_file"; then
-        local tmp_file; tmp_file=$(mktemp)
-        awk '
-            /^[[:space:]]*#.*[Oo]pen-[Cc]had.*[Rr]etro tmux/ { next }
-            /^[[:space:]]*export[[:space:]]+PATH=.*open-chad\/bin/ { next }
             { print }
         ' "$rc_file" > "$tmp_file"
         mv -f "$tmp_file" "$rc_file"

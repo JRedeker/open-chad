@@ -177,6 +177,15 @@ docs/
 
 All UI elements use the ayu-dark palette. Use these exact hex values:
 
+Primary agent color constants are canonicalized in `lib/agent_palette.sh`:
+
+| Agent | Hex |
+|-------|-----|
+| `build` | `#59C2FF` |
+| `plan` | `#FFB454` |
+| `scout` | `#F07178` |
+| `refine` | `#AAD94C` |
+
 | Name | Hex | Usage |
 |------|-----|-------|
 | `string` | `#AAD94C` | Green — accent edges, active pane border, healthy gauge |

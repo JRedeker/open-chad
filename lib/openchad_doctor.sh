@@ -2,10 +2,10 @@
 # lib/openchad_doctor.sh — openchad doctor subcommand handler
 #
 # Validates the openchad installation:
-#   - Managed symlinks exist and point to correct targets
+#   - Shell profile PATH includes ~/dev/open-chad/bin
 #   - tmux theme block is present in ~/.tmux.conf
 #   - Cache directory is writable
-#   - Legacy open-chad symlink migration warning
+#   - Legacy open-chad migration warning
 #
 # Called by: bin/openchad doctor
 
@@ -32,55 +32,65 @@ echo ""
 echo "openchad doctor — installation health check"
 echo ""
 
-# ─── 1. Managed symlinks ─────────────────────────────────────────────────────
-echo "Symlinks (~/.local/bin):"
+# ─── 1. Shell profile PATH ───────────────────────────────────────────────────
+echo "Shell profile PATH:"
 
-# Source the shared manifest
-# shellcheck source=symlink_manifest.sh
-source "$REPO_DIR/lib/symlink_manifest.sh"
+# Resolve canonical repo path (handles worktree edge case)
+_CANONICAL_REPO="$REPO_DIR"
+if [ -d "$REPO_DIR/.git" ]; then
+    _git_common_dir=$(git -C "$REPO_DIR" rev-parse --git-common-dir 2>/dev/null || echo "")
+    if [ -n "$_git_common_dir" ] && [ "$_git_common_dir" != "$REPO_DIR/.git" ]; then
+        _CANONICAL_REPO=$(dirname "$_git_common_dir")
+    fi
+fi
 
-DEST_DIR="$HOME/.local/bin"
-for _link_name in "${!MANAGED_SYMLINKS[@]}"; do
-    _expected_target="$REPO_DIR/${MANAGED_SYMLINKS[$_link_name]}"
-    _link_path="$DEST_DIR/$_link_name"
-    if [ -L "$_link_path" ]; then
-        _actual_target=$(readlink -f "$_link_path" 2>/dev/null || echo "")
-        if [ "$_actual_target" = "$_expected_target" ]; then
-            ok "$_link_name → $_expected_target"
-        else
-            warn "$_link_name exists but points to wrong target"
-            info "  expected: $_expected_target"
-            info "  actual:   $_actual_target"
-            _issues=$((_issues + 1))
+# Check if the repo's bin directory is in PATH (in current session or rc files)
+_expected_path="$_CANONICAL_REPO/bin"
+_path_found=0
+
+# Check current PATH
+if [[ ":$PATH:" == *":$_expected_path:"* ]]; then
+    ok "Current PATH includes $_expected_path"
+    _path_found=1
+else
+    # Check if it's in rc files but not yet in current session
+    for _rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
+        if [ -f "$_rc" ] && grep -qF "$_expected_path" "$_rc"; then
+            ok "PATH entry found in $(basename "$_rc") (reload shell to activate)"
+            _path_found=1
+            break
         fi
-    elif [ -e "$_link_path" ]; then
-        fail "$_link_name exists but is not a symlink"
-        _issues=$((_issues + 1))
+    done
+fi
+
+if [ "$_path_found" -eq 0 ]; then
+    fail "PATH missing $_expected_path"
+    info "  Run: bash $REPO_DIR/install.sh --yes"
+    _issues=$((_issues + 1))
+fi
+
+# Verify binaries exist in bin/
+_binaries=("openchad" "oc" "cds" "oc-list" "oc-killall")
+for _bin in "${_binaries[@]}"; do
+    if [ -f "$_expected_path/$_bin" ]; then
+        ok "Binary: $_bin present in $_expected_path"
     else
-        fail "$_link_name missing — run: bash $REPO_DIR/install.sh"
+        fail "Binary missing: $_expected_path/$_bin"
+        info "  The repo appears incomplete — try: git checkout ."
         _issues=$((_issues + 1))
     fi
 done
-unset _link_name
+unset _bin _binaries
 
-# ─── 2. Legacy open-chad symlink migration warning ────────────────────────────
+# ─── 2. Legacy open-chad alias cleanup ────────────────────────────────────────
 echo ""
 echo "Legacy migration:"
-if [ -L "$DEST_DIR/open-chad" ] || [ -e "$DEST_DIR/open-chad" ]; then
-    warn "Stale 'open-chad' symlink found at $DEST_DIR/open-chad"
-    info "  The canonical command is now 'openchad' (or 'oc' for short)."
-    info "  Remove the stale symlink: rm $DEST_DIR/open-chad"
-    _issues=$((_issues + 1))
-else
-    ok "No stale 'open-chad' symlink found"
-fi
-
 # Check for stale alias oc='open-chad' in shell rc files
 _stale_alias_found=0
 for _rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
     if [ -f "$_rc" ] && grep -qE "^[[:space:]]*alias[[:space:]]+oc=['\"]open-chad['\"]" "$_rc"; then
         warn "Stale alias oc='open-chad' in $_rc"
-        info "  This overrides the oc symlink and causes 'command not found'."
+        info "  This overrides the oc command and causes 'command not found'."
         info "  Remove the line or run: openchad update"
         _stale_alias_found=1
         _issues=$((_issues + 1))
@@ -300,7 +310,7 @@ echo ""
 if [ "$_issues" -eq 0 ]; then
     echo -e "${C_GREEN}All checks passed.${C_RESET} openchad is healthy."
 else
-    echo -e "${C_ORANGE}$_issues issue(s) found.${C_RESET} Run 'openchad update' to repair symlinks."
+    echo -e "${C_ORANGE}$_issues issue(s) found.${C_RESET} Run 'openchad update' to repair."
 fi
 echo ""
 exit "$_issues"

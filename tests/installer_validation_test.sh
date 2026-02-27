@@ -1536,6 +1536,141 @@ test_scout_firecrawl_tools_enabled
 test_scout_playwright_not_for_browsing_rule
 test_scout_remains_read_only
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# setup_opencode.sh — persisted primary agent colors
+# ═══════════════════════════════════════════════════════════════════════════════
+section "setup_opencode.sh — persisted primary agent colors"
+
+test_setup_opencode_persists_default_primary_agent_colors() {
+    if ! command -v node &>/dev/null; then
+        skip "test_setup_opencode_persists_default_primary_agent_colors (node not found)"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_home="$tmp_dir/home"
+    local op_dir="$tmp_dir/opencode"
+    local cfg_file="$op_dir/open-chad.json"
+    mkdir -p "$tmp_home" "$op_dir"
+
+    local exit_code=0
+    HOME="$tmp_home" \
+    OPENCODE_CONFIG_DIR="$op_dir" \
+    OPEN_CHAD_CONFIG_FILE="$cfg_file" \
+    ADV_CHECKOUT_DIR="$tmp_dir/fake-adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands > /dev/null 2>&1 || exit_code=$?
+
+    if [ "$exit_code" -eq 0 ]; then
+        pass "setup_opencode.sh exits 0 while persisting default agent colors"
+    else
+        fail "setup_opencode.sh exited $exit_code (expected 0)"
+    fi
+
+    local pair agent expected
+    for pair in "build:#59C2FF" "plan:#FFB454" "scout:#F07178" "refine:#AAD94C"; do
+        agent="${pair%%:*}"
+        expected="${pair##*:}"
+
+        node -e "
+const fs=require('fs');
+const cfg=JSON.parse(fs.readFileSync('$cfg_file','utf8'));
+process.exit((cfg.agentColors||{})['$agent']==='$expected'?0:1);
+" 2>/dev/null && \
+            pass "open-chad.json stores default color for $agent" || \
+            fail "open-chad.json missing default color for $agent"
+
+        if grep -q "^color: \"$expected\"" "$op_dir/agents/$agent.md" 2>/dev/null; then
+            pass "synced $agent.md has default color $expected"
+        else
+            fail "synced $agent.md missing default color $expected"
+        fi
+    done
+
+    rm -rf "$tmp_dir"
+}
+
+test_setup_opencode_migrates_existing_primary_agent_colors() {
+    if ! command -v node &>/dev/null; then
+        skip "test_setup_opencode_migrates_existing_primary_agent_colors (node not found)"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_home="$tmp_dir/home"
+    local op_dir="$tmp_dir/opencode"
+    local cfg_file="$op_dir/open-chad.json"
+    mkdir -p "$tmp_home" "$op_dir/agents"
+
+    cat > "$op_dir/agents/build.md" <<'EOF'
+---
+description: build
+mode: primary
+color: "#112233"
+---
+EOF
+    cat > "$op_dir/agents/plan.md" <<'EOF'
+---
+description: plan
+mode: primary
+color: "#223344"
+---
+EOF
+    cat > "$op_dir/agents/scout.md" <<'EOF'
+---
+description: scout
+mode: primary
+color: "#334455"
+---
+EOF
+    cat > "$op_dir/agents/refine.md" <<'EOF'
+---
+description: refine
+mode: primary
+color: "#445566"
+---
+EOF
+
+    local exit_code=0
+    HOME="$tmp_home" \
+    OPENCODE_CONFIG_DIR="$op_dir" \
+    OPEN_CHAD_CONFIG_FILE="$cfg_file" \
+    ADV_CHECKOUT_DIR="$tmp_dir/fake-adv" \
+        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands > /dev/null 2>&1 || exit_code=$?
+
+    if [ "$exit_code" -eq 0 ]; then
+        pass "setup_opencode.sh exits 0 while migrating existing agent colors"
+    else
+        fail "setup_opencode.sh exited $exit_code during color migration"
+    fi
+
+    local pair agent expected
+    for pair in "build:#112233" "plan:#223344" "scout:#334455" "refine:#445566"; do
+        agent="${pair%%:*}"
+        expected="${pair##*:}"
+
+        node -e "
+const fs=require('fs');
+const cfg=JSON.parse(fs.readFileSync('$cfg_file','utf8'));
+process.exit((cfg.agentColors||{})['$agent']==='$expected'?0:1);
+" 2>/dev/null && \
+            pass "open-chad.json migrated existing color for $agent" || \
+            fail "open-chad.json failed to migrate color for $agent"
+
+        if grep -q "^color: \"$expected\"" "$op_dir/agents/$agent.md" 2>/dev/null; then
+            pass "synced $agent.md preserved migrated color $expected"
+        else
+            fail "synced $agent.md did not preserve migrated color $expected"
+        fi
+    done
+
+    rm -rf "$tmp_dir"
+}
+
+test_setup_opencode_persists_default_primary_agent_colors
+test_setup_opencode_migrates_existing_primary_agent_colors
+
 # ─── Results ──────────────────────────────────────────────────────────────────
 
 echo ""

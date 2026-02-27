@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# open-chad: Boot animation (ayu-dark palette)
+# open-chad: Boot animation (official primary agent palette)
 # Centered, color-cycling boot sequence
 #
 # Args: $1 = target directory
@@ -21,19 +21,24 @@ TERM_WIDTH=$(tput cols 2>/dev/null || echo 80)
 TERM_HEIGHT=$(tput lines 2>/dev/null || echo 24)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# AYU-DARK PALETTE (true color)
+# OFFICIAL PRIMARY AGENT PALETTE (true color)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-C_STRING=$'\e[38;2;170;217;76m'      # #AAD94C green
-C_ACCENT=$'\e[38;2;230;180;80m'      # #E6B450 golden yellow
-C_TYPE=$'\e[38;2;89;194;255m'        # #59C2FF blue
-C_KEYWORD=$'\e[38;2;255;143;64m'     # #FF8F40 orange
-C_FUNC=$'\e[38;2;255;180;84m'        # #FFB454 functions orange
+PALETTE_FILE="$(dirname "${BASH_SOURCE[0]}")/agent_palette.sh"
+if [ -f "$PALETTE_FILE" ]; then
+    # shellcheck source=/dev/null
+    source "$PALETTE_FILE"
+fi
+
+C_BUILD="${OPEN_CHAD_ANSI_BUILD:-$'\e[38;2;89;194;255m'}"     # #59C2FF
+C_PLAN="${OPEN_CHAD_ANSI_PLAN:-$'\e[38;2;255;180;84m'}"       # #FFB454
+C_SCOUT="${OPEN_CHAD_ANSI_SCOUT:-$'\e[38;2;240;113;120m'}"    # #F07178
+C_REFINE="${OPEN_CHAD_ANSI_REFINE:-$'\e[38;2;170;217;76m'}"   # #AAD94C
 C_COMMENT=$'\e[38;2;98;109;122m'     # #626d7a gray
 C_FG=$'\e[38;2;191;189;182m'         # #BFBDB6 foreground
 C_RESET=$'\e[0m'
 
-colors=("$C_STRING" "$C_ACCENT" "$C_TYPE" "$C_KEYWORD" "$C_FUNC" "$C_COMMENT")
+colors=("$C_BUILD" "$C_PLAN" "$C_SCOUT" "$C_REFINE")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # OPEN CHAD LOGO (74 chars wide, 6 lines)
@@ -91,17 +96,17 @@ typewriter() {
 tput civis
 clear
 
-# Phase 1: Color cycling animation (6 cycles)
-for cycle in {0..5}; do
+# Phase 1: Color cycling animation (primary palette)
+for cycle in {0..3}; do
     draw_logo "$cycle"
     sleep 0.15
 done
 
 # Phase 2: Subtitle (centered)
-SUBTITLE="O P E N - C H A D   1 . 0"
+SUBTITLE="O P E N C H A D   1 . 0"
 SUBTITLE_X=$(( (TERM_WIDTH - ${#SUBTITLE}) / 2 ))
 tput cup $((LOGO_Y + LOGO_HEIGHT + 2)) $SUBTITLE_X
-typewriter "$SUBTITLE" "$C_TYPE"
+typewriter "$SUBTITLE" "$C_BUILD"
 
 sleep 0.1
 
@@ -111,11 +116,11 @@ INFO_X=$(( (TERM_WIDTH - 60) / 2 ))
 INFO_X=$(( INFO_X < 2 ? 2 : INFO_X ))
 
 tput cup $INFO_Y $INFO_X
-printf "%b[ %bSYSTEM%b ] %b%s%b" "$C_COMMENT" "$C_STRING" "$C_COMMENT" "$C_FG" "Initializing shell context..." "$C_RESET"
+printf "%b[ %bSYSTEM%b ] %b%s%b" "$C_COMMENT" "$C_REFINE" "$C_COMMENT" "$C_FG" "Initializing shell context..." "$C_RESET"
 sleep 0.08
 
 tput cup $((INFO_Y + 1)) $INFO_X
-printf "%b[ %bTARGET%b ] %b%s%b" "$C_COMMENT" "$C_ACCENT" "$C_COMMENT" "$C_FG" "Mounting workspace" "$C_RESET"
+printf "%b[ %bTARGET%b ] %b%s%b" "$C_COMMENT" "$C_PLAN" "$C_COMMENT" "$C_FG" "Mounting workspace" "$C_RESET"
 sleep 0.08
 
 # Phase 4: Project details
@@ -126,11 +131,11 @@ tput cup $DETAILS_Y $DETAILS_X
 printf "%bDIR: %b%s%b" "$C_COMMENT" "$C_FG" "$TARGET_DIR" "$C_RESET"
 
 tput cup $((DETAILS_Y + 1)) $DETAILS_X
-printf "%bPRJ: %b%s%b" "$C_COMMENT" "$C_ACCENT" "$PROJECT_NAME" "$C_RESET"
+printf "%bPRJ: %b%s%b" "$C_COMMENT" "$C_PLAN" "$PROJECT_NAME" "$C_RESET"
 
 tput cup $((DETAILS_Y + 2)) $DETAILS_X
 if [ "$GIT_BRANCH" != "no-branch" ]; then
-    printf "%bGIT: %b%s%b" "$C_COMMENT" "$C_TYPE" "$GIT_BRANCH" "$C_RESET"
+    printf "%bGIT: %b%s%b" "$C_COMMENT" "$C_BUILD" "$GIT_BRANCH" "$C_RESET"
 else
     printf "%bGIT: %b(untracked)%b" "$C_COMMENT" "$C_COMMENT" "$C_RESET"
 fi
@@ -141,7 +146,7 @@ sleep 0.2
 LAUNCH_TEXT="▸▸ LAUNCHING $PROJECT_NAME ◂◂"
 LAUNCH_X=$(( (TERM_WIDTH - ${#LAUNCH_TEXT}) / 2 ))
 tput cup $((DETAILS_Y + 5)) $LAUNCH_X
-printf "%b%b%s%b%b" "$C_COMMENT" "$C_TYPE" "$LAUNCH_TEXT" "$C_COMMENT" "$C_RESET"
+printf "%b%b%s%b%b" "$C_COMMENT" "$C_SCOUT" "$LAUNCH_TEXT" "$C_COMMENT" "$C_RESET"
 sleep 0.25
 
 # Cleanup

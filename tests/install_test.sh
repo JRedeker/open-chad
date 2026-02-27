@@ -337,8 +337,12 @@ test_setup_omp_skips_gracefully_without_go() {
         return
     fi
     setup_tmp_env
+    _assert_sandboxed
     local output
-    output=$(OMP_INSTALL_DIR="$TMP_HOME/.local/bin" bash "$REPO_DIR/lib/setup_omp.sh" 2>&1) || true
+    output=$(env HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        OMP_INSTALL_DIR="$TMP_HOME/.local/bin" \
+        bash "$REPO_DIR/lib/setup_omp.sh" 2>&1) || true
     # Should NOT fail the overall installer (exit 0 with warning)
     local exit_code=$?
     # Just check it printed something useful
@@ -366,8 +370,12 @@ test_setup_adv_skips_gracefully_without_pnpm() {
         return
     fi
     setup_tmp_env
+    _assert_sandboxed
     local output
-    output=$(OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" bash "$REPO_DIR/lib/setup_adv.sh" 2>&1) || true
+    output=$(env HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+        bash "$REPO_DIR/lib/setup_adv.sh" 2>&1) || true
     echo "$output" | grep -qi "pnpm\|skip\|warn\|not found\|install" && pass "setup_adv.sh printed pnpm-related message" || fail "setup_adv.sh gave no useful output"
     teardown_tmp_env
 }
@@ -618,7 +626,8 @@ test_opencode_env_creates_cache_dir() {
     local fake_cache="$TMP_DIR/runtime/open-chad"
     # Unset sandbox override so we can test XDG resolution
     unset OPEN_CHAD_CACHE_DIR
-    XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
+    env HOME="$TMP_HOME" XDG_RUNTIME_DIR="$TMP_DIR/runtime" \
+        PATH="$PATH" USER="${USER:-$(whoami)}" \
         bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
     assert_dir_exists "$fake_cache"
     assert_perms_700 "$fake_cache"
@@ -630,8 +639,8 @@ test_opencode_env_fallback_without_xdg() {
     # Unset sandbox override + XDG_RUNTIME_DIR to trigger fallback path
     unset OPEN_CHAD_CACHE_DIR
     local fallback_dir="/tmp/open-chad-${USER}"
-    unset XDG_RUNTIME_DIR
-    bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null || true
+    env HOME="$TMP_HOME" PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash -c 'unset XDG_RUNTIME_DIR; exec bash "$1"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null || true
     # Fallback dir should be created
     assert_dir_exists "$fallback_dir"
     assert_perms_700 "$fallback_dir"
@@ -646,8 +655,9 @@ test_opencode_env_exports_var() {
     # Unset sandbox override so we can test XDG resolution
     # Source the env file and verify OPEN_CHAD_CACHE_DIR is set
     local exported_val
-    exported_val=$(XDG_RUNTIME_DIR="$fake_runtime" OPEN_CHAD_CACHE_DIR="" bash -c \
-        'unset OPEN_CHAD_CACHE_DIR; source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
+    exported_val=$(env HOME="$TMP_HOME" XDG_RUNTIME_DIR="$fake_runtime" \
+        PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash -c 'unset OPEN_CHAD_CACHE_DIR; source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
     [ "$exported_val" = "$fake_runtime/open-chad" ] && \
         pass "OPEN_CHAD_CACHE_DIR=$exported_val (expected $fake_runtime/open-chad)" || \
         fail "OPEN_CHAD_CACHE_DIR='$exported_val' (expected '$fake_runtime/open-chad')"
@@ -659,7 +669,8 @@ test_opencode_env_override_respected() {
     local custom_dir="$TMP_DIR/custom-cache"
     # Pre-existing OPEN_CHAD_CACHE_DIR should override XDG resolution
     local used_val
-    used_val=$(OPEN_CHAD_CACHE_DIR="$custom_dir" \
+    used_val=$(env HOME="$TMP_HOME" OPEN_CHAD_CACHE_DIR="$custom_dir" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
         bash -c 'source "$1" && echo "$OPEN_CHAD_CACHE_DIR"' _ "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null)
     [ "$used_val" = "$custom_dir" ] && \
         pass "override OPEN_CHAD_CACHE_DIR respected: $used_val" || \
@@ -673,8 +684,12 @@ test_opencode_env_idempotent() {
     unset OPEN_CHAD_CACHE_DIR
     local fake_runtime="$TMP_DIR/runtime"
     # Running twice should not error or change permissions
-    XDG_RUNTIME_DIR="$fake_runtime" bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
-    XDG_RUNTIME_DIR="$fake_runtime" bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
+    env HOME="$TMP_HOME" XDG_RUNTIME_DIR="$fake_runtime" \
+        PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
+    env HOME="$TMP_HOME" XDG_RUNTIME_DIR="$fake_runtime" \
+        PATH="$PATH" USER="${USER:-$(whoami)}" \
+        bash "$REPO_DIR/lib/opencode_env.sh" 2>/dev/null
     assert_dir_exists "$fake_runtime/open-chad"
     assert_perms_700 "$fake_runtime/open-chad"
     teardown_tmp_env
@@ -811,9 +826,7 @@ assert_file_exists "$REPO_DIR/config/opencode/agents/adv-researcher.md"
 
 test_setup_opencode_syncs_adv_researcher() {
     setup_tmp_env
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    run_setup_opencode_sandboxed --skip-commands
 
     assert_file_exists "$TMP_HOME/.config/opencode/agents/adv-researcher.md"
     teardown_tmp_env
@@ -833,9 +846,7 @@ test_setup_opencode_syncs_adv_commands_opencode_layout() {
     echo "# adv-status" > "$fake_adv/.opencode/command/adv-status.md"
     echo "# adv-apply" > "$fake_adv/.opencode/command/adv-apply.md"
 
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" 2>/dev/null || true
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed
 
     assert_file_exists "$TMP_HOME/.config/opencode/command/adv-status.md"
     assert_file_exists "$TMP_HOME/.config/opencode/command/adv-apply.md"
@@ -849,9 +860,7 @@ test_setup_opencode_syncs_adv_commands_opencode_layout_agents() {
     mkdir -p "$fake_adv/.opencode/agents"
     echo "# adv-researcher upstream" > "$fake_adv/.opencode/agents/adv-researcher.md"
 
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed --skip-commands
 
     # Upstream checkout version should win over bundled fallback
     assert_contains "$TMP_HOME/.config/opencode/agents/adv-researcher.md" "adv-researcher upstream"
@@ -898,9 +907,7 @@ tools:
 You are a research agent.
 AGENT
 
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$fake_adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    ADV_CHECKOUT_DIR="$fake_adv" run_setup_opencode_sandboxed --skip-commands
 
     local synced="$TMP_HOME/.config/opencode/agents/adv-researcher.md"
     assert_file_exists "$synced"
@@ -925,9 +932,7 @@ AGENT
 # Bundled agents synced by setup_opencode.sh must also be model-free in destination
 test_setup_opencode_bundled_agents_no_model_in_dest() {
     setup_tmp_env
-    OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
-    ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" \
-        bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>/dev/null || true
+    run_setup_opencode_sandboxed --skip-commands
 
     local found_model=0
     for agent_file in "$TMP_HOME"/.config/opencode/agents/*.md; do
@@ -1088,7 +1093,9 @@ test_setup_opencode_rejects_symlink_source() {
 
     # Run setup_opencode.sh with the symlink in the source dir
     local output
-    output=$(OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+    output=$(env HOME="$TMP_HOME" OPENCODE_CONFIG_DIR="$TMP_HOME/.config/opencode" \
+        ADV_CHECKOUT_DIR="$TMP_DIR/fake-adv" OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        XDG_RUNTIME_DIR="$TMP_DIR/runtime" PATH="$PATH" USER="${USER:-$(whoami)}" \
         bash "$REPO_DIR/lib/setup_opencode.sh" --skip-commands 2>&1 || true)
 
     # The symlink should NOT be copied
@@ -1287,21 +1294,21 @@ section "install.sh — openchad/oc symlink set"
 
 test_install_creates_openchad_symlink() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/openchad"
     teardown_tmp_env
 }
 
 test_install_creates_oc_symlink() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     assert_symlink "$TMP_HOME/.local/bin/oc"
     teardown_tmp_env
 }
 
 test_install_openchad_points_to_bin_openchad() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     local target
     target=$(readlink "$TMP_HOME/.local/bin/openchad" 2>/dev/null || echo "")
     echo "$target" | grep -q "bin/openchad" && pass "openchad symlink points to bin/openchad" || fail "openchad symlink target unexpected: $target"
@@ -1310,7 +1317,7 @@ test_install_openchad_points_to_bin_openchad() {
 
 test_install_oc_points_to_bin_oc() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     local target
     target=$(readlink "$TMP_HOME/.local/bin/oc" 2>/dev/null || echo "")
     echo "$target" | grep -q "bin/oc" && pass "oc symlink points to bin/oc" || fail "oc symlink target unexpected: $target"
@@ -1319,7 +1326,7 @@ test_install_oc_points_to_bin_oc() {
 
 test_install_does_not_create_open_chad_symlink() {
     setup_tmp_env
-    timeout --signal=KILL 3 bash -c "HOME='$TMP_HOME' OPEN_CHAD_CACHE_DIR='$TMP_DIR/cache' bash '$REPO_DIR/install.sh' --yes --no-adv --no-omp --no-opencode-setup --no-env-check" > /dev/null 2>&1 || true
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
     if [ -L "$TMP_HOME/.local/bin/open-chad" ]; then
         fail "install.sh still creates open-chad symlink (should be removed)"
     else
@@ -1418,7 +1425,7 @@ test_symlink_manifest_contains_oc_killall
 
 # ─── Section: ADV Bundling ────────────────────────────────────────────────────
 
-section "ADV bundling — adv-lock.json"
+section "ADV Bundling — adv-lock.json"
 
 test_adv_lock_file_exists() {
     assert_file_exists "$REPO_DIR/config/opencode/adv-lock.json"
@@ -1468,7 +1475,7 @@ test_adv_lock_ref_is_sha
 test_adv_lock_has_repo_field
 test_adv_lock_has_plugin_path_field
 
-section "ADV bundling — bundled command docs"
+section "ADV Bundling — bundled command docs"
 
 test_adv_command_dir_exists() {
     assert_dir_exists "$REPO_DIR/config/opencode/command"
@@ -1499,7 +1506,7 @@ test_adv_command_dir_exists
 test_adv_bundled_commands_count
 test_adv_bundled_commands_include_core
 
-section "ADV bundling — setup_adv.sh structure"
+section "ADV Bundling — setup_adv.sh structure"
 
 test_setup_adv_reads_lock_file() {
     grep -q 'adv-lock.json\|ADV_LOCK\|adv_lock' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
@@ -1523,7 +1530,7 @@ test_setup_adv_reads_lock_file
 test_setup_adv_supports_install_mode
 test_setup_adv_has_offline_fallback
 
-section "ADV bundling — lock immutability"
+section "ADV Bundling — lock immutability"
 
 test_adv_lock_not_mutated_by_normal_update() {
     # update.sh should NOT overwrite adv-lock.json on normal runs
@@ -1551,7 +1558,7 @@ test_adv_lock_not_mutated_by_normal_update
 test_adv_lock_update_requires_adv_latest_flag
 test_adv_lock_sha_format_enforced
 
-section "ADV bundling — parity (bundled vs pinned)"
+section "ADV Bundling — parity (bundled vs pinned)"
 
 test_adv_parity_bundled_matches_upstream_count() {
     # Bundled command count should match what's in the ADV checkout (if present)
@@ -1709,6 +1716,139 @@ test_status_edges_differs_across_sessions
 test_status_edges_positions_can_differ_in_same_session
 test_status_edges_deterministic_per_position
 test_status_edges_all_positions_vary_across_sessions
+
+# ─── Section: Sandbox Self-Check ──────────────────────────────────────────────
+# These tests verify the sandbox infrastructure itself. If these fail, the
+# entire test suite is unsafe to run.
+
+section "Sandbox infrastructure — self-check"
+
+test_sandbox_redirects_home() {
+    setup_tmp_env
+    [ "$HOME" != "$_REAL_HOME" ] && pass "sandbox: HOME redirected away from real home" \
+                                  || fail "sandbox: HOME is still real home ($HOME)"
+    teardown_tmp_env
+}
+
+test_sandbox_home_under_tmp() {
+    setup_tmp_env
+    case "$HOME" in
+        /tmp/*) pass "sandbox: HOME is under /tmp ($HOME)" ;;
+        *)      fail "sandbox: HOME is NOT under /tmp ($HOME)" ;;
+    esac
+    teardown_tmp_env
+}
+
+test_sandbox_restores_home_after_teardown() {
+    setup_tmp_env
+    teardown_tmp_env
+    [ "$HOME" = "$_REAL_HOME" ] && pass "sandbox: HOME restored to real home after teardown" \
+                                 || fail "sandbox: HOME not restored after teardown (got $HOME, expected $_REAL_HOME)"
+}
+
+test_sandbox_assert_catches_unsandboxed() {
+    # _assert_sandboxed should fail when HOME is real
+    local caught=0
+    (
+        export HOME="$_REAL_HOME"
+        _assert_sandboxed 2>/dev/null
+    ) && caught=0 || caught=1
+    [ "$caught" -eq 1 ] && pass "sandbox: _assert_sandboxed catches real HOME" \
+                         || fail "sandbox: _assert_sandboxed did NOT catch real HOME"
+}
+
+test_sandbox_install_writes_to_tmp_only() {
+    setup_tmp_env
+    local real_symlink="$_REAL_HOME/.local/bin/openchad"
+    local real_mtime_before=""
+    [ -L "$real_symlink" ] && real_mtime_before=$(stat -c '%Y' "$real_symlink" 2>/dev/null || echo "")
+
+    run_install_sandboxed --yes --no-adv --no-omp --no-opencode-setup
+
+    # Verify the sandboxed install wrote to TMP, not real home
+    assert_symlink "$TMP_HOME/.local/bin/openchad"
+
+    # Verify real symlink was NOT modified
+    if [ -n "$real_mtime_before" ]; then
+        local real_mtime_after
+        real_mtime_after=$(stat -c '%Y' "$real_symlink" 2>/dev/null || echo "")
+        [ "$real_mtime_before" = "$real_mtime_after" ] \
+            && pass "sandbox: real ~/.local/bin/openchad not modified by sandboxed install" \
+            || fail "sandbox: real ~/.local/bin/openchad WAS modified (mtime changed)"
+    else
+        pass "sandbox: real symlink check skipped (no pre-existing symlink)"
+    fi
+    teardown_tmp_env
+}
+
+test_sandbox_setup_opencode_writes_to_tmp_only() {
+    setup_tmp_env
+    local real_agents="$_REAL_HOME/.config/opencode/agents"
+    local real_mtime_before=""
+    [ -d "$real_agents" ] && real_mtime_before=$(stat -c '%Y' "$real_agents" 2>/dev/null || echo "")
+
+    run_setup_opencode_sandboxed --skip-commands
+
+    # Verify agents were written to sandbox
+    assert_file_exists "$TMP_HOME/.config/opencode/agents/scout.md"
+
+    # Verify real agents dir was NOT modified
+    if [ -n "$real_mtime_before" ]; then
+        local real_mtime_after
+        real_mtime_after=$(stat -c '%Y' "$real_agents" 2>/dev/null || echo "")
+        [ "$real_mtime_before" = "$real_mtime_after" ] \
+            && pass "sandbox: real ~/.config/opencode/agents/ not modified" \
+            || fail "sandbox: real ~/.config/opencode/agents/ WAS modified (mtime changed)"
+    else
+        pass "sandbox: real agents check skipped (no pre-existing dir)"
+    fi
+    teardown_tmp_env
+}
+
+# Static self-check: scan this file for raw installer calls that bypass helpers.
+# Any direct `bash "$REPO_DIR/install.sh"` or `bash "$REPO_DIR/lib/setup_opencode.sh"`
+# outside the helper functions is a sandbox violation waiting to happen.
+test_no_raw_installer_calls_outside_helpers() {
+    local test_file="$SCRIPT_DIR/install_test.sh"
+    local unprotected=0
+
+    while IFS= read -r line; do
+        local lineno="${line%%:*}"
+        local content="${line#*:}"
+
+        # Skip the helper function bodies (run_install_sandboxed / run_setup_opencode_sandboxed)
+        [ "$lineno" -ge 120 ] && [ "$lineno" -le 155 ] && continue
+        # Skip comments
+        echo "$content" | grep -qE '^\s*#' && continue
+        # Skip assert_contains / grep -q (read-only checks on file content)
+        echo "$content" | grep -qE 'assert_contains|assert_not_contains|grep -q' && continue
+
+        # Check if this line or nearby preceding lines have env isolation.
+        # Multi-line env calls can span 3-4 lines before the `bash` invocation.
+        local context=""
+        local start=$((lineno > 4 ? lineno - 4 : 1))
+        context=$(sed -n "${start},${lineno}p" "$test_file" 2>/dev/null || echo "")
+
+        if echo "$context" | grep -qE 'env\s|run_install_sandboxed|run_setup_opencode_sandboxed|timeout.*env'; then
+            continue  # Protected by env isolation in context window
+        else
+            echo "  WARN: Potentially unprotected call at line $lineno: $content" >&2
+            unprotected=$((unprotected + 1))
+        fi
+    done < <(grep -n 'bash "\$REPO_DIR/install\.sh"\|bash "\$REPO_DIR/lib/setup_opencode\.sh"' "$test_file" 2>/dev/null || true)
+
+    [ "$unprotected" -eq 0 ] \
+        && pass "self-check: all installer/setup calls are env-isolated or use helpers" \
+        || fail "self-check: $unprotected unprotected installer/setup call(s) found"
+}
+
+test_sandbox_redirects_home
+test_sandbox_home_under_tmp
+test_sandbox_restores_home_after_teardown
+test_sandbox_assert_catches_unsandboxed
+test_sandbox_install_writes_to_tmp_only
+test_sandbox_setup_opencode_writes_to_tmp_only
+test_no_raw_installer_calls_outside_helpers
 
 # ─── Results ──────────────────────────────────────────────────────────────────
 

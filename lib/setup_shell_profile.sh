@@ -83,11 +83,23 @@ info "Writing PATH block to $_rc_file"
 # Backup before modifying (stored in /tmp, not in repo)
 [ -f "$_rc_file" ] && cp "$_rc_file" "/tmp/$(basename "$_rc_file").openchad-backup.$$" 2>/dev/null || true
 
+# Resolve canonical repo path (handles worktree edge case)
+# If running from a worktree, use the main worktree path for PATH
+_CANONICAL_REPO="$_REPO_DIR"
+if [ -d "$_REPO_DIR/.git" ]; then
+    # Check if this is a worktree by looking at .git
+    _git_common_dir=$(git -C "$_REPO_DIR" rev-parse --git-common-dir 2>/dev/null || echo "")
+    if [ -n "$_git_common_dir" ] && [ "$_git_common_dir" != "$_REPO_DIR/.git" ]; then
+        # Worktree detected — use parent of .git-common-dir as canonical repo
+        _CANONICAL_REPO=$(dirname "$_git_common_dir")
+    fi
+fi
+
 cat >> "$_rc_file" <<EOF
 
 # BEGIN open-chad
 # Added by open-chad installer — https://github.com/JRedeker/open-chad
-export PATH="\$HOME/.local/bin:\$PATH"
+export PATH="$_CANONICAL_REPO/bin:\$HOME/.local/bin:\$PATH"
 # END open-chad
 EOF
 
@@ -121,4 +133,4 @@ fi
 # We intentionally do NOT source the user's rc file here — it may contain
 # arbitrary shell code (aliases, prompts, functions) that is unsafe to execute
 # in an installer context. The direct export achieves the same goal safely.
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$_CANONICAL_REPO/bin:$HOME/.local/bin:$PATH"
