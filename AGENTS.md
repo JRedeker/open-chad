@@ -515,13 +515,71 @@ The following security fixes were applied in the v1.1 hardening pass:
 | CVE-003 | `lib/setup_mcp.sh` | Removed silent `opencode.json` auto-wipe in `--yes` mode. Invalid JSON now exits with `ERROR:` + recovery instructions. See [Recovering from opencode.json conflicts](#recovering-from-opencodejson-conflicts). |
 | CVE-004 | `lib/setup_opencode.sh` | Symlink sources rejected during agent/instruction/theme file copy. Symlinks are skipped with a `WARN:` message. |
 | CVE-005 | `bin/openchad` | Discord `update.sh` stderr now logged to `$OPEN_CHAD_CACHE_DIR/discord.log` (0600) instead of `/dev/null`. |
-| ISSUE-006 | `install.sh`, `lib/update.sh` | Symlink creation changed to atomic `ln -sfn`. Source existence validated before linking. |
+| ISSUE-006 | `lib/setup_shell_profile.sh` | PATH setup uses git to resolve canonical repo path, avoiding worktree confusion. |
 | ISSUE-008 | `lib/wizard.sh` | Install log created with `install -m 0600` for atomic secure creation. |
 | ISSUE-009 | `lib/setup_mcp.sh` | Node.js invocations use `process.argv` file inputs (not interpolated strings) for path safety. |
 | ISSUE-010 | `bin/openchad` | Metrics collector singleton guard changed from `pgrep -f` to atomic `mkdir` lockdir (`metrics-start.lock`). Renamed from `metrics.lock` to avoid collision with the collector's own PID lockfile. Lockdir removed after 2s delay to close the race window. |
 | ISSUE-011 | `lib/setup_dev_bundle.sh` | Go fallback version updated to `go1.26.0` with maintenance comment. |
 | ISSUE-012 | `lib/check_environment.sh` | Non-fatal `python3` presence check added with `apt install python3` hint. |
 | ISSUE-013 | `lib/setup_dev_bundle.sh` | `_persist_bundles` moved to after failure checks — failed installs no longer persist as selected. |
+
+---
+
+## Installation v1.1 — PATH-Based Approach
+
+The v1.1 release eliminated symlinks entirely in favor of direct PATH configuration. This solves the **worktree symlink corruption** issue permanently.
+
+### The Problem (v1.0)
+
+When `openchad update` was run from a git worktree:
+1. `SCRIPT_DIR` resolved to the worktree path (e.g., `~/.local/share/opencode/worktree/.../change/foo/`)
+2. Symlinks in `~/.local/bin/` were repointed to the worktree's `bin/` directory
+3. User's personal setup was corrupted — `openchad` commands pointed to stale worktree paths
+
+This happened repeatedly when Claude Code sessions ran `install.sh` or `openchad update` from within worktrees.
+
+### The Solution (v1.1)
+
+**No more symlinks.** The installer now:
+
+1. Adds `~/dev/open-chad/bin` directly to PATH in `~/.zshrc` or `~/.bashrc`
+2. Uses git to resolve the canonical repo path (handles worktree edge cases)
+3. Verifies binaries exist in the repo's `bin/` directory (doctor check)
+
+### Migration Path
+
+For users with existing v1.0 installs:
+
+```bash
+# Remove old symlinks (optional, they'll just be dead links)
+rm -f ~/.local/bin/{openchad,oc,cds,oc-list,oc-killall}
+
+# Re-run installer to set up PATH
+bash install.sh --yes
+```
+
+Or simply:
+```bash
+source ~/.zshrc  # or ~/.bashrc
+```
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `lib/symlink_manifest.sh` | **Deleted** — no longer needed |
+| `lib/setup_shell_profile.sh` | Adds repo `bin/` to PATH with worktree detection |
+| `lib/openchad_doctor.sh` | Checks PATH setup instead of symlinks |
+| `lib/openchad_uninstall.sh` | Removes PATH blocks instead of symlinks |
+| `tests/install_test.sh` | PATH-based assertions |
+| `tests/installer_validation_test.sh` | Updated for PATH approach |
+
+### Benefits
+
+- **Worktree-safe** — no symlinks to corrupt
+- **Simpler** — one PATH entry vs managing multiple symlinks
+- **Reliable** — git resolves canonical path automatically
+- **Transparent** — users can see `~/dev/open-chad/bin` in their PATH
 | ISSUE-016 | `lib/json_merge.sh` | 1MB size guard added before Node.js parse for both target file and merge payload. |
 | ISSUE-017 | `lib/wizard.sh` | WSL detected via `/proc/version`; generates `~/open-chad-keybindings.ps1` instead of manual instructions. |
 | ISSUE-018 | `lib/setup_shell_profile.sh` | Exports PATH directly after writing block for immediate availability. Does NOT source the user's rc file (security: avoids executing arbitrary user shell code in installer context). |
