@@ -197,15 +197,15 @@ else
     tmux new-session -d -s "$session_name" "opencode"
 fi
 
-# Close only this session when the last attached client detaches/exits.
-# This preserves multi-session isolation and avoids destructive server-wide kills.
-if ! tmux set-option -t "$session_name" destroy-unattached on 2>/dev/null; then
-    _destroy_warned_file="${OPEN_CHAD_CACHE_DIR}/destroy-unattached.warned"
-    if [ ! -f "$_destroy_warned_file" ]; then
-        echo "WARN: tmux does not support destroy-unattached; session may persist after exit" >&2
-        touch "$_destroy_warned_file" 2>/dev/null || true
-    fi
-fi
+# Ensure the session's pane does not linger after opencode exits.
+# remain-on-exit=off means: when the command (opencode) terminates, the pane closes,
+# the window closes, and the session auto-destroys. This is safe on detached sessions
+# because it only fires when the *command* exits, not when a client detaches.
+#
+# NOTE: We intentionally do NOT use destroy-unattached here. That option kills
+# detached sessions immediately — before any client can attach — causing the
+# "can't find session" crash on every launch.
+tmux set-option -t "$session_name" remain-on-exit off 2>/dev/null || true
 
 # 5. Discord Rich Presence update (optional, non-blocking, SC-10: silent on failure)
 # Count active openchad tmux sessions for presence display
