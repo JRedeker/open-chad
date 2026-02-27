@@ -41,6 +41,9 @@ Installs zsh with [Powerlevel10k](https://github.com/romkatv/powerlevel10k), [zs
 ### Live LLM Fuel Gauges
 See remaining quota for Z.ai, GitHub Copilot, Claude, and OpenAI Codex directly in your tmux status bar. Color-coded: green ≥50%, yellow 20–49%, red <20%. Updated every 30 seconds.
 
+### Synthwave Status Edges
+Each tmux status bar position (left/right × row0/row1) renders a unique block-glyph edge in the agent color palette — build (blue) → plan (yellow) → scout (pink) → refine (green). The variant is derived from your session name, giving 256 possible combinations across all four positions. Every session looks slightly different.
+
 ### Crash-Isolated Sessions
 Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). If one crashes, the rest are unaffected. Run 5, 10, or 20+ concurrent sessions without cascade failures.
 
@@ -49,27 +52,29 @@ Two-row ayu-dark status bar with repo/branch context, session titles correlated 
 
 ### Model Preferences (`omp`)
 
-A terminal UI for managing OpenCode model preferences — switch models, set defaults, and configure per-project overrides without editing JSON.
+A terminal UI for managing OpenCode model preferences — switch models, set defaults, and configure per-agent overrides without editing JSON.
 
 - Quick access in-session: press `Ctrl+b m` to open `omp` in a tmux popup.
 - Popup behavior uses `display-popup -EE`: success closes automatically; failures stay visible.
 - Default popup size is 80%×80%. Override with `OPEN_CHAD_OMP_POPUP_SIZE` (e.g. `export OPEN_CHAD_OMP_POPUP_SIZE="90%x85%"`).
 - Requires tmux `>=3.2` for popup support. On older tmux versions, `prefix+m` shows a fallback hint.
+- Preference changes apply on the next OpenCode agent/command invocation — no restart needed.
 
 ![omp model preferences](ompscreenshot.png)
 
 ### Discord Rich Presence
-Optional — show your openchad activity in Discord with a single command. No Discord Developer account required.
+Show your openchad activity in Discord with a single command. No Discord Developer account or app setup required — uses the built-in openchad App ID out of the box.
 
 ```bash
-openchad discord enable          # Enable with built-in default app (no setup needed)
+openchad discord enable          # Zero-prompt activation (built-in App ID)
 openchad discord enable --custom # Use your own Discord app (advanced)
 openchad discord status          # Check current mode and last update time
+openchad discord disable         # Turn off
 ```
 
 All dynamic input is sanitized — no project names, file paths, tokens, or secrets are ever transmitted. See [`lib/discord/SETUP.md`](lib/discord/SETUP.md) for the full guide.
 
-**WSL2:** openchad auto-bridges Windows Discord via `socat` + `npiperelay.exe`. One-time dep install:
+**WSL2:** openchad auto-starts the Discord IPC bridge (`socat` + `npiperelay.exe`) as a singleton on every launch — no manual setup after the one-time dep install:
 ```bash
 sudo apt install socat && go install github.com/jstarks/npiperelay@latest
 ```
@@ -204,7 +209,9 @@ openchad metrics export         # Print as JSON
 openchad changelog              # Git log since last tag
 openchad changelog latest       # Show last tag release notes
 openchad discord enable         # Turn on Discord Rich Presence
+openchad discord enable --custom # Use your own Discord app
 openchad discord status         # Check Discord status
+openchad discord disable        # Turn off Discord Rich Presence
 ```
 
 ### CI/CD and Releases
@@ -241,6 +248,17 @@ Valid IDs: `zai`, `copilot`, `claude`, `codex`.
 
 To disable the gauge entirely: `export OPEN_CHAD_MULTI_GAUGE=0`
 
+### omp Popup Size
+
+The `Ctrl+b m` popup defaults to 80%×80% of your terminal. Override per-session or in your shell profile:
+
+```bash
+export OPEN_CHAD_OMP_POPUP_SIZE="90%x85%"   # wider/taller
+export OPEN_CHAD_OMP_POPUP_SIZE="120x40"    # absolute cells
+```
+
+Format: `WxH` where W and H are any tmux size spec (percent or absolute).
+
 ### Re-running Install
 
 `install.sh` is idempotent — safe to re-run anytime. It re-syncs config, pulls latest plugins, and merges opencode.json without duplicating entries.
@@ -258,6 +276,8 @@ To disable the gauge entirely: `export OPEN_CHAD_MULTI_GAUGE=0`
 | Theme looks wrong | `bash lib/setup_opencode.sh` |
 | Vision MCP tools unavailable | Run `openchad doctor` to check daemon status; ensure `vision` binary is on PATH |
 | `openchad doctor` reports issues | Follow the remediation instructions it prints |
+| `prefix+m` popup not working | Requires tmux ≥3.2; run `tmux -V` to check |
+| Discord not updating | Run `openchad discord status`; check `openchad doctor` for bridge status (WSL2) |
 
 For detailed installer internals, CI flags, architecture, and contributor docs, see [AGENTS.md](AGENTS.md).
 
