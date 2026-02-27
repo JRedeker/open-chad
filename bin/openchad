@@ -228,7 +228,8 @@ if [ -f "$LIB_DIR/discord/update.sh" ]; then
             chmod 0600 "$_discord_log" 2>/dev/null || true
         }
     fi
-    bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>>"$_discord_log" &
+    OPEN_CHAD_DISCORD_HOLD_SEC="${OPEN_CHAD_DISCORD_HOLD_SEC:-300}" \
+        bash "$LIB_DIR/discord/update.sh" "$_discord_sessions" "$_discord_elapsed" 2>>"$_discord_log" &
 
     # Cleanup trap: remove lockfiles on exit
     trap 'rm -f "$OPEN_CHAD_DISCORD_LOCK" "$OPEN_CHAD_DISCORD_LOCK.guard" "$OPEN_CHAD_DISCORD_LOCK.tagline" 2>/dev/null || true' EXIT

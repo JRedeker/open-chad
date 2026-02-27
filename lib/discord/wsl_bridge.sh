@@ -92,6 +92,11 @@ _wsl_bridge_deps_ok() {
 # ─── _wsl_bridge_pid_alive ───────────────────────────────────────────────────
 # Returns 0 if PID file exists and the process is alive, 1 otherwise.
 _wsl_bridge_pid_alive() {
+    # Bridge is only healthy if the unix socket exists.
+    if [ ! -S "$_BRIDGE_SOCKET" ]; then
+        return 1
+    fi
+
     if [ ! -f "$_BRIDGE_PID_FILE" ]; then
         return 1
     fi
