@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # open-chad: Shared system metrics collector (singleton)
 # Writes CPU%, RAM%, load to $OPEN_CHAD_CACHE_DIR/metrics every 30s
+# Writes openchad tmux session count to $OPEN_CHAD_CACHE_DIR/sessions every 30s
 # Writes per-provider LLM quota % to 4 separate cache files every 30s:
 #   $OPEN_CHAD_CACHE_DIR/zai, $OPEN_CHAD_CACHE_DIR/copilot,
 #   $OPEN_CHAD_CACHE_DIR/claude, $OPEN_CHAD_CACHE_DIR/codex
@@ -20,6 +21,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 AUTH_JSON="${HOME}/.local/share/opencode/auth.json"
 CACHE="${OPEN_CHAD_CACHE_DIR}/metrics"
+SESSIONS_CACHE="${OPEN_CHAD_CACHE_DIR}/sessions"
 LOCKFILE="${OPEN_CHAD_CACHE_DIR}/metrics.lock"
 INTERVAL=30
 
@@ -77,10 +79,18 @@ collect() {
     local load
     load=$(cut -d' ' -f1 /proc/loadavg)
 
+    # openchad sessions: active tmux sessions named oc-*
+    local sessions=0
+    if command -v tmux >/dev/null 2>&1; then
+        sessions=$(tmux list-sessions -F '#S' 2>/dev/null | awk '/^oc-/ {c++} END {print c+0}')
+    fi
+
     # Atomic write
     local tmp="${CACHE}.$$"
     printf '%s %s %s' "$cpu_pct" "$ram_pct" "$load" > "$tmp"
     mv -f "$tmp" "$CACHE"
+
+    _write_cache "$SESSIONS_CACHE" "$sessions"
 }
 
 # Read a key path (e.g. "zai-coding-plan.key") from auth.json

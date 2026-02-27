@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # open-chad: Row 1 right-side renderer
 # Displays system resources + per-provider LLM fuel gauges as one unit.
-# Format: CPU 42% | RAM 67% | Load 1.23 | Z.ai 100% | Copilot 0% | Claude 89% | Codex 100% ▐▐▐▐
+# Format: Sess 3 | CPU 42% | RAM 67% | Load 1.23 | Z.ai 100% | Copilot 0% | Claude 89% | Codex 100% ▐▐▐▐
 # Reads from cache only — no disk or DB work (fast, safe for tmux callbacks)
 # No external tool dependencies in render path (no jq, no curl)
 #
@@ -103,8 +103,19 @@ _render_resources() {
     local cpu ram load
     read -r cpu ram load < "$cache" 2>/dev/null || true
     [ -z "${cpu:-}" ] && return 0
-    printf '#[fg=#626d7a]CPU %s%%%s#[fg=#626d7a]RAM %s%%%s#[fg=#626d7a]Load %s' \
-        "$cpu" "$sep" "$ram" "$sep" "$load"
+
+    local sessions_cache="${OPEN_CHAD_CACHE_DIR}/sessions"
+    local sessions_segment=""
+    if [ -f "$sessions_cache" ]; then
+        local sessions
+        sessions=$(cat "$sessions_cache" 2>/dev/null || true)
+        if [[ "${sessions:-}" =~ ^[0-9]+$ ]]; then
+            sessions_segment="#[fg=#626d7a]Sess ${sessions}${sep}"
+        fi
+    fi
+
+    printf '%s#[fg=#626d7a]CPU %s%%%s#[fg=#626d7a]RAM %s%%%s#[fg=#626d7a]Load %s' \
+        "$sessions_segment" "$cpu" "$sep" "$ram" "$sep" "$load"
 }
 
 # --- Multi-provider gauge ---

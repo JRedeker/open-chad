@@ -487,6 +487,27 @@ test_resources_output_with_cache() {
     assert_contains "$result" "Load 1.23" "resources: Load value rendered"
 }
 
+test_status_right_renders_session_count_before_cpu() {
+    local result
+    printf '42 67 1.23' > "$TMP_DIR/metrics"
+    printf '3' > "$TMP_DIR/sessions"
+    result=$(run_status_right_force)
+
+    assert_contains "$result" "Sess 3" "status_right: session count rendered"
+    assert_contains "$result" "CPU 42%" "status_right: CPU still rendered with session count"
+}
+
+test_status_resources_renders_session_count_when_available() {
+    local tmp_dir result
+    tmp_dir=$(mktemp -d)
+    printf '42 67 1.23' > "$tmp_dir/metrics"
+    printf '5' > "$tmp_dir/sessions"
+    result=$(OPEN_CHAD_CACHE_DIR="$tmp_dir" bash "$STATUS_RESOURCES" 2>/dev/null || true)
+    rm -rf "$tmp_dir"
+
+    assert_contains "$result" "Sess 5" "resources: session count rendered when cache exists"
+}
+
 test_resources_empty_when_no_cache() {
     local tmp_dir result
     tmp_dir=$(mktemp -d)
@@ -516,6 +537,8 @@ test_resources_reads_metrics_file() {
 
 test_resources_syntax
 test_resources_output_with_cache
+test_status_right_renders_session_count_before_cpu
+test_status_resources_renders_session_count_when_available
 test_resources_empty_when_no_cache
 test_resources_uses_open_chad_cache_dir
 test_resources_sources_env

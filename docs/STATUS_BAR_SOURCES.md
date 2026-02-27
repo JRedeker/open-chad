@@ -160,7 +160,7 @@ git -C {path} rev-list --count HEAD..origin/main
 ls .adv/specs/
 ```
 
-Refresh every 5 seconds (matches `status-interval` in theme.conf)
+Refresh every 10 seconds (matches `status-interval` in theme.conf)
 
 ---
 

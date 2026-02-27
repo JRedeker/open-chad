@@ -15,7 +15,7 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 - **Complete context-engineering stack:** layered instructions, priority-ranked rules, and scoped agents wired by default
 - **Spec-driven workflow included:** ADV plugin with 6 quality gates (research -> prep -> implementation -> review -> harden -> signoff)
 - **MCP and tooling pre-wired:** Vision daemon + Context7, grep.app, lgrep, Firecrawl, and morph-fast-apply
-- **Ops-ready terminal UX:** themed two-row tmux dashboard, live CPU/RAM/load, and per-provider LLM fuel gauges
+- **Ops-ready terminal UX:** themed two-row tmux dashboard, live session count/CPU/RAM/load, and per-provider LLM fuel gauges
 - **Multi-session workflow built in:** isolated `oc-<timestamp>-<pid>` sessions, `oc attach/switch`, `oc-list`, `oc-killall`, and `cds`
 - **Quality-of-life extras:** `omp` model-preferences TUI popup, Discord Rich Presence, zsh + completions, CI/release automation
 
@@ -97,7 +97,7 @@ Every OpenCode instance runs in its own tmux session (`oc-<timestamp>-<pid>`). I
 Session teardown is session-scoped: `openchad` configures tmux to destroy only the launched `oc-*` session when the last attached client exits/detaches. It never uses `tmux kill-server`, so non-`oc-*` and unrelated tmux sessions remain untouched.
 
 ### Themed tmux Dashboard
-Two-row ayu-dark status bar with repo/branch context, session titles correlated from OpenCode's database, live system metrics (CPU, RAM, load), and a retro boot animation.
+Two-row ayu-dark status bar with repo/branch context, session titles correlated from OpenCode's database, live system metrics (session count, CPU, RAM, load), and a retro boot animation.
 
 ### Model Preferences (`omp`)
 

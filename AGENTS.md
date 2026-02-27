@@ -41,16 +41,17 @@ lib/
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
   session_title.sh          Row 0 left — queries OpenCode SQLite DB for session title,
                             correlates by tmux launch timestamp (no cross-session bleed)
-  status_resources.sh       Standalone resource renderer (CPU%, RAM%, Load) — available
+  status_resources.sh       Standalone resource renderer (Sessions, CPU%, RAM%, Load) — available
                             for custom layouts; Row 1 uses status_right.sh which includes
                             resources inline alongside LLM gauges.
   status_left.sh            Row 1 left — renders worktree / branch for current pane
-  status_right.sh           Row 1 right — renders CPU%, RAM%, Load + dynamic provider
+  status_right.sh           Row 1 right — renders Sessions, CPU%, RAM%, Load + dynamic provider
                             LLM fuel gauges. Reads active_providers cache file for
                             provider list/order. OPEN_CHAD_MULTI_GAUGE toggle supported.
   title_parser.sh           Parses ADV state strings (emoji + repo + changeId) for
                             structured tmux display in window name area
-  collect_metrics.sh        Singleton background daemon — writes system metrics and
+  collect_metrics.sh        Singleton background daemon — writes system metrics (including
+                            openchad session count) and
                             per-provider LLM quota to cache files every 30s. Reads
                             provider config from open-chad.json, writes active_providers
                             cache. PID-locked, parallel API calls, atomic writes.
@@ -235,7 +236,7 @@ Two-row tmux status bar, both rows on `bg=#0D1017`:
 | Position | Content | Script |
 |----------|---------|--------|
 | Left | `▌▌▌▌` accent edges → worktree / branch | `status_left.sh` |
-| Right | Z.ai NN% `│` Copilot NN% `│` Claude NN% `│` Codex NN% → `▐▐▐▐` | `status_right.sh` |
+| Right | Sess N `│` CPU N% `│` RAM N% `│` Load N.NN `│` Z.ai NN% `│` Copilot NN% `│` Claude NN% `│` Codex NN% → `▐▐▐▐` | `status_right.sh` |
 
 ### Accent edge pattern
 
@@ -250,12 +251,15 @@ Right edges: `▐` in orange → blue → golden → green (4 chars, reversed)
 
 ```
 collect_metrics.sh (singleton, every 30s)
+  ├─ tmux list-sessions (oc-*) → Sessions
   ├─ /proc/stat → CPU%
   ├─ /proc/meminfo → RAM%
   ├─ /proc/loadavg → Load
   └─ writes "$OPEN_CHAD_CACHE_DIR/metrics" (space-separated: "CPU RAM LOAD")
+  └─ writes "$OPEN_CHAD_CACHE_DIR/sessions" (integer count)
 
 status_resources.sh (called by tmux every 5s)
+  ├─ reads "$OPEN_CHAD_CACHE_DIR/sessions" → Session count segment
   └─ reads "$OPEN_CHAD_CACHE_DIR/metrics" → tmux format string
 ```
 
@@ -354,6 +358,7 @@ Permissions: `0700` (owner-only). Created on first source.
 | File | Content | Writer | Reader |
 |------|---------|--------|--------|
 | `metrics` | `CPU% RAM% LOAD` (space-separated) | `collect_metrics.sh` | `status_resources.sh` |
+| `sessions` | Integer count of active `oc-*` tmux sessions | `collect_metrics.sh` | `status_right.sh`, `status_resources.sh` |
 | `metrics.lock` | PID of running collector | `collect_metrics.sh` | `collect_metrics.sh` (singleton guard) |
 | `metrics-start.lock` | Atomic mkdir startup lock | `bin/openchad` | `bin/openchad` (prevents duplicate collector starts) |
 | `active_providers` | `Label cache_key` per line | `collect_metrics.sh` | `status_right.sh` (dynamic gauge rendering) |
