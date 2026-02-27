@@ -25,6 +25,14 @@ REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=../opencode_env.sh
 source "$REPO_DIR/lib/opencode_env.sh"
 
+# Single source of truth for default Client ID and resolution helper
+# shellcheck source=lib/discord/defaults.sh
+source "$SCRIPT_DIR/defaults.sh"
+
+# WSL Discord IPC bridge helper (non-fatal if missing)
+# shellcheck source=lib/discord/wsl_bridge.sh
+source "$SCRIPT_DIR/wsl_bridge.sh"
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 RATE_LIMIT_SEC="${DISCORD_RATE_LIMIT_SEC:-15}"
@@ -78,13 +86,13 @@ main() {
         exit 0
     fi
 
-    # 3. Read CLIENT_ID from config (not from environment — SC-12)
-    local client_id
-    client_id=$(json_get "$CONFIG_FILE" "(c.discordPresence||{}).clientId||''")
-    if [ -z "$client_id" ]; then
-        log_debug "discordPresence.clientId not set — skipping"
-        exit 0
-    fi
+    # 3. Resolve CLIENT_ID via fallback chain:
+    #    user-configured clientId → built-in DISCORD_DEFAULT_CLIENT_ID
+    local resolve_result mode client_id
+    resolve_result=$(_resolve_discord_client_id "$CONFIG_FILE")
+    mode=$(echo "$resolve_result" | cut -d" " -f1)
+    client_id=$(echo "$resolve_result" | cut -d" " -f2)
+    log_debug "client_id resolved: mode=$mode id=$client_id"
 
     # 4. Rate limit check via lockfile mtime
     # Wrapped in flock to prevent concurrent race where two update.sh calls
@@ -128,7 +136,12 @@ main() {
     # 6. Touch lockfile BEFORE spawning node (prevents double-fire on concurrent calls)
     touch "$LOCK_FILE" 2>/dev/null || true
 
-    # 7. Invoke update.js (exits 0 on Discord-not-running per SC-10)
+    # 7. Ensure WSL Discord IPC bridge is running (WSL only, non-fatal)
+    # On WSL2, bridges Windows Discord named pipe to /tmp/discord-ipc-0 so
+    # @xhayper/discord-rpc can connect. No-op on native Linux or macOS.
+    _wsl_bridge_ensure 2>>"${OPEN_CHAD_CACHE_DIR}/discord.log" || true
+
+    # 8. Invoke update.js (exits 0 on Discord-not-running per SC-10)
     DISCORD_CLIENT_ID="$client_id" \
         node "$REPO_DIR/lib/discord/update.js" \
             "$session_count" "$elapsed_seconds" "$tagline" \

@@ -243,6 +243,58 @@ else
     info "  Run: bash $REPO_DIR/lib/setup_adv.sh"
 fi
 
+# ─── 7. WSL Discord IPC bridge ───────────────────────────────────────────────
+# Only shown on WSL2 — skipped entirely on native Linux.
+_wsl_bridge_sh="$REPO_DIR/lib/discord/wsl_bridge.sh"
+if [ -f "$_wsl_bridge_sh" ]; then
+    # shellcheck source=lib/discord/wsl_bridge.sh
+    source "$_wsl_bridge_sh"
+    if _is_wsl 2>/dev/null; then
+        echo ""
+        echo "WSL Discord IPC bridge:"
+
+        # Dependency check
+        if type -P socat &>/dev/null; then
+            ok "socat: $(type -P socat)"
+        else
+            fail "socat not found on PATH"
+            info "  Install: sudo apt install socat"
+            _issues=$((_issues + 1))
+        fi
+
+        if type -P npiperelay.exe &>/dev/null; then
+            ok "npiperelay.exe: $(type -P npiperelay.exe)"
+        else
+            fail "npiperelay.exe not found on PATH"
+            info "  Install: go install github.com/jstarks/npiperelay@latest"
+            info "  Then ensure \$GOPATH/bin is on PATH"
+            _issues=$((_issues + 1))
+        fi
+
+        # Socket check
+        _bridge_socket="${OPEN_CHAD_BRIDGE_SOCKET:-/tmp/discord-ipc-0}"
+        if [ -S "$_bridge_socket" ]; then
+            ok "socket exists: $_bridge_socket"
+        else
+            warn "socket not found: $_bridge_socket (bridge not running or not yet started)"
+        fi
+
+        # PID / alive check
+        _bridge_pid_file="${OPEN_CHAD_CACHE_DIR}/discord-bridge.pid"
+        if [ -f "$_bridge_pid_file" ]; then
+            _bridge_pid=$(cat "$_bridge_pid_file" 2>/dev/null || echo "")
+            if [ -n "$_bridge_pid" ] && kill -0 "$_bridge_pid" 2>/dev/null; then
+                ok "bridge process alive (PID $_bridge_pid)"
+            else
+                warn "bridge PID file exists but process is dead (PID ${_bridge_pid:-?})"
+                info "  Bridge will restart on next openchad launch."
+            fi
+        else
+            info "bridge not started yet (will auto-start on next openchad launch)"
+        fi
+    fi
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 if [ "$_issues" -eq 0 ]; then
