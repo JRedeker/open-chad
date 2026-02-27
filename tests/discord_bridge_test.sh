@@ -194,9 +194,9 @@ test_deps_missing_socat() {
     local fake_bin="$TMP_DIR/bin"
     mkdir -p "$fake_bin"
     echo '#!/bin/sh' > "$fake_bin/npiperelay.exe" && chmod +x "$fake_bin/npiperelay.exe"
-    # socat NOT in fake_bin — use truly isolated PATH (no /usr/bin)
+    # socat NOT in fake_bin — use truly isolated PATH (only fake_bin, no system dirs)
     # Also disable GOPATH fallback to prevent finding cross-compiled binary.
-    local isolated_path="$fake_bin:/bin"
+    local isolated_path="$fake_bin"
 
     local result
     result=$(PATH="$isolated_path" OPEN_CHAD_CACHE_DIR="$OPEN_CHAD_CACHE_DIR" \

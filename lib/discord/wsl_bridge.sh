@@ -22,11 +22,15 @@
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-_BRIDGE_SOCKET="${OPEN_CHAD_BRIDGE_SOCKET:-/tmp/discord-ipc-0}"
+# Socket path: use XDG_RUNTIME_DIR when available (matches discord-rpc library behavior)
+# The @xhayper/discord-rpc library prioritizes XDG_RUNTIME_DIR over /tmp
+# Remove trailing slash from XDG_RUNTIME_DIR to prevent double-slash in path
+_XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR%/}"
+_BRIDGE_SOCKET="${OPEN_CHAD_BRIDGE_SOCKET:-${_XDG_RUNTIME_DIR:-/tmp}/discord-ipc-0}"
 _BRIDGE_PIPE="${OPEN_CHAD_BRIDGE_PIPE:-//./pipe/discord-ipc-0}"
-_BRIDGE_PID_FILE="${OPEN_CHAD_CACHE_DIR:-/tmp/open-chad-${USER:-user}}/discord-bridge.pid"
-_BRIDGE_LOCK_DIR="${OPEN_CHAD_CACHE_DIR:-/tmp/open-chad-${USER:-user}}/discord-bridge.lock"
-_BRIDGE_LOG="${OPEN_CHAD_CACHE_DIR:-/tmp/open-chad-${USER:-user}}/discord-bridge.log"
+_BRIDGE_PID_FILE="${OPEN_CHAD_CACHE_DIR:-${_XDG_RUNTIME_DIR:-/tmp}/open-chad-${USER:-user}/}/discord-bridge.pid"
+_BRIDGE_LOCK_DIR="${OPEN_CHAD_CACHE_DIR:-${_XDG_RUNTIME_DIR:-/tmp}/open-chad-${USER:-user}}/discord-bridge.lock"
+_BRIDGE_LOG="${OPEN_CHAD_CACHE_DIR:-${_XDG_RUNTIME_DIR:-/tmp}/open-chad-${USER:-user}}/discord-bridge.log"
 
 # Testable /proc/version path (override in tests)
 _PROC_VERSION="${OPEN_CHAD_PROC_VERSION:-/proc/version}"

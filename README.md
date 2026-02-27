@@ -6,7 +6,7 @@ For developers who run multiple concurrent AI coding sessions and want everythin
 
 Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvChad](https://github.com/NvChad/NvChad). Color theme by [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme), based on [ayu](https://github.com/ayu-theme/ayu).
 
-![openchad screenshot](Screenshot.png)
+![openchad banner](openchadbanner.png)
 
 ---
 
