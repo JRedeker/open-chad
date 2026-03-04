@@ -189,12 +189,35 @@ fi
 # Unique session per invocation for crash isolation
 session_name="oc-$(date +%s)-$$"
 
-# Create detached session running opencode
+# Resolve a safe starting directory for the tmux session.
+# Without an explicit -c flag, tmux inherits the cwd of the launching process.
+# If that cwd is a worktree that gets deleted later, every tmux status callback
+# (status_left.sh, session_title.sh, pane-border-format) spawns a shell whose
+# first act is getcwd() — which fails on a deleted path, producing the noisy
+# "shell-init: error retrieving current directory: getcwd: cannot access parent
+# directories: No such file or directory" spam on /exit.
+#
+# Fallback chain: target_dir (validated) → $PWD (validated) → $HOME → /
+_resolve_session_cwd() {
+    local candidate
+    for candidate in "$target_dir" "$PWD" "$HOME" "/"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    printf '/'
+}
+session_cwd="$(_resolve_session_cwd)"
+
+# Create detached session running opencode in the resolved safe directory.
+# -c sets the session's default working directory so all panes and status
+# callbacks start from a path that is guaranteed to exist.
 # If args are provided, pass them along. Otherwise just run opencode.
 if [ ${#args[@]} -gt 0 ]; then
-    tmux new-session -d -s "$session_name" "opencode ${args[*]}"
+    tmux new-session -d -s "$session_name" -c "$session_cwd" "opencode ${args[*]}"
 else
-    tmux new-session -d -s "$session_name" "opencode"
+    tmux new-session -d -s "$session_name" -c "$session_cwd" "opencode"
 fi
 
 # Ensure the session's pane does not linger after opencode exits.

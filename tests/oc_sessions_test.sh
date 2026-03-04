@@ -569,6 +569,83 @@ test_openchad_uses_unique_oc_session_names
 test_openchad_teardown_is_session_scoped_not_global
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# getcwd regression: tmux session must start in a valid directory
+# Prevents "shell-init: error retrieving current directory: getcwd: cannot
+# access parent directories: No such file or directory" spam on /exit when
+# the session was launched from a worktree that gets deleted.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+section "getcwd regression — tmux new-session uses explicit -c flag"
+
+test_openchad_new_session_includes_dash_c() {
+    # bin/openchad must pass -c <dir> to tmux new-session so the session's
+    # default cwd is always a valid path, not inherited from the caller.
+    grep -qE 'tmux new-session.*-c' "$OPENCHAD_BIN" \
+        && pass "bin/openchad passes -c to tmux new-session" \
+        || fail "bin/openchad missing -c flag on tmux new-session (getcwd regression)"
+}
+
+test_openchad_session_cwd_resolver_present() {
+    # The _resolve_session_cwd function must exist in bin/openchad.
+    grep -q '_resolve_session_cwd' "$OPENCHAD_BIN" \
+        && pass "bin/openchad defines _resolve_session_cwd" \
+        || fail "bin/openchad missing _resolve_session_cwd function"
+}
+
+test_openchad_session_cwd_fallback_chain() {
+    # The fallback chain must include HOME and / as last resorts.
+    grep -q '"$HOME"' "$OPENCHAD_BIN" \
+        && pass "bin/openchad fallback chain includes \$HOME" \
+        || fail "bin/openchad fallback chain missing \$HOME"
+    grep -q '"/"' "$OPENCHAD_BIN" \
+        && pass "bin/openchad fallback chain includes / as last resort" \
+        || fail "bin/openchad fallback chain missing / last resort"
+}
+
+test_openchad_new_session_cwd_is_valid_dir() {
+    # Integration: run openchad with a fake tmux and verify the -c argument
+    # passed to new-session is a directory that actually exists.
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/fake_bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    touch "$tmux_log"
+    _make_fake_openchad_runtime "$fake_bin" "$tmux_log"
+
+    OPEN_CHAD_CACHE_DIR="$TMP_DIR/cache" \
+        PATH="$fake_bin:$PATH" \
+        TERM=dumb \
+        bash "$OPENCHAD_BIN" --no-anim >/dev/null 2>&1 || true
+
+    # Extract the -c argument from the new-session line
+    local new_session_line cwd_arg
+    new_session_line=$(grep '^new-session' "$tmux_log" | head -1)
+    # The -c flag is followed by the cwd path; extract it with awk
+    cwd_arg=$(echo "$new_session_line" | awk '{
+        for (i=1; i<=NF; i++) {
+            if ($i == "-c" && i+1 <= NF) { print $(i+1); exit }
+        }
+    }')
+
+    if [ -n "$cwd_arg" ]; then
+        pass "bin/openchad passes -c <dir> to tmux new-session (got: $cwd_arg)"
+        if [ -d "$cwd_arg" ]; then
+            pass "bin/openchad -c dir exists on filesystem: $cwd_arg"
+        else
+            fail "bin/openchad -c dir does not exist: $cwd_arg"
+        fi
+    else
+        fail "bin/openchad did not pass -c to tmux new-session"
+    fi
+
+    teardown_tmp_env
+}
+
+test_openchad_new_session_includes_dash_c
+test_openchad_session_cwd_resolver_present
+test_openchad_session_cwd_fallback_chain
+test_openchad_new_session_cwd_is_valid_dir
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 
