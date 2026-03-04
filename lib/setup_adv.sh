@@ -233,6 +233,77 @@ if [ -f "$ADV_INSTRUCTIONS_FILE" ]; then
     fi
 fi
 
+# ─── Wire ADV worker agent stubs into opencode.json ──────────────────────────
+# These are sub-agent role stubs used by ADV commands (adv-apply, adv-review,
+# adv-harden, adv-slop-scan, etc.). They have no model assigned — users assign
+# models via OMP. json_merge.sh is idempotent: existing entries are not clobbered,
+# so user-assigned models are preserved across re-installs.
+step "Wiring ADV worker agent stubs into $OPENCODE_JSON"
+ADV_WORKER_STUBS='{
+  "agent": {
+    "adv-research-lead": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Lead research orchestrator — synthesizes librarian + adv-researcher findings"
+    },
+    "adv-prepper": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Gap analysis — adds missing scenarios, tasks, and dependencies before implementation"
+    },
+    "adv-reviewer": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Lead review synthesizer — 12-dimension code review, emits REVIEW_FINDINGS"
+    },
+    "adv-security-reviewer": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "OWASP-focused security deep scan worker for /adv-review"
+    },
+    "adv-logic-reviewer": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Logic, edge cases, and concurrency review worker for /adv-review"
+    },
+    "adv-hardener": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Lead hardening synthesizer — gates archive on coverage, slop, and doc hygiene"
+    },
+    "adv-hardener-coverage": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Test coverage and production readiness harden worker"
+    },
+    "adv-hardener-docs": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Documentation hygiene harden worker — checks stale refs and inline docs"
+    },
+    "adv-hardener-slop": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "AI slop and cleanup harden worker — detects copy-paste, temp artifacts"
+    },
+    "adv-slop-scanner": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Lead slop-scan orchestrator — synthesizes category worker reports"
+    },
+    "adv-slop-worker": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Slop-scan heuristic category worker — defensive code, nesting, complexity"
+    }
+  }
+}'
+if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" "$ADV_WORKER_STUBS"; then
+    ok "ADV worker agent stubs wired into $OPENCODE_JSON"
+else
+    warn "Failed to wire ADV worker stubs into $OPENCODE_JSON — json_merge.sh exited non-zero"
+fi
+
 # ─── Sync bundled command docs (always — ensures offline fallback is current) ──
 _sync_bundled_commands
 

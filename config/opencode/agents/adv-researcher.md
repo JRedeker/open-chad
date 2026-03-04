@@ -1,6 +1,7 @@
 ---
 description: Research agent for /adv-research - validates architectural decisions via Context7 and web search
 mode: subagent
+model: google/gemini-3-flash-preview
 temperature: 0.10
 hidden: true
 tools:
@@ -14,9 +15,7 @@ tools:
   google_search: true
   webfetch: true
   fetch-mcp_*: true
-  firecrawl_firecrawl_scrape: true
-  firecrawl_firecrawl_crawl: true
-  firecrawl_firecrawl_check_crawl_status: true
+  firecrawl_*: true
   # Research tools - code search
   grep-app_*: true
   # Research tools - academic papers

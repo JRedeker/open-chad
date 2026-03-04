@@ -1,6 +1,6 @@
 ---
 name: adv-slop-scan
-description: Scan for low-quality AI-generated code patterns and surface findings
+description: Scan for AI slop patterns including defensive and nested code
 agent: general
 ---
 
@@ -11,7 +11,7 @@ agent: general
 You are orchestrating a **codebase scan for AI-generated code quality issues ("slop")** using patterns defined in `slop-smells.yaml`.
 
 This command uses a **two-phase detection strategy**:
-1. **Phase 1**: Fast regex/grep-based detection of automatable patterns
+1. **Phase 1**: AST-first automatable detection + regex signal layer for deterministic patterns
 2. **Phase 2**: AI-assisted heuristic detection via parallel sub-agents
 
 ## Argument Parsing
@@ -25,7 +25,6 @@ Parse `$ARGUMENTS` for options:
 | `--json` | Output in JSON format | Text format |
 | `--verbose` | Show detailed scan progress | Off |
 | `--timeout N` | Sub-agent timeout in seconds | 120 |
-| `--max-parallel N` | Max concurrent Phase 2 sub-agents (1–9) | 4 |
 | `--include-untracked` | Include untracked git files | Off |
 | `<path>` | Limit scan to specific directory | `.` (all) |
 
@@ -34,9 +33,8 @@ Parse `$ARGUMENTS` for options:
 2. Extract `--json` → set `OUTPUT_FORMAT` to `json`
 3. Extract `--verbose` → set `VERBOSE` to `true`
 4. Extract `--timeout N` → set `TIMEOUT` to N (default: 120)
-5. Extract `--max-parallel N` → set `MAX_PARALLEL` to N clamped to 1–9 (default: 4)
-6. Extract `--include-untracked` → set `INCLUDE_UNTRACKED` to `true`
-7. Remaining non-flag argument → set `SCAN_PATH`
+5. Extract `--include-untracked` → set `INCLUDE_UNTRACKED` to `true`
+6. Remaining non-flag argument → set `SCAN_PATH`
 
 ---
 
@@ -117,7 +115,6 @@ Stop execution.
 
 SCOPE: <N> files in <SCAN_PATH>
 PHASE: <1 | 2 | Both>
-MAX_PARALLEL: <N> (Phase 2 concurrency cap)
 OPTIONS: <flags enabled>
 
 ============================================================
@@ -127,9 +124,54 @@ OPTIONS: <flags enabled>
 
 ## Phase 1: Automatable Detection
 
-**Goal**: Fast regex-based detection of obvious slop patterns.
+**Goal**: Fast AST-first detection of structural slop, plus regex signal checks for obvious patterns.
 
-Run grep/ripgrep for each pattern category. Map findings to smell IDs from `slop-smells.yaml`.
+Run AST tools where available, then grep/ripgrep for pattern categories. Map findings to smell IDs from `slop-smells.yaml`.
+
+### Load Threshold Configuration (`project.json`)
+
+Before scanning, load `features.slop_scan` from `project.json` and apply defaults when omitted:
+
+```json
+{
+  "nesting_depth_threshold": 4,
+  "defensive_guard_threshold": 3,
+  "complexity_threshold": 10,
+  "ast_timeout_ms": 10000
+}
+```
+
+Use these values consistently for AST tools, regex signal escalation, and report metadata.
+
+### AST-First Structural Detection (MAINT-004, QUAL-011)
+
+Run one primary structural tool per language. If unavailable or timed out, fall back to brace/indent counting and annotate as degraded.
+
+| Language | Primary Tool | Check | Command | Maps To |
+|----------|--------------|-------|---------|---------|
+| TypeScript/JavaScript | ESLint | `npx eslint --version` | `npx eslint --rule '{max-depth:[error,{max:N}],complexity:[error,N]}' <path>` | `MAINT-004` |
+| Python | radon | `radon --help` | `radon cc -n C <path>` | `MAINT-004` |
+| Go | gocyclo | `gocyclo -over 1 .` | `gocyclo -over N <path>` | `MAINT-004` |
+
+**Fallback behavior (deterministic):**
+- Use brace/indent nesting counter for files where AST tool unavailable/timed out
+- Set `detectionMethod: degraded`
+- Add annotation: `[DEGRADED: AST tool unavailable]` or `[DEGRADED: AST timeout]`
+
+### Defensive Overkill Signal Layer (QUAL-011)
+
+Regex signals for repeated guard checks on the same identifier (signal only; semantic confirmation happens in Phase 2):
+
+```bash
+# repeated null/undefined checks on same symbol in close proximity
+rg -n "if\s*\([^)]*(===\s*null|===\s*undefined|==\s*null|!=\s*null|!==\s*undefined)[^)]*\)" --type ts --type js --type py
+
+# paranoid optional chaining and fallback chains
+rg -n "\?\.[^\n]*\?\.[^\n]*\?\." --type ts --type js
+rg -n "\|\|\s*null\s*\|\|\s*undefined" --type ts --type js
+```
+
+Escalate to `QUAL-011` when repeated guard signals on the same value are >= `defensive_guard_threshold`.
 
 ### Pattern Detection
 
@@ -217,8 +259,8 @@ Dead code detection uses **language-specific static analysis tools** rather than
 | Language | Tool | Install Check | Command |
 |----------|------|---------------|---------|
 | Python | `vulture` | `vulture --version` | `vulture <path> --min-confidence 80` |
-| TypeScript/JavaScript | `ts-prune` | `npx ts-prune --version` | `npx ts-prune` (for TS exports) |
-| TypeScript/JavaScript | `knip` | `npx knip --version` | `npx knip --no-exit-code` (comprehensive) |
+| TypeScript/JavaScript | `knip` (primary) | `npx knip --version` | `npx knip --no-exit-code` |
+| TypeScript/JavaScript | `ts-prune` (legacy fallback) | `npx ts-prune --version` | `npx ts-prune` |
 | Go | `deadcode` | `deadcode -help` | `deadcode ./...` |
 | Rust | `cargo-udeps` | `cargo udeps --version` | `cargo +nightly udeps` (unused deps) |
 | Java | `unused-code` | via build tool | Integrated with IDE/build |
@@ -245,8 +287,8 @@ Dead code detection uses **language-specific static analysis tools** rather than
    # Python example
    vulture <SCAN_PATH> --min-confidence 80 2>&1
    
-   # TypeScript/JavaScript example (prefer knip for comprehensive analysis)
-   npx knip --no-exit-code 2>&1 || npx ts-prune 2>&1
+   # TypeScript/JavaScript example (knip primary, ts-prune legacy fallback)
+   npx knip --no-exit-code 2>&1 || (echo "[LEGACY TOOL: ts-prune]" && npx ts-prune 2>&1)
    
    # Go example
    deadcode ./... 2>&1
@@ -254,8 +296,8 @@ Dead code detection uses **language-specific static analysis tools** rather than
 
 4. **Parse tool output** into standard finding format. Each tool has different output formats:
    - **vulture**: `path/file.py:42: unused function 'foo' (90% confidence)`
-   - **knip**: Lists unused files, exports, dependencies, etc.
-   - **ts-prune**: `path/file.ts:42 - unusedExport`
+    - **knip**: Primary analyzer; lists unused files, exports, dependencies, etc.
+    - **ts-prune**: Legacy fallback only; `path/file.ts:42 - unusedExport`
    - **deadcode**: `package.Function is unused`
 
 **If no tool available:**
@@ -284,9 +326,16 @@ For each match, create a finding:
   "line": <line-number>,
   "description": "<what was found>",
   "fix": "<remediation from yaml>",
+  "nestingDepth": <number|null>,
+  "complexity": <number|null>,
+  "confidence": "high|medium|low",
+  "detectionMethod": "ast|regex|heuristic|degraded",
   "phase": 1
 }
 ```
+
+Every finding in both phases MUST include `nestingDepth`, `complexity`, `confidence`, and `detectionMethod`.
+Use `null` for unknown numeric metrics.
 
 ### Phase 1 Summary
 
@@ -321,25 +370,13 @@ Findings: <M>
 
 ### Sub-Agent Architecture and Work Distribution
 
-Phase 2 uses **wave-based scheduling** with a concurrency cap of `MAX_PARALLEL` (default: 4).
-All 9 scanner categories are preserved, but only `MAX_PARALLEL` sub-agents run concurrently.
-Remaining scanners queue into subsequent waves.
-
-**Wave scheduling algorithm:**
-1. Build the full scanner list (9 categories).
-2. **Prune empty scanners**: If a scanner's batch logic yields 0 eligible files, skip it entirely (don't waste a slot).
-3. Sort remaining scanners by priority: scanners with more eligible files run first (maximize early coverage).
-4. Divide into waves of `MAX_PARALLEL` scanners each: `ceil(active_scanners / MAX_PARALLEL)` waves.
-5. Execute each wave: spawn all scanners in the wave concurrently, wait for all to complete (or timeout), then proceed to the next wave.
-6. Findings from earlier waves are available for deduplication in later waves.
+Spawn up to 9 parallel sub-agents, one per smell category. 
 
 **FILE COVERAGE PROTOCOL**:
 - Divide the `SCAN_PATH` file list among scanners based on relevance (e.g., Performance Scanner gets files > 100 lines, Security Scanner gets `api/`, `auth/`, `db/` files).
 - For general categories (Quality, Hallucination, Structure), divide the remaining files into non-overlapping batches.
 - **Deduplication**: Each file SHALL be processed by at most 3 scanners to ensure coverage without excessive redundancy.
 - Track which files were assigned to which scanners in the orchestrator state.
-
-**Scanner definitions (9 categories):**
 
 | Scanner | Category | Focus | Batch Logic |
 |---------|----------|-------|-------------|
@@ -352,14 +389,6 @@ Remaining scanners queue into subsequent waves.
 | AI-Specific Scanner | AI-* | Sycophantic code, context blindness, hallucinated reports | Newest files (git) |
 | Performance Scanner | PERF-* | N+1 queries, excessive renders, algorithmic inefficiency | Large files (>100 lines) |
 | Test Scanner | TEST-* | Magic numbers, assertion roulette, testing the mock | `tests/`, `__tests__/` |
-
-**Example wave assignment (MAX_PARALLEL=4, all 9 scanners eligible):**
-
-| Wave | Scanners |
-|------|----------|
-| Wave 1 | Quality, Structure, Hallucination, Maintainability |
-| Wave 2 | AI-Specific, Performance, Documentation, Dependency |
-| Wave 3 | Test |
 
 ### Sub-Agent Prompt Template
 
@@ -383,8 +412,10 @@ TASK:
    - File and line number
    - Brief description of the issue
    - Suggested fix
+   - Detection metadata (`nestingDepth`, `complexity`, `confidence`, `detectionMethod`)
 4. Focus on semantic issues, not syntax (Phase 1 handles syntax patterns)
-5. Return findings as JSON array
+5. For MAINT/STRUCT categories, explicitly evaluate deep nesting and defensive-overkill patterns.
+6. Return findings as JSON array
 
 TIMEOUT: <TIMEOUT> seconds
 
@@ -401,67 +432,51 @@ RETURN FORMAT:
       "line": <number>,
       "description": "<what was found>",
       "fix": "<suggestion>",
+      "nestingDepth": <number|null>,
+      "complexity": <number|null>,
+      "confidence": "high|medium|low",
+      "detectionMethod": "ast|regex|heuristic|degraded",
       "phase": 2
     }
   ]
 }
 ```
 
-### Sub-Agent Spawning (Wave Execution)
+### Sub-Agent Spawning
 
-Execute scanners in waves using the Task tool with `subagent_type: "explore"`.
-Within each wave, spawn all scanners concurrently (parallel tool calls in a single message).
-Wait for the entire wave to complete before starting the next.
+Use the Task tool with `subagent_type: "explore"` for each scanner:
 
 ```
-Phase 2: MAX_PARALLEL=4, 9 scanners eligible, 3 waves
-
-Wave 1/3 — spawning 4 scanners...
-  [1/9] Quality Scanner: Batch A (Files 1-15)
-  [2/9] Structure Scanner: Batch B (Files 16-30)
-  [3/9] Hallucination Scanner: Batch C (Files 31-45)
-  [4/9] Maintainability Scanner: Batch D (Files 46-60)
-Wave 1/3 — complete (4/4 succeeded)
-
-Wave 2/3 — spawning 4 scanners...
-  [5/9] AI-Specific Scanner: newest 20 files
-  [6/9] Performance Scanner: 8 files >100 lines
-  [7/9] Documentation Scanner: 12 export-heavy files
-  [8/9] Dependency Scanner: 3 config files
-Wave 2/3 — complete (3/4 succeeded, 1 timeout)
-
-Wave 3/3 — spawning 1 scanner...
-  [9/9] Test Scanner: tests/ (5 files)
-Wave 3/3 — complete (1/1 succeeded)
+Spawning Phase 2 sub-agents with work-sharing...
+- Hallucination Scanner: Batch A (Files 1-20)
+- Structure Scanner: Batch B (Files 21-40)
+...
 ```
 
-### Timeout and Error Handling
+### Sub-Agent Timeout Handling
 
 **Default timeout**: 120 seconds per sub-agent (override with `--timeout`).
-Timeouts and failures are handled **per-scanner within each wave** — they never block the next wave.
 
-**Per-scanner timeout/failure:**
-- Mark the scanner as `TIMEOUT` or `FAILED`
-- Collect any partial results returned before the timeout
-- The wave completes when all scanners in it have finished or timed out
-- Proceed to the next wave regardless of failures in the current wave
+**If sub-agent times out:**
+- Mark category as `TIMEOUT`
+- Proceed with available results
+- Note in report: `[!] <Category> Scanner: TIMEOUT`
 
-**Per-wave reporting:**
-- After each wave completes, log: `Wave N/M: done (X/Y succeeded, Z timeout, W failed)`
-- Note failed scanners in the final report: `[!] <Category> Scanner: TIMEOUT` or `[!] <Category> Scanner: FAILED - <reason>`
+**If sub-agent fails (error/invalid response):**
+- Mark category as `INCOMPLETE`
+- Note in report: `[!] <Category> Scanner: FAILED - <reason>`
 
-**If ALL scanners across ALL waves fail:**
+**If ALL sub-agents fail:**
 ```
 [!] Heuristic analysis failed - showing automatable findings only
 
 All Phase 2 scanners encountered errors:
-- Wave 1: Quality (TIMEOUT), Structure (TIMEOUT), ...
-- Wave 2: AI-Specific (FAILED), ...
+- Hallucination Scanner: <error>
+- Structure Scanner: <error>
 ...
 
 Suggestions:
-- Increase timeout: --timeout 300
-- Reduce concurrency: --max-parallel 2
+- Check system status and retry
 - Run with --phase 1 for automatable detection only
 ```
 
@@ -470,13 +485,11 @@ Suggestions:
 ```
 PHASE 2 COMPLETE
 ------------------------------------------------------------
-Concurrency: MAX_PARALLEL=<N>
-Waves executed: <W>
-Scanners total: <T> (eligible) / 9 (defined)
-  Skipped (no files): <S>
-  Successful: <N>
-  Timed out: <N>
-  Failed: <N>
+Sub-agents spawned: 9
+Work distribution: 100% file coverage achieved
+Successful: <N>
+Timed out: <N>
+Failed: <N>
 Total findings: <M>
 ```
 
@@ -543,6 +556,7 @@ HIGH FINDINGS
 [QUAL-007] error_suppression
   src/handlers/upload.ts:156
   Empty catch block silently swallows errors
+  METHOD: regex | CONFIDENCE: medium | NESTING: null | COMPLEXITY: null
   FIX: Log error and/or rethrow with context
 
 MEDIUM FINDINGS
@@ -595,15 +609,7 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
   },
   "phases": {
     "phase1": { "enabled": true, "findings": 5 },
-    "phase2": {
-      "enabled": true,
-      "findings": 10,
-      "maxParallel": 4,
-      "waves": 3,
-      "scannersEligible": 9,
-      "scannersSkipped": 0,
-      "incomplete": ["Performance"]
-    }
+    "phase2": { "enabled": true, "findings": 10, "incomplete": ["Performance"] }
   },
   "summary": {
     "total": 15,
@@ -629,6 +635,10 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
       "line": 42,
       "description": "SQL query built with string concatenation",
       "fix": "Use parameterized queries or an ORM",
+      "nestingDepth": null,
+      "complexity": null,
+      "confidence": "high",
+      "detectionMethod": "regex",
       "phase": 1
     }
   ]
@@ -653,31 +663,13 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
 [VERBOSE]   as any: 12 matches
 ...
 
-[VERBOSE] Phase 2: MAX_PARALLEL=4, 9 scanners eligible, 3 waves
-[VERBOSE] Wave 1/3: spawning 4 scanners...
-[VERBOSE]   Quality Scanner: started (42 files)
-[VERBOSE]   Structure Scanner: started (38 files)
+[VERBOSE] Phase 2: Spawning sub-agents...
 [VERBOSE]   Hallucination Scanner: started (15 files)
-[VERBOSE]   Maintainability Scanner: started (42 files)
-[VERBOSE]   Quality Scanner: complete (5 findings, 12.1s)
+[VERBOSE]   Quality Scanner: started (42 files)
+...
 [VERBOSE]   Hallucination Scanner: complete (2 findings, 8.3s)
-[VERBOSE]   Structure Scanner: complete (1 finding, 14.0s)
-[VERBOSE]   Maintainability Scanner: complete (3 findings, 11.5s)
-[VERBOSE] Wave 1/3: done (4/4 succeeded)
-[VERBOSE] Wave 2/3: spawning 4 scanners...
-[VERBOSE]   AI-Specific Scanner: started (20 files)
-[VERBOSE]   Performance Scanner: started (8 files)
-[VERBOSE]   Documentation Scanner: started (12 files)
-[VERBOSE]   Dependency Scanner: started (3 files)
-[VERBOSE]   Dependency Scanner: complete (0 findings, 3.2s)
-[VERBOSE]   Documentation Scanner: complete (2 findings, 9.8s)
-[VERBOSE]   Performance Scanner: TIMEOUT
-[VERBOSE]   AI-Specific Scanner: complete (1 finding, 18.4s)
-[VERBOSE] Wave 2/3: done (3/4 succeeded, 1 timeout)
-[VERBOSE] Wave 3/3: spawning 1 scanner...
-[VERBOSE]   Test Scanner: started (5 files)
-[VERBOSE]   Test Scanner: complete (0 findings, 6.1s)
-[VERBOSE] Wave 3/3: done (1/1 succeeded)
+[VERBOSE]   Quality Scanner: complete (5 findings, 12.1s)
+...
 
 [VERBOSE] Timing:
 [VERBOSE]   File enumeration: 0.2s
@@ -712,10 +704,10 @@ PHASE 1: 0 findings | PHASE 2: 0 findings
 
 Now execute the slop scan.
 
-1. Parse arguments and validate (including `MAX_PARALLEL` clamped to 1–9)
+1. Parse arguments and validate
 2. Run pre-flight checks (git, yaml, files)
 3. If Phase 1 enabled: Run automatable detection
-4. If Phase 2 enabled: Assign files to scanners, prune empty scanners, schedule waves of `MAX_PARALLEL` concurrent sub-agents
+4. If Phase 2 enabled: Spawn sub-agents for heuristic detection
 5. Aggregate findings and generate report
 6. Output in requested format (text or JSON)
 
