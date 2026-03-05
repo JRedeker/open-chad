@@ -37,7 +37,7 @@ When the ADV agent creates a git worktree via worktree_create, it must immediate
 **Given:**
 - adv-apply.md in the ADV repo contains the navigation hint block
 - ADV_INSTRUCTIONS.md in the ADV repo contains the navigation hint block
-- worktree-guide.md in openchad contains the navigation hint section
+- skills/worktree/SKILL.md in openchad contains the navigation hint section
 - README.md in openchad contains the Worktree Flow section
 
 **When:** The canonical keybinds are compared across all four sources
@@ -52,14 +52,14 @@ When the ADV agent creates a git worktree via worktree_create, it must immediate
 
 **ID:** `rq-wt-ux.2` | **Priority:** **[MUST]**
 
-openchad must document worktree navigation keybinds in both the agent instruction file (worktree-guide.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.
+openchad must document worktree navigation keybinds in both the worktree skill (skills/worktree/SKILL.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.
 
 #### Scenarios
 
-**worktree-guide.md contains Navigating to the New Worktree Tab section** (`sc-wt-ux.2.1`)
+**worktree skill contains Navigating to the New Worktree Tab section** (`sc-wt-ux.2.1`)
 
 **Given:**
-- config/opencode/instructions/worktree-guide.md exists in the openchad repo
+- config/opencode/skills/worktree/SKILL.md exists in the openchad repo
 
 **When:** The file is read
 

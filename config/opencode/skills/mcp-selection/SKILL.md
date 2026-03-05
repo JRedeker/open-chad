@@ -1,6 +1,15 @@
-# MCP Tool Selection Guide
+---
+name: mcp-selection
+description: "MCP tool selection guide — use when choosing between Kagi, Context7, grep.app, Firecrawl, Playwright, or other MCP tools for a task. Provides decision matrix and anti-patterns."
+license: MIT
+metadata:
+  priority: high
+  replaces: none
+---
 
-When multiple tools could accomplish a task, use this guide to select the most appropriate one.
+## When to Load This Skill
+
+Load this skill when you need to decide **which MCP tool** to use for a task. If you already know the right tool, skip this and call it directly.
 
 ## MCP Server Management
 
@@ -103,3 +112,8 @@ When multiple tools could accomplish a task, use this guide to select the most a
 2. **Don't web search for library docs** - Context7 has them indexed
 3. **Don't scrape when you can search** - Kagi is faster for finding info
 4. **Don't use fetch for complex pages** - Firecrawl handles JavaScript rendering
+
+## Keywords
+mcp tool selection, which tool to use, kagi vs context7, web search, documentation lookup,
+code examples, web scraping, browser automation, playwright, firecrawl, grep.app, arxiv,
+fetch, url content, tool choice, decision matrix

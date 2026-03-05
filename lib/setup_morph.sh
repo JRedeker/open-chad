@@ -5,7 +5,7 @@
 #   1. Clone or pull morph-fast-apply repo to ~/dev/oc-plugins/morph-fast-apply/
 #   2. Run pnpm install + pnpm build in the plugin directory
 #   3. Merge plugin path into ~/.config/opencode/opencode.json
-#   4. Merge MORPH_INSTRUCTIONS.md path into opencode.json instructions array
+#   4. Sync morph skill to ~/.config/opencode/skills/morph/
 #
 # Environment overrides:
 #   MORPH_REPO           — git URL (default: https://github.com/anomalyco/morph-fast-apply.git)
@@ -104,26 +104,22 @@ bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
     "{\"plugin\":[\"$MORPH_PLUGIN_DIR\"]}"
 ok "Plugin entry added/confirmed: $MORPH_PLUGIN_DIR"
 
-# ─── Wire MORPH_INSTRUCTIONS.md into opencode.json ───────────────────────────
-# Look for the instructions file in common locations
-MORPH_INSTRUCTIONS_FILE=""
-for candidate in \
-    "$MORPH_CHECKOUT_DIR/MORPH_INSTRUCTIONS.md" \
-    "$MORPH_PLUGIN_DIR/MORPH_INSTRUCTIONS.md" \
-    "$MORPH_CHECKOUT_DIR/plugin/MORPH_INSTRUCTIONS.md"; do
-    if [ -f "$candidate" ]; then
-        MORPH_INSTRUCTIONS_FILE="$candidate"
-        break
-    fi
-done
+# ─── Sync morph skill ────────────────────────────────────────────────────────
+# The morph skill provides on-demand guidance for using morph_edit.
+# It lives in the morph checkout and is synced to the skills directory.
+MORPH_SKILL_SRC_DIR="$MORPH_CHECKOUT_DIR/skills/morph"
+DEST_SKILLS_DIR="$OPENCODE_CONFIG_DIR/skills"
 
-if [ -n "$MORPH_INSTRUCTIONS_FILE" ]; then
-    step "Wiring MORPH_INSTRUCTIONS.md into $OPENCODE_JSON"
-    bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
-        "{\"instructions\":[\"$MORPH_INSTRUCTIONS_FILE\"]}"
-    ok "Instructions entry added/confirmed: $MORPH_INSTRUCTIONS_FILE"
+if [ -d "$MORPH_SKILL_SRC_DIR" ]; then
+    step "Syncing morph skill to $DEST_SKILLS_DIR/morph/"
+    mkdir -p "$DEST_SKILLS_DIR/morph"
+    for src in "$MORPH_SKILL_SRC_DIR"/*; do
+        [ -f "$src" ] || continue
+        cp "$src" "$DEST_SKILLS_DIR/morph/$(basename "$src")"
+    done
+    ok "Skill synced: morph/*"
 else
-    warn "MORPH_INSTRUCTIONS.md not found in checkout — skipping instructions wire."
+    warn "morph skill directory not found at $MORPH_SKILL_SRC_DIR — skipping skill sync."
     warn "This is non-fatal; the plugin will still function."
 fi
 

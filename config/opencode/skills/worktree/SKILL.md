@@ -1,6 +1,15 @@
-# Worktree Usage Guide
+---
+name: worktree
+description: "Git worktree workflow guidance — use when creating, navigating, merging, or deleting worktrees. Covers when to isolate, merge-before-delete protocol, and tmux navigation."
+license: MIT
+metadata:
+  priority: medium
+  replaces: none
+---
 
-You have access to `worktree_create` and `worktree_delete` tools for isolated git worktree sessions.
+## When to Load This Skill
+
+Load this skill when you need to **create, manage, or clean up git worktrees**. Covers decision criteria, merge protocol, and tmux navigation hints.
 
 ## When to Create a Worktree
 
@@ -94,6 +103,11 @@ When a worktree is created, openchad may open a new tmux window for it. The agen
 
 The agent will emit this hint immediately after `worktree_create` succeeds so you always know how to reach the new tab.
 
-## Always Ask First
+## Ask Only When Needed
 
-Before creating a worktree, briefly explain WHY you think isolation is needed and confirm with the user.
+Before creating a worktree, explain why isolation helps. Ask the user only when the decision is materially ambiguous or when the action is destructive/irreversible. Otherwise, proceed with the safest reasonable default.
+
+## Keywords
+worktree, git worktree, branch isolation, parallel development, merge before delete,
+worktree create, worktree delete, tmux navigation, feature branch, risky refactor,
+exploratory work, worktree cleanup

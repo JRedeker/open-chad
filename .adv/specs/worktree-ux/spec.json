@@ -34,7 +34,7 @@
           "given": [
             "adv-apply.md in the ADV repo contains the navigation hint block",
             "ADV_INSTRUCTIONS.md in the ADV repo contains the navigation hint block",
-            "worktree-guide.md in openchad contains the navigation hint section",
+            "skills/worktree/SKILL.md in openchad contains the navigation hint section",
             "README.md in openchad contains the Worktree Flow section"
           ],
           "when": "The canonical keybinds are compared across all four sources",
@@ -48,14 +48,14 @@
     {
       "id": "rq-wt-ux.2",
       "title": "Worktree navigation guidance is documented in openchad user-facing docs",
-      "body": "openchad must document worktree navigation keybinds in both the agent instruction file (worktree-guide.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.",
+      "body": "openchad must document worktree navigation keybinds in both the worktree skill (skills/worktree/SKILL.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.",
       "priority": "must",
       "scenarios": [
         {
           "id": "sc-wt-ux.2.1",
-          "title": "worktree-guide.md contains Navigating to the New Worktree Tab section",
+          "title": "worktree skill contains Navigating to the New Worktree Tab section",
           "given": [
-            "config/opencode/instructions/worktree-guide.md exists in the openchad repo"
+            "config/opencode/skills/worktree/SKILL.md exists in the openchad repo"
           ],
           "when": "The file is read",
           "then": [

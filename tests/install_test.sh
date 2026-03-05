@@ -191,9 +191,11 @@ assert_file_exists "$REPO_DIR/config/opencode/agents/explore.md"
 
 # Bundled instruction files
 assert_file_exists "$REPO_DIR/config/opencode/instructions/shell_strategy.md"
-assert_file_exists "$REPO_DIR/config/opencode/instructions/mcp-tools.md"
-assert_file_exists "$REPO_DIR/config/opencode/instructions/worktree-guide.md"
 assert_file_exists "$REPO_DIR/config/opencode/instructions/lbp.md"
+
+# Bundled skill files (replaced mcp-tools.md and worktree-guide.md)
+assert_file_exists "$REPO_DIR/config/opencode/skills/mcp-selection/SKILL.md"
+assert_file_exists "$REPO_DIR/config/opencode/skills/worktree/SKILL.md"
 
 # ─── Section 2: json_merge.sh ─────────────────────────────────────────────────
 
@@ -306,11 +308,13 @@ test_setup_opencode_syncs_instructions() {
     run_setup_opencode_sandboxed --skip-commands
 
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/shell_strategy.md"
-    assert_file_exists "$TMP_HOME/.config/opencode/instructions/mcp-tools.md"
-    assert_file_exists "$TMP_HOME/.config/opencode/instructions/worktree-guide.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/lbp.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/identity.md"
     assert_file_exists "$TMP_HOME/.config/opencode/instructions/rules.yaml"
+
+    # Skills are synced instead of old instruction files
+    assert_file_exists "$TMP_HOME/.config/opencode/skills/mcp-selection/SKILL.md"
+    assert_file_exists "$TMP_HOME/.config/opencode/skills/worktree/SKILL.md"
     teardown_tmp_env
 }
 

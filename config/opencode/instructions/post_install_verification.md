@@ -44,6 +44,13 @@ confirm each item works:
    Expected: markdown tables are auto-formatted after AI text completion.
    If missing, the plugin won't load and tables may appear misaligned.
 
+8. SKILLS — Check that ~/.config/opencode/skills/ contains these directories:
+   - mcp-selection/SKILL.md (MCP tool selection guidance)
+   - worktree/SKILL.md (git worktree workflow)
+   - morph/SKILL.md (morph_edit usage guidance)
+   Expected: all 3 skill files present with valid YAML frontmatter.
+   If missing, re-run: open-chad (setup_opencode.sh + setup_morph.sh sync skills).
+
 Please report the status of each item (OK / FAIL + error message).
 ```
 
@@ -60,6 +67,7 @@ Please report the status of each item (OK / FAIL + error message).
 | md-table-formatter missing | `bash lib/setup_opencode.sh` (wires default plugins) |
 | Theme wrong | `bash lib/setup_opencode.sh` |
 | Agents missing | `bash lib/setup_opencode.sh` |
+| Skills missing | `bash lib/setup_opencode.sh` + `bash lib/setup_morph.sh` |
 
 ---
 

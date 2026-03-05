@@ -6,7 +6,8 @@
 #   2. Sync ADV command files from checkout -> ~/.config/opencode/command/
 #   3. Sync bundled instruction files -> ~/.config/opencode/instructions/
 #   4. Sync bundled theme files -> ~/.config/opencode/themes/
-#   5. Merge instruction paths + theme into ~/.config/opencode/opencode.json
+#   5. Sync bundled skill files -> ~/.config/opencode/skills/
+#   6. Merge instruction paths + theme into ~/.config/opencode/opencode.json
 #
 # Flags:
 #   --skip-commands    Skip ADV command sync (use when ADV checkout unavailable)
@@ -297,11 +298,13 @@ OPEN_CHAD_CONFIG_FILE="${OPEN_CHAD_CONFIG_FILE:-$OPENCODE_CONFIG_DIR/open-chad.j
 BUNDLE_AGENTS_DIR="$REPO_DIR/config/opencode/agents"
 BUNDLE_INSTRUCTIONS_DIR="$REPO_DIR/config/opencode/instructions"
 BUNDLE_THEMES_DIR="$REPO_DIR/config/opencode/themes"
+BUNDLE_SKILLS_DIR="$REPO_DIR/config/opencode/skills"
 
 DEST_AGENTS_DIR="$OPENCODE_CONFIG_DIR/agents"
 DEST_COMMANDS_DIR="$OPENCODE_CONFIG_DIR/command"
 DEST_INSTRUCTIONS_DIR="$OPENCODE_CONFIG_DIR/instructions"
 DEST_THEMES_DIR="$OPENCODE_CONFIG_DIR/themes"
+DEST_SKILLS_DIR="$OPENCODE_CONFIG_DIR/skills"
 
 # Seed agent color persistence from existing local agent files before sync.
 _seed_agent_colors_config
@@ -374,7 +377,7 @@ _apply_primary_agent_colors
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
 step "Syncing instruction files -> $DEST_INSTRUCTIONS_DIR"
 mkdir -p "$DEST_INSTRUCTIONS_DIR"
-for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
+for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
     src="$BUNDLE_INSTRUCTIONS_DIR/$filename"
     dest="$DEST_INSTRUCTIONS_DIR/$filename"
     if [ -f "$src" ]; then
@@ -393,11 +396,30 @@ for src in "$BUNDLE_THEMES_DIR"/*.json; do
     _copy_if_regular "$src" "$dest" "theme"
 done
 
-# ─── 5. Merge instruction paths + theme into opencode.json ────────────────────
+# ─── 5. Sync skill files ──────────────────────────────────────────────────────
+# Skills are on-demand instruction bundles loaded by the agent when relevant.
+# Each skill lives in its own subdirectory: skills/<name>/SKILL.md
+if [ -d "$BUNDLE_SKILLS_DIR" ]; then
+    step "Syncing skill files -> $DEST_SKILLS_DIR"
+    for skill_dir in "$BUNDLE_SKILLS_DIR"/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill_name="$(basename "$skill_dir")"
+        dest_skill_dir="$DEST_SKILLS_DIR/$skill_name"
+        mkdir -p "$dest_skill_dir"
+        for src in "$skill_dir"*; do
+            [ -f "$src" ] || continue
+            _copy_if_regular "$src" "$dest_skill_dir/$(basename "$src")" "skill ($skill_name)"
+        done
+    done
+else
+    warn "Bundled skills directory missing: $BUNDLE_SKILLS_DIR"
+fi
+
+# ─── 6. Merge instruction paths + theme into opencode.json ────────────────────
 step "Wiring instructions and theme into $OPENCODE_JSON"
 
 INSTRUCTIONS_JSON="[$(
-    for filename in shell_strategy.md mcp-tools.md worktree-guide.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
+    for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
         dest="$DEST_INSTRUCTIONS_DIR/$filename"
         # Use ~ expansion-safe path
         dest_display="${dest/#$HOME/\~}"

@@ -96,7 +96,7 @@ lib/
                             context7/grep-app/lgrep/firecrawl enabled.
                             Validates JSON before and after merge.
   setup_morph.sh            Clone/pull morph-fast-apply, pnpm install+build, wire plugin
-                            path and MORPH_INSTRUCTIONS.md into opencode.json.
+                            path into opencode.json. Syncs morph skill to skills/morph/.
   setup_dev_bundle.sh       Python (uv-only, no pyenv), Go (apt+tarball), Rust (rustup).
                             Pyrefly wired as LSP. Persists selectedBundles to
                             ~/.config/opencode/open-chad.json under installer key.

@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # We need to check:
-# 1. openchad: config/opencode/instructions/worktree-guide.md
+# 1. openchad: config/opencode/skills/worktree/SKILL.md
 # 2. openchad: README.md
 # 3. ADV: .opencode/command/adv-apply.md (if available)
 # 4. ADV: ADV_INSTRUCTIONS.md (if available)
@@ -54,7 +54,7 @@ check_file() {
     fi
 }
 
-check_file "$REPO_DIR/config/opencode/instructions/worktree-guide.md" "worktree-guide.md"
+check_file "$REPO_DIR/config/opencode/skills/worktree/SKILL.md" "worktree/SKILL.md"
 check_file "$REPO_DIR/README.md" "README.md"
 
 # Check ADV repo if it exists alongside openchad
