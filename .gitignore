@@ -6,3 +6,6 @@
 
 # Temporary brainstorm files
 temp/
+
+# Local dependencies
+node_modules/
