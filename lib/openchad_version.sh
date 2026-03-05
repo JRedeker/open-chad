@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Hardcoded fallback version (updated on release)
-OPENCHAD_VERSION_FALLBACK="1.2.0"
+OPENCHAD_VERSION_FALLBACK="1.3.0"
 
 # Try to get version from git tag
 _version=""
