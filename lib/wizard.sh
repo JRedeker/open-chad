@@ -276,93 +276,136 @@ _component_select() {
         return 0
     fi
 
-    echo -e "${C_STRING}  ╔═══════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_STRING}  ║${C_RESET}  ${C_ACCENT}Choose components to install${C_RESET}                    ${C_STRING}║${C_RESET}"
-    echo -e "${C_STRING}  ╚═══════════════════════════════════════════════╝${C_RESET}"
-    echo ""
-    echo -e "  ${C_FG}Core (always installed):${C_RESET}"
-    echo -e "    ${C_COMMENT}·${C_RESET} Shell profile PATH setup"
-    echo -e "    ${C_COMMENT}·${C_RESET} Tmux theme (ayu-dark)"
-    echo -e "    ${C_COMMENT}·${C_RESET} OpenCode config (agents, instructions, theme)"
-    echo ""
-    echo -e "  ${C_FG}Optional components:${C_RESET}"
-    echo ""
-
+    # Track which components are CLI-locked (cannot be toggled)
+    local -a _locked=()
     local i
-    for i in "${!_COMP_NAMES[@]}"; do
-        local num=$((i + 1))
-        local var="${_COMP_VARS[$i]}"
-        local skip_val="${!var}"
-        if [ "$skip_val" -eq 1 ]; then
-            # Locked out by CLI flag — show as disabled
-            printf "    ${C_COMMENT}[%d] %-28s %s (skipped via --skip flag)${C_RESET}\n" \
-                "$num" "${_COMP_NAMES[$i]}" "—"
-        else
-            printf "    ${C_TYPE}[%d]${C_RESET} %-28s ${C_COMMENT}%s${C_RESET}\n" \
-                "$num" "${_COMP_NAMES[$i]}" "${_COMP_DESCS[$i]}"
-        fi
-    done
-
-    echo ""
-    echo -e "  ${C_COMMENT}Enter = install all  ·  0 = none  ·  Type numbers to select (e.g. 1 3 5 6)${C_RESET}"
-    echo ""
-    echo -ne "  ${C_ACCENT}?${C_RESET} Components to install [default: all]: "
-
-    local answer
-    read -r answer
-    _log "COMPONENT SELECTION INPUT: $answer"
-
-    # Empty = all (default)
-    if [ -z "$answer" ]; then
-        _log "COMPONENT SELECT: all (default)"
-        return 0
-    fi
-
-    # 0 = none
-    if [ "$answer" = "0" ]; then
-        _log "COMPONENT SELECT: none"
-        for i in "${!_COMP_VARS[@]}"; do
-            local var="${_COMP_VARS[$i]}"
-            # Only set if not already locked by CLI flag
-            if [ "${!var}" -eq 0 ]; then
-                eval "$var=1"
-            fi
-        done
-        return 0
-    fi
-
-    # Specific numbers: skip everything not selected (unless locked by CLI)
-    # First, mark all unlocked components as skipped
     for i in "${!_COMP_VARS[@]}"; do
         local var="${_COMP_VARS[$i]}"
-        if [ "${!var}" -eq 0 ]; then
-            eval "$var=1"
+        _locked+=("${!var}")  # 1 = locked off by --skip-* flag
+    done
+
+    # Selection state: 0 = selected (will install), 1 = deselected (will skip)
+    # Start with all unlocked components selected
+    local -a _sel=()
+    for i in "${!_COMP_VARS[@]}"; do
+        _sel+=("${_locked[$i]}")
+    done
+
+    # Render the component list
+    _render_components() {
+        echo -e "${C_STRING}  ╔═══════════════════════════════════════════════╗${C_RESET}"
+        echo -e "${C_STRING}  ║${C_RESET}  ${C_ACCENT}Choose components to install${C_RESET}                    ${C_STRING}║${C_RESET}"
+        echo -e "${C_STRING}  ╚═══════════════════════════════════════════════╝${C_RESET}"
+        echo ""
+        echo -e "  ${C_FG}Core (always installed):${C_RESET}"
+        echo -e "    ${C_COMMENT}·${C_RESET} Shell profile PATH setup"
+        echo -e "    ${C_COMMENT}·${C_RESET} Tmux theme (ayu-dark)"
+        echo -e "    ${C_COMMENT}·${C_RESET} OpenCode config (agents, instructions, theme)"
+        echo ""
+        echo -e "  ${C_FG}Optional components:${C_RESET}  ${C_COMMENT}(type a number to toggle)${C_RESET}"
+        echo ""
+
+        local j
+        for j in "${!_COMP_NAMES[@]}"; do
+            local num=$((j + 1))
+            if [ "${_locked[$j]}" -eq 1 ]; then
+                # Locked by CLI flag — grayed out
+                printf "    ${C_COMMENT}[%d]  ✗  %-26s — skipped via --skip flag${C_RESET}\n" \
+                    "$num" "${_COMP_NAMES[$j]}"
+            elif [ "${_sel[$j]}" -eq 0 ]; then
+                # Selected
+                printf "    ${C_TYPE}[%d]${C_RESET}  ${C_STRING}✓${C_RESET}  %-26s ${C_COMMENT}%s${C_RESET}\n" \
+                    "$num" "${_COMP_NAMES[$j]}" "${_COMP_DESCS[$j]}"
+            else
+                # Deselected
+                printf "    ${C_TYPE}[%d]${C_RESET}  ${C_COMMENT}·${C_RESET}  ${C_COMMENT}%-26s %s${C_RESET}\n" \
+                    "$num" "${_COMP_NAMES[$j]}" "${_COMP_DESCS[$j]}"
+            fi
+        done
+
+        echo ""
+        echo -e "  ${C_COMMENT}Type a number to toggle  ·  ${C_FG}a${C_COMMENT} = select all  ·  ${C_FG}n${C_COMMENT} = select none  ·  ${C_FG}Enter${C_COMMENT} = continue${C_RESET}"
+    }
+
+    # Initial render
+    _render_components
+
+    # Toggle loop
+    while true; do
+        echo ""
+        echo -ne "  ${C_ACCENT}?${C_RESET} Toggle or continue: "
+        local answer
+        read -r answer
+        _log "COMPONENT TOGGLE INPUT: $answer"
+
+        # Enter with no input = done, proceed with current selection
+        if [ -z "$answer" ]; then
+            break
+        fi
+
+        # 'a' = select all unlocked
+        if [[ "$answer" =~ ^[aA]$ ]]; then
+            for i in "${!_sel[@]}"; do
+                [ "${_locked[$i]}" -eq 0 ] && _sel[$i]=0
+            done
+            clear 2>/dev/null || true
+            _render_components
+            continue
+        fi
+
+        # 'n' = deselect all unlocked
+        if [[ "$answer" =~ ^[nN]$ ]]; then
+            for i in "${!_sel[@]}"; do
+                [ "${_locked[$i]}" -eq 0 ] && _sel[$i]=1
+            done
+            clear 2>/dev/null || true
+            _render_components
+            continue
+        fi
+
+        # Toggle specific numbers (supports multiple: "1 3 5")
+        local toggled=0
+        for num in $answer; do
+            if [[ "$num" =~ ^[0-9]+$ ]]; then
+                local idx=$((num - 1))
+                if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#_COMP_VARS[@]}" ] && [ "${_locked[$idx]}" -eq 0 ]; then
+                    if [ "${_sel[$idx]}" -eq 0 ]; then
+                        _sel[$idx]=1
+                    else
+                        _sel[$idx]=0
+                    fi
+                    toggled=1
+                fi
+            fi
+        done
+
+        if [ "$toggled" -eq 1 ]; then
+            clear 2>/dev/null || true
+            _render_components
         fi
     done
 
-    # Then un-skip the selected ones
-    for num in $answer; do
-        local idx=$((num - 1))
-        if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#_COMP_VARS[@]}" ]; then
-            local var="${_COMP_VARS[$idx]}"
-            eval "$var=0"
-            _log "COMPONENT SELECTED: ${_COMP_NAMES[$idx]}"
+    # Apply selections to SKIP_* variables
+    for i in "${!_COMP_VARS[@]}"; do
+        local var="${_COMP_VARS[$i]}"
+        eval "$var=${_sel[$i]}"
+        if [ "${_sel[$i]}" -eq 0 ]; then
+            _log "COMPONENT SELECTED: ${_COMP_NAMES[$i]}"
         fi
     done
 
-    # Show summary
+    # Show final summary
     echo ""
-    echo -e "  ${C_FG}Selected:${C_RESET}"
+    echo -e "  ${C_FG}Installing:${C_RESET}"
     local any_selected=0
     for i in "${!_COMP_NAMES[@]}"; do
-        local var="${_COMP_VARS[$i]}"
-        if [ "${!var}" -eq 0 ]; then
+        if [ "${_sel[$i]}" -eq 0 ]; then
             echo -e "    ${C_STRING}✓${C_RESET} ${_COMP_NAMES[$i]}"
             any_selected=1
         fi
     done
     if [ "$any_selected" -eq 0 ]; then
-        echo -e "    ${C_COMMENT}(none)${C_RESET}"
+        echo -e "    ${C_COMMENT}(core only)${C_RESET}"
     fi
     echo ""
 }
