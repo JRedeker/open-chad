@@ -282,6 +282,253 @@ test_json_merge_does_not_clobber_keys
 test_json_merge_creates_with_defaults
 teardown_tmp_env
 
+# ─── Section 2b: json_merge.sh — atomic write, backup, rotation ──────────────
+
+section "lib/json_merge.sh — atomic write and backup safety"
+
+# tk-N5fHBvnF: atomic write — no temp file left after successful merge
+test_json_merge_atomic_no_temp_file_after_success() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["existing"]}' > "$tmp_json"
+
+    bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" '{"plugin":["new"]}' 2>/dev/null
+
+    # No .PID temp files should remain alongside the target
+    local leftover
+    leftover=$(ls "${tmp_json}".* 2>/dev/null | grep -v '\.bak\.' || true)
+    [ -z "$leftover" ] && pass "no temp files left after successful merge" \
+                       || fail "temp file(s) left after merge: $leftover"
+    rm -f "$tmp_json"
+}
+
+# tk-N5fHBvnF: atomic write — original file intact when merge payload is invalid JSON
+test_json_merge_atomic_preserves_original_on_bad_payload() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["original"]}' > "$tmp_json"
+    local original_content
+    original_content=$(cat "$tmp_json")
+
+    # Bad JSON payload — merge should fail
+    bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" 'NOT_VALID_JSON' 2>/dev/null || true
+
+    local current_content
+    current_content=$(cat "$tmp_json")
+    [ "$current_content" = "$original_content" ] \
+        && pass "original file preserved after failed merge" \
+        || fail "original file was modified after failed merge"
+    rm -f "$tmp_json"
+}
+
+# tk-N5fHBvnF: --backup flag creates a .bak.<timestamp> file before merge
+test_json_merge_backup_flag_creates_bak_file() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["original"]}' > "$tmp_json"
+
+    bash "$REPO_DIR/lib/json_merge.sh" --backup "$tmp_json" '{"plugin":["new"]}' 2>/dev/null
+
+    # A .bak.<timestamp> file should exist alongside the target
+    local bak_count
+    bak_count=$(ls "${tmp_json}".bak.* 2>/dev/null | wc -l)
+    [ "$bak_count" -ge 1 ] && pass "--backup creates .bak.<timestamp> file" \
+                            || fail "--backup did not create a .bak file (found $bak_count)"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-N5fHBvnF: --backup file contains the pre-merge content
+test_json_merge_backup_contains_original_content() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["original"]}' > "$tmp_json"
+
+    bash "$REPO_DIR/lib/json_merge.sh" --backup "$tmp_json" '{"plugin":["new"]}' 2>/dev/null
+
+    local bak_file
+    bak_file=$(ls "${tmp_json}".bak.* 2>/dev/null | head -1)
+    if [ -z "$bak_file" ]; then
+        fail "no .bak file found to check content"; rm -f "$tmp_json"; return
+    fi
+    grep -q '"original"' "$bak_file" \
+        && pass "backup file contains pre-merge content" \
+        || fail "backup file does not contain pre-merge content"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-N5fHBvnF: --rotate 2 keeps only 2 most-recent backups
+test_json_merge_rotate_keeps_n_backups() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["v1"]}' > "$tmp_json"
+
+    # Create 3 backups by running 3 merges with --backup --rotate 2
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 2 "$tmp_json" '{"plugin":["v2"]}' 2>/dev/null
+    sleep 1  # ensure distinct timestamps
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 2 "$tmp_json" '{"plugin":["v3"]}' 2>/dev/null
+    sleep 1
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 2 "$tmp_json" '{"plugin":["v4"]}' 2>/dev/null
+
+    local bak_count
+    bak_count=$(ls "${tmp_json}".bak.* 2>/dev/null | wc -l)
+    [ "$bak_count" -eq 2 ] && pass "--rotate 2 keeps exactly 2 backups (found $bak_count)" \
+                            || fail "--rotate 2 should keep 2 backups but found $bak_count"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-N5fHBvnF: no --backup flag = no .bak file created (opt-in)
+test_json_merge_no_backup_by_default() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["original"]}' > "$tmp_json"
+
+    bash "$REPO_DIR/lib/json_merge.sh" "$tmp_json" '{"plugin":["new"]}' 2>/dev/null
+
+    local bak_count
+    bak_count=$(ls "${tmp_json}".bak.* 2>/dev/null | wc -l)
+    [ "$bak_count" -eq 0 ] && pass "no .bak file created without --backup flag" \
+                            || fail "unexpected .bak file created without --backup flag"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-tJiv7cVj: --rotate with non-integer value exits non-zero with ERROR message
+test_json_merge_rotate_rejects_non_integer() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["x"]}' > "$tmp_json"
+
+    local output exit_code
+    output=$(bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate abc "$tmp_json" '{"plugin":["y"]}' 2>&1) || exit_code=$?
+    exit_code=${exit_code:-0}
+
+    [ "$exit_code" -ne 0 ] && pass "--rotate abc exits non-zero" \
+                            || fail "--rotate abc should exit non-zero (got $exit_code)"
+    echo "$output" | grep -qi "error" \
+        && pass "--rotate abc emits ERROR message" \
+        || fail "--rotate abc should emit ERROR message"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-tJiv7cVj: --rotate 0 exits non-zero
+test_json_merge_rotate_rejects_zero() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["x"]}' > "$tmp_json"
+
+    local exit_code=0
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 0 "$tmp_json" '{"plugin":["y"]}' 2>/dev/null || exit_code=$?
+
+    [ "$exit_code" -ne 0 ] && pass "--rotate 0 exits non-zero" \
+                            || fail "--rotate 0 should exit non-zero (got $exit_code)"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-tJiv7cVj: --rotate negative value exits non-zero
+test_json_merge_rotate_rejects_negative() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["x"]}' > "$tmp_json"
+
+    local exit_code=0
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate -- -1 "$tmp_json" '{"plugin":["y"]}' 2>/dev/null || exit_code=$?
+
+    [ "$exit_code" -ne 0 ] && pass "--rotate -1 exits non-zero" \
+                            || fail "--rotate -1 should exit non-zero (got $exit_code)"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-tJiv7cVj: backup files are created with 0600 permissions
+test_json_merge_backup_file_permissions_0600() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    local tmp_json
+    tmp_json=$(mktemp --suffix=.json)
+    echo '{"plugin":["secret"]}' > "$tmp_json"
+
+    bash "$REPO_DIR/lib/json_merge.sh" --backup "$tmp_json" '{"plugin":["new"]}' 2>/dev/null
+
+    local bak_file
+    bak_file=$(ls "${tmp_json}".bak.* 2>/dev/null | head -1)
+    if [ -z "$bak_file" ]; then
+        fail "no .bak file found to check permissions"; rm -f "$tmp_json"; return
+    fi
+    local perms
+    perms=$(stat -c '%a' "$bak_file" 2>/dev/null || stat -f '%Lp' "$bak_file" 2>/dev/null)
+    [ "$perms" = "600" ] && pass "backup file has 0600 permissions" \
+                         || fail "backup file has $perms permissions (expected 600)"
+    rm -f "$tmp_json" "${tmp_json}".bak.*
+}
+
+# tk-tJiv7cVj: atomic write failure — original preserved when target dir is read-only
+test_json_merge_atomic_failure_preserves_original() {
+    if ! command -v node &>/dev/null; then
+        skip "node not available"; return
+    fi
+    # Create a read-only directory to force temp file write failure
+    local ro_dir
+    ro_dir=$(mktemp -d)
+    local target_json="$ro_dir/opencode.json"
+    echo '{"plugin":["original"]}' > "$target_json"
+    chmod 555 "$ro_dir"  # read-only dir — can't create new files
+
+    local exit_code=0
+    bash "$REPO_DIR/lib/json_merge.sh" "$target_json" '{"plugin":["new"]}' 2>/dev/null || exit_code=$?
+
+    chmod 755 "$ro_dir"  # restore to allow cleanup
+    if [ "$exit_code" -ne 0 ]; then
+        # Verify original is intact
+        grep -q '"original"' "$target_json" \
+            && pass "original file preserved after atomic write failure" \
+            || fail "original file corrupted after atomic write failure"
+    else
+        # If it somehow succeeded (e.g., running as root), skip
+        skip "test_json_merge_atomic_failure_preserves_original (ran as root or dir writable)"
+    fi
+    rm -rf "$ro_dir"
+}
+
+setup_tmp_env
+test_json_merge_atomic_no_temp_file_after_success
+test_json_merge_atomic_preserves_original_on_bad_payload
+test_json_merge_backup_flag_creates_bak_file
+test_json_merge_backup_contains_original_content
+test_json_merge_rotate_keeps_n_backups
+test_json_merge_no_backup_by_default
+test_json_merge_rotate_rejects_non_integer
+test_json_merge_rotate_rejects_zero
+test_json_merge_rotate_rejects_negative
+test_json_merge_backup_file_permissions_0600
+test_json_merge_atomic_failure_preserves_original
+teardown_tmp_env
+
 # ─── Section 3: setup_opencode.sh — agent/instruction/command sync ───────────
 
 section "lib/setup_opencode.sh — sync agents, instructions, commands"
