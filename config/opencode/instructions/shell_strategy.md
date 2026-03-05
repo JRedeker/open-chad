@@ -59,7 +59,7 @@ These prevent interactive prompts and should be set in the shell environment:
 
 **No Shell Access:** The `explore` and `librarian` sub-agents have `bash: false` in their tool permissions. They cannot execute shell commands at all — read-only or otherwise. This is enforced at the capability level, not by convention.
 
-These agents use `read`, `glob`, `grep`, and `lgrep_search` for codebase exploration. If you need to run shell commands (even read-only ones like `git log` or `rg`), use a primary agent (`general` or `build`) instead.
+These agents use `read`, `glob`, `grep`, and `lgrep_search_semantic` for codebase exploration. If you need to run shell commands (even read-only ones like `git log` or `rg`), use a primary agent (`general` or `build`) instead.
 
 ## Fallback Patterns
 

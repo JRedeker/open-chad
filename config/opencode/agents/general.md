@@ -13,9 +13,19 @@ tools:
   morph_edit: true
   task: false
   todowrite: true
-  lgrep_search: true
-  lgrep_index: true
-  lgrep_status: true
+  lgrep_search_semantic: true
+  lgrep_index_semantic: true
+  lgrep_search_symbols: true
+  lgrep_index_folder: true
+  lgrep_index_repo: true
+  lgrep_get_symbol: true
+  lgrep_get_symbols: true
+  lgrep_get_file_tree: true
+  lgrep_get_file_outline: true
+  lgrep_get_repo_outline: true
+  lgrep_search_text: true
+  lgrep_list_repos: true
+  lgrep_invalidate_cache: true
 ---
 
 You are the General agent. You handle complex, multi-step tasks autonomously.

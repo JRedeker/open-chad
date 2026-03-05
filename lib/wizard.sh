@@ -605,7 +605,7 @@ if [ "$YES_MODE" -eq 0 ]; then
     echo -e "  ${C_COMMENT}│                                                                  │${C_RESET}"
     echo -e "  ${C_COMMENT}│ 1. AUTH — You can read this message (Claude API auth works)      │${C_RESET}"
     echo -e "  ${C_COMMENT}│ 2. ADV  — Run: /adv-status                                      │${C_RESET}"
-    echo -e "  ${C_COMMENT}│ 3. MCP  — Run: lgrep_search(q=\"hello world\", path=\".\")          │${C_RESET}"
+    echo -e "  ${C_COMMENT}│ 3. MCP  — Run: lgrep_search_semantic(q=\"hello world\", path=\".\")          │${C_RESET}"
     echo -e "  ${C_COMMENT}│ 4. MORPH — Confirm morph_edit tool is in your tool list         │${C_RESET}"
     echo -e "  ${C_COMMENT}│ 5. THEME — Confirm ayu-dark theme is active                     │${C_RESET}"
     echo -e "  ${C_COMMENT}│ 6. AGENTS — Confirm scout, refine, librarian, explore available │${C_RESET}"

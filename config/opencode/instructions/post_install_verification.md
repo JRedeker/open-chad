@@ -19,7 +19,7 @@ confirm each item works:
    If you see "unknown command", the ADV plugin is not loaded.
 
 3. LGREP MCP — Run this tool call:
-   lgrep_search(q="hello world", path=".")
+   lgrep_search_semantic(q="hello world", path=".")
    Expected: search results or "no results" (not a tool-not-found error).
    If the tool is missing, the lgrep MCP server is not wired.
 
