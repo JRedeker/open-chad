@@ -215,6 +215,17 @@ All components start selected. Type a number to toggle it off (✓ → ·) or ba
 
 For CI or unattended installs: `bash install.sh --yes` (installs everything)
 
+### Install from inside OpenCode (agent-driven)
+
+Already have OpenCode running? Clone the repo and use the built-in slash command:
+
+```bash
+git clone https://github.com/JRedeker/open-chad.git ~/dev/open-chad
+cd ~/dev/open-chad
+```
+
+Then in OpenCode, run `/open-chad-install`. The agent runs all setup steps, verifies each component, and reports results — no terminal wizard needed.
+
 After install, reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and you're ready.
 
 ## First Run Checklist
