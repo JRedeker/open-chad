@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             WIZARD_EXTRA_FLAGS+=("--skip-adv")
             shift
             ;;
-        --no-omp)
+        --no-omp|--skip-omp)
             NO_OMP=1
             WIZARD_EXTRA_FLAGS+=("--skip-omp")
             shift
@@ -88,6 +88,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-env-check         Skip pre-flight environment checks"
             echo "  --help                 Show this help"
             exit 0
+            ;;
+        --skip-*)
+            # Forward any --skip-* flags directly to wizard.sh
+            WIZARD_EXTRA_FLAGS+=("$1")
+            shift
             ;;
         *)
             echo -e "${C_CORAL}WARNING: Unknown flag: $1${C_RESET}" >&2
