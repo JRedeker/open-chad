@@ -175,34 +175,11 @@ fi
 echo ""
 echo "ADV plugin (Advance spec-driven development):"
 
-ADV_LOCK_FILE="$REPO_DIR/config/opencode/adv-lock.json"
 ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
 OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"
 
-# Check lock file
-if [ -f "$ADV_LOCK_FILE" ]; then
-    _lock_ref=""
-    if command -v node &>/dev/null; then
-        _lock_ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).ref||'')" 2>/dev/null || echo "")
-    fi
-    if [ -z "$_lock_ref" ]; then
-        warn "adv-lock.json present but ref is empty or unreadable"
-        _issues=$((_issues + 1))
-    elif ! echo "$_lock_ref" | grep -qE '^[0-9a-f]{40}$'; then
-        fail "adv-lock.json ref is not a valid 40-char hex SHA (got: '${_lock_ref:0:20}...')"
-        info "  The ref must be a 40-character lowercase hex commit SHA."
-        info "  Branch names (main, trunk) and semver tags (v1.2.3) are not valid."
-        info "  Fix: update config/opencode/adv-lock.json or run: openchad update --adv-latest"
-        _issues=$((_issues + 1))
-    else
-        ok "adv-lock.json present (pinned @ ${_lock_ref:0:12}...)"
-    fi
-else
-    fail "adv-lock.json missing: $ADV_LOCK_FILE"
-    info "  Re-run: bash $REPO_DIR/install.sh"
-    _issues=$((_issues + 1))
-fi
+ok "ADV install mode: always-latest (no lock file)"
 
 # Check bundled command docs
 _bundled_cmd_dir="$REPO_DIR/config/opencode/command"

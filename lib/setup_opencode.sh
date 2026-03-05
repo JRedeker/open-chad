@@ -359,6 +359,17 @@ else
     warn "Skipping ADV command sync (--skip-commands)"
 fi
 
+# ─── 2a-ii. Sync open-chad's own commands (non-ADV) ──────────────────────────
+_OC_CMD_DIR="$REPO_DIR/config/opencode/command"
+if [ -d "$_OC_CMD_DIR" ]; then
+    mkdir -p "$DEST_COMMANDS_DIR"
+    for src in "$_OC_CMD_DIR"/open-chad-*.md; do
+        [ -f "$src" ] || continue
+        dest="$DEST_COMMANDS_DIR/$(basename "$src")"
+        _copy_if_regular "$src" "$dest" "command (open-chad)"
+    done
+fi
+
 # ─── 2b. Sync ADV agent files (e.g. adv-researcher.md) ────────────────────────
 # ADV ships its own sub-agent definitions in .opencode/agents/.
 # When the checkout is present, prefer upstream versions over bundled fallbacks.

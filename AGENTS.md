@@ -68,12 +68,12 @@ lib/
                             tmux theme block, shell profile blocks via manifest
   openchad_metrics.sh       `openchad metrics` handler — show/log/export system metrics
   openchad_changelog.sh     `openchad changelog` handler — git log since last tag
-  setup_adv.sh              ADV plugin installer — reads config/opencode/adv-lock.json for
-                            pinned commit SHA. Modes: pinned (default), latest, offline.
+  setup_adv.sh              ADV plugin installer — always pulls latest HEAD.
+                            Modes: latest (default), offline.
                             Two-tier fallback: network clone/build -> bundled command docs.
                             Non-fatal: all failures fall back to bundled and exit 0.
                             ADV_INSTALL_MODE env var controls mode.
-  setup_omp.sh              Model preferences TUI installer (`go install`)
+  setup_omp.sh              Model preferences TUI installer (clone + `make install`)
   setup_opencode.sh         OpenCode config/agent/theme sync
   setup_vision.sh           Vision MCP daemon setup — verifies vision binary on PATH
                             (non-fatal warn if missing), creates/merges
@@ -673,8 +673,7 @@ The following migration fixes were applied in the v1.2 rename pass:
 | Session lister | `~/.local/bin/oc-list` | Lists active oc-* tmux sessions |
 | Session killer | `~/.local/bin/oc-killall` | Kills all oc-* tmux sessions |
 | tmux theme | `~/.tmux.conf` (sourced) | ayu-dark, 2-row |
-| ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev (pinned @ SHA from adv-lock.json) |
-| ADV lock | `config/opencode/adv-lock.json` | Pinned commit SHA for ADV install |
+| ADV plugin | `~/dev/oc-plugins/advance/` | Spec-driven dev (always latest HEAD) |
 | ADV commands (bundled) | `config/opencode/command/adv-*.md` | Offline fallback command docs |
 | morph plugin | `~/dev/oc-plugins/morph-fast-apply/` | Fast-apply edits |
 | md-table-formatter | npm package | Markdown table formatting for OpenCode (concealment mode) |
@@ -794,32 +793,14 @@ The toggle affects both `collect_metrics.sh` (skips API calls when disabled) and
 
 ### ADV bundling modes
 
-ADV is installed at a pinned commit SHA by default. The lock file `config/opencode/adv-lock.json` contains the repo URL and pinned ref.
+ADV always pulls the latest HEAD from `https://github.com/Sharper-Flow/Advance.git`.
 
 | Mode | Env var | Behavior |
 |------|---------|----------|
-| `pinned` (default) | `ADV_INSTALL_MODE=pinned` | Checkout at SHA from `adv-lock.json` |
-| `latest` | `ADV_INSTALL_MODE=latest` | Pull latest HEAD (ignores lock ref) |
+| `latest` (default) | `ADV_INSTALL_MODE=latest` | Pull latest HEAD |
 | `offline` | `ADV_INSTALL_MODE=offline` | Skip network; sync bundled docs only |
 
 **Two-tier fallback only:** network clone/build → bundled `config/opencode/command/adv-*.md`. No third tier.
-
-**Lock bump workflow** (update pinned SHA to latest):
-```bash
-openchad update --adv-latest
-# This pulls latest ADV and updates adv-lock.json ref to the new HEAD SHA
-```
-
-**Lock file format** (`config/opencode/adv-lock.json`):
-```json
-{
-  "repo": "https://github.com/Sharper-Flow/Advance.git",
-  "ref": "<40-char-hex-commit-sha>",
-  "pluginPath": "plugin"
-}
-```
-
-The `ref` field must be a 40-character lowercase hex commit SHA. Branch names and semver tags are rejected — the installer falls back to bundled docs with a WARN.
 
 ---
 

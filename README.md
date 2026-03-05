@@ -22,7 +22,7 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 - **MCP and tooling pre-wired:** [Vision](https://github.com/Sharper-Flow/vision) daemon + [Context7](https://context7.com), [grep.app](https://grep.app), [lgrep](https://github.com/Sharper-Flow/lgrep), [Firecrawl](https://www.firecrawl.dev), and [morph-fast-apply](https://github.com/steipete/morph-fast-apply)
 - **Ops-ready terminal UX:** themed two-row tmux dashboard, live session count/CPU/RAM/load, and per-provider LLM fuel gauges
 - **Multi-session workflow built in:** isolated `oc-<timestamp>-<pid>` sessions, `oc attach/switch`, `oc-list`, `oc-killall`, and `cds`
-- **Quality-of-life extras:** [`omp`](https://github.com/Joshuaalbert/omp) model-preferences TUI popup, [Discord Rich Presence](https://discord.com/developers/docs/rich-presence/overview), [zsh](https://www.zsh.org) + completions, CI/release automation
+- **Quality-of-life extras:** [`omp`](https://github.com/JRedeker/opencode-model-preferences) model-preferences TUI popup, [Discord Rich Presence](https://discord.com/developers/docs/rich-presence/overview), [zsh](https://www.zsh.org) + completions, CI/release automation
 
 ## Included Components
 
@@ -36,6 +36,27 @@ Built for [OpenCode](https://github.com/opencode-ai/opencode). Inspired by [NvCh
 | Session tooling | `openchad`, `oc`, `cds`, `oc-list`, `oc-killall` |
 | Status + metrics | 2-row ayu-dark tmux status, session title correlation, system metrics, dynamic LLM gauges |
 | Collaboration extras | [Discord Rich Presence](https://discord.com/developers/docs/rich-presence/overview), WSL bridge support, [Windows Terminal](https://github.com/microsoft/terminal) keybinding helper |
+
+### External Dependencies & Source Repos
+
+Everything openchad pulls from external sources during install and runtime:
+
+| Component | Type | Source Repository | Install Method |
+|-----------|------|-------------------|----------------|
+| [ADV (Advance)](https://github.com/Sharper-Flow/Advance) | Plugin | `github.com/Sharper-Flow/Advance` | git clone + pnpm build (always latest HEAD) |
+| [morph-fast-apply](https://github.com/JRedeker/opencode-morph-fast-apply) | Plugin | `github.com/JRedeker/opencode-morph-fast-apply` | git clone + pnpm build |
+| [omp](https://github.com/JRedeker/opencode-model-preferences) | Plugin | `github.com/JRedeker/opencode-model-preferences` | git clone + make install |
+| [Vision](https://github.com/Sharper-Flow/vision) | MCP daemon | `github.com/Sharper-Flow/vision` | Pre-installed binary on PATH |
+| [Context7](https://github.com/upstash/context7) | MCP server | `@upstash/context7-mcp@latest` | npx via Vision (port 6276) |
+| [grep.app](https://grep.app) | MCP server | `@grep-app/mcp@latest` | npx via Vision (port 6288) |
+| [lgrep](https://github.com/Sharper-Flow/lgrep) | MCP server | `github.com/Sharper-Flow/lgrep` | uvx via Vision (port 6285) |
+| [Firecrawl](https://github.com/mendableai/firecrawl) | MCP server | `@mendableai/firecrawl-mcp@latest` | npx via Vision (port 6281) |
+| [md-table-formatter](https://www.npmjs.com/package/@franlol/opencode-md-table-formatter) | npm plugin | `@franlol/opencode-md-table-formatter@latest` | Wired into opencode.json |
+| [Powerlevel10k](https://github.com/romkatv/powerlevel10k) | Zsh theme | `github.com/romkatv/powerlevel10k` | git clone to `~/.zsh/plugins/` |
+| [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | Zsh plugin | `github.com/zsh-users/zsh-autosuggestions` | git clone to `~/.zsh/plugins/` |
+| [fast-syntax-highlighting](https://github.com/zdharma-continuum/fast-syntax-highlighting) | Zsh plugin | `github.com/zdharma-continuum/fast-syntax-highlighting` | git clone to `~/.zsh/plugins/` |
+| [npiperelay](https://github.com/jstarks/npiperelay) | WSL2 bridge | `github.com/jstarks/npiperelay` | go install (WSL2 only, optional) |
+| [opencode-ayu-theme](https://github.com/postrednik/opencode-ayu-theme) | Color theme | `github.com/postrednik/opencode-ayu-theme` | Bundled (no runtime fetch) |
 
 ## Quick Navigation
 

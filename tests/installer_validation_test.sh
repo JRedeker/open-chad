@@ -1364,7 +1364,7 @@ test_adv_network_failure_falls_back_gracefully() {
     local exit_code=0
     HOME="$tmp_home" \
     ADVANCE_REPO="https://invalid.example.invalid/nonexistent.git" \
-    ADV_INSTALL_MODE=pinned \
+    ADV_INSTALL_MODE=latest \
     ADV_CHECKOUT_DIR="$tmp_dir/adv-checkout" \
     OPENCODE_CONFIG_DIR="$tmp_home/.config/opencode" \
     bash "$REPO_DIR/lib/setup_adv.sh" > /dev/null 2>&1 || exit_code=$?
