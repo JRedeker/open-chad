@@ -2,22 +2,16 @@
 # lib/setup_adv.sh — Install/update ADV (Advance) from GitHub
 #
 # Actions:
-#   1. Read adv-lock.json for pinned commit SHA and repo URL
-#   2. Clone or checkout ADV at the pinned ref (pinned mode) or latest (latest mode)
-#      OR sync bundled command docs only (offline mode)
-#   3. Run pnpm install + pnpm build in the plugin subdirectory
-#   4. Merge the plugin path into ~/.config/opencode/opencode.json
-#
-# Install modes (ADV_INSTALL_MODE):
-#   pinned   — checkout at the commit SHA in adv-lock.json (default)
-#   latest   — pull latest from the repo (ignores lock ref)
-#   offline  — skip network entirely; sync bundled command docs only
+#   1. Clone or pull ADV to ~/dev/oc-plugins/advance/ (always latest)
+#   2. Run pnpm install + pnpm build in the plugin subdirectory
+#   3. Merge the plugin path into ~/.config/opencode/opencode.json
 #
 # Environment overrides:
-#   ADV_INSTALL_MODE     — pinned | latest | offline (default: pinned)
-#   ADVANCE_REPO         — git URL (default: from adv-lock.json)
+#   ADVANCE_REPO         — git URL (default: https://github.com/Sharper-Flow/Advance.git)
 #   ADV_CHECKOUT_DIR     — local path (default: ~/dev/oc-plugins/advance)
+#   ADV_PLUGIN_SUBDIR    — plugin subdirectory (default: plugin)
 #   OPENCODE_CONFIG_DIR  — opencode config dir (default: ~/.config/opencode)
+#   ADV_INSTALL_MODE     — latest | offline (default: latest)
 #
 # Called by install.sh. Safe to call standalone.
 # Non-fatal: all network/build failures fall back to bundled command docs.
@@ -38,24 +32,13 @@ ok()    { echo -e "${C_SAGE}[adv] OK:${C_RESET} $*"; }
 warn()  { echo -e "${C_CORAL}[adv] WARN:${C_RESET} $*"; }
 error() { echo -e "${C_CORAL}[adv] ERROR:${C_RESET} $*" >&2; }
 
-# ─── Read adv-lock.json ───────────────────────────────────────────────────────
-ADV_LOCK_FILE="$REPO_DIR/config/opencode/adv-lock.json"
-LOCK_REPO=""
-LOCK_REF=""
-LOCK_PLUGIN_PATH="plugin"
-
-if [ -f "$ADV_LOCK_FILE" ] && command -v node &>/dev/null; then
-    LOCK_REPO=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).repo || '')" 2>/dev/null || echo "")
-    LOCK_REF=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).ref || '')" 2>/dev/null || echo "")
-    LOCK_PLUGIN_PATH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$ADV_LOCK_FILE','utf8')).pluginPath || 'plugin')" 2>/dev/null || echo "plugin")
-fi
-
 # ─── Configuration ────────────────────────────────────────────────────────────
-ADV_INSTALL_MODE="${ADV_INSTALL_MODE:-pinned}"
-ADVANCE_REPO="${ADVANCE_REPO:-${LOCK_REPO:-https://github.com/Sharper-Flow/Advance.git}}"
+ADV_INSTALL_MODE="${ADV_INSTALL_MODE:-latest}"
+ADVANCE_REPO="${ADVANCE_REPO:-https://github.com/Sharper-Flow/Advance.git}"
 ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
+ADV_PLUGIN_SUBDIR="${ADV_PLUGIN_SUBDIR:-plugin}"
 OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
-ADV_PLUGIN_DIR="$ADV_CHECKOUT_DIR/$LOCK_PLUGIN_PATH"
+ADV_PLUGIN_DIR="$ADV_CHECKOUT_DIR/$ADV_PLUGIN_SUBDIR"
 OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"
 
 # Bundled command docs (offline fallback source)
@@ -63,32 +46,6 @@ BUNDLED_CMD_DIR="$REPO_DIR/config/opencode/command"
 DEST_CMD_DIR="$OPENCODE_CONFIG_DIR/command"
 
 step "ADV install mode: $ADV_INSTALL_MODE"
-
-# ─── Validate lock ref (must be 40-char hex SHA, not a branch/tag) ────────────
-_validate_lock_ref() {
-    local ref="$1"
-    # Reject empty
-    if [ -z "$ref" ]; then
-        warn "adv-lock.json ref is empty — cannot use pinned mode"
-        return 1
-    fi
-    # Reject branch names
-    if echo "$ref" | grep -qE '^(main|trunk|master|HEAD|develop|dev)$'; then
-        warn "adv-lock.json ref is a branch name ('$ref') — must be a 40-char commit SHA"
-        return 1
-    fi
-    # Reject semver tags
-    if echo "$ref" | grep -qE '^v?[0-9]+\.[0-9]+'; then
-        warn "adv-lock.json ref looks like a tag ('$ref') — must be a 40-char commit SHA"
-        return 1
-    fi
-    # Require exactly 40 hex chars
-    if ! echo "$ref" | grep -qE '^[0-9a-f]{40}$'; then
-        warn "adv-lock.json ref is not a valid 40-char hex SHA (got: '$ref')"
-        return 1
-    fi
-    return 0
-}
 
 # ─── Bundled fallback sync ────────────────────────────────────────────────────
 # TWO-TIER FALLBACK ONLY: network clone/build -> bundled config/opencode/command/
@@ -128,7 +85,7 @@ if ! command -v node &>/dev/null; then
     exit 0
 fi
 
-# ─── Git clone or pull ────────────────────────────────────────────────────────
+# ─── Git clone or pull (always latest) ────────────────────────────────────────
 _do_git_setup() {
     if [ -d "$ADV_CHECKOUT_DIR/.git" ]; then
         step "Updating ADV checkout at $ADV_CHECKOUT_DIR"
@@ -165,27 +122,7 @@ if ! _do_git_setup; then
     exit 0
 fi
 
-ok "ADV source at $ADV_CHECKOUT_DIR"
-
-# ─── Pinned mode: checkout at lock ref ───────────────────────────────────────
-if [ "$ADV_INSTALL_MODE" = "pinned" ]; then
-    if _validate_lock_ref "$LOCK_REF"; then
-        step "Pinned mode: checking out ref $LOCK_REF"
-        if ! git -C "$ADV_CHECKOUT_DIR" checkout "$LOCK_REF" --quiet 2>/dev/null; then
-            warn "git checkout $LOCK_REF failed — falling back to bundled ADV command docs."
-            _sync_bundled_commands
-            exit 0
-        fi
-        ok "ADV pinned @ $LOCK_REF"
-    else
-        warn "Invalid lock ref — falling back to bundled ADV command docs."
-        _sync_bundled_commands
-        exit 0
-    fi
-else
-    # latest mode — already pulled above
-    ok "ADV latest mode — using HEAD"
-fi
+ok "ADV source at $ADV_CHECKOUT_DIR (latest)"
 
 # ─── Build plugin ─────────────────────────────────────────────────────────────
 if [ ! -d "$ADV_PLUGIN_DIR" ]; then

@@ -376,21 +376,8 @@ _step_banner 6 "$TOTAL_STEPS" "OpenCode Plugins"
 if [ "$SKIP_ADV" -eq 1 ]; then
     skip "ADV plugin (--skip-adv)"
 else
-    # Determine ADV install mode and display it
-    _adv_mode="${ADV_INSTALL_MODE:-pinned}"
-    _adv_lock_file="$REPO_DIR/config/opencode/adv-lock.json"
-    _adv_lock_ref=""
-    if [ -f "$_adv_lock_file" ] && command -v node &>/dev/null; then
-        _adv_lock_ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$_adv_lock_file','utf8')).ref||'')" 2>/dev/null || echo "")
-    fi
+    _adv_mode="${ADV_INSTALL_MODE:-latest}"
     case "$_adv_mode" in
-        pinned)
-            if [ -n "$_adv_lock_ref" ]; then
-                info "Installing ADV (Advance) plugin... [pinned @ ${_adv_lock_ref:0:12}]"
-            else
-                info "Installing ADV (Advance) plugin... [pinned mode — lock ref unavailable]"
-            fi
-            ;;
         latest)
             info "Installing ADV (Advance) plugin... [latest]"
             ;;

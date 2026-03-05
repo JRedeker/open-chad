@@ -8,7 +8,7 @@
 #   4. Sync morph skill to ~/.config/opencode/skills/morph/
 #
 # Environment overrides:
-#   MORPH_REPO           — git URL (default: https://github.com/anomalyco/morph-fast-apply.git)
+#   MORPH_REPO           — git URL (default: https://github.com/JRedeker/opencode-morph-fast-apply.git)
 #   MORPH_CHECKOUT_DIR   — local path (default: ~/dev/oc-plugins/morph-fast-apply)
 #   OPENCODE_CONFIG_DIR  — opencode config dir (default: ~/.config/opencode)
 #
@@ -31,7 +31,7 @@ warn()  { echo -e "${C_CORAL}[morph] WARN:${C_RESET} $*"; }
 error() { echo -e "${C_CORAL}[morph] ERROR:${C_RESET} $*" >&2; }
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-MORPH_REPO="${MORPH_REPO:-https://github.com/anomalyco/morph-fast-apply.git}"
+MORPH_REPO="${MORPH_REPO:-https://github.com/JRedeker/opencode-morph-fast-apply.git}"
 MORPH_CHECKOUT_DIR="${MORPH_CHECKOUT_DIR:-$HOME/dev/oc-plugins/morph-fast-apply}"
 OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 OPENCODE_JSON="$OPENCODE_CONFIG_DIR/opencode.json"

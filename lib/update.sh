@@ -21,28 +21,12 @@
 #   OPEN_CHAD_INSTALL_LOG   — log file (default: /tmp/open-chad-install.log)
 #   OPEN_CHAD_SKIP_BUNDLES  — if set, skip re-applying dev bundles
 #
-# Flags:
-#   --adv-latest  — update ADV to latest upstream (ignores adv-lock.json ref)
-#                   Default: honor adv-lock.json pinned commit SHA
-#
-# ADV lock: config/opencode/adv-lock.json pins the ADV commit SHA.
-# Normal updates use the pinned ref. Pass --adv-latest to pull latest and
-# update the lock file to the new HEAD SHA.
-#
 # Called by bin/openchad update. Safe to call standalone.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-# ─── Parse flags ──────────────────────────────────────────────────────────────
-ADV_LATEST=0
-for _arg in "$@"; do
-    case "$_arg" in
-        --adv-latest) ADV_LATEST=1 ;;
-    esac
-done
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 C_SAGE="\e[38;5;107m"
@@ -251,35 +235,9 @@ step "Updating morph-fast-apply plugin"
 bash "$REPO_DIR/lib/setup_morph.sh" || warn "morph setup had errors (non-fatal)"
 log "morph setup done"
 
-# ADV plugin (clone or pull + rebuild)
-# Honors adv-lock.json pinned ref by default; --adv-latest overrides to pull latest
+# ADV plugin (clone or pull latest + rebuild)
 step "Updating ADV plugin"
-ADV_LOCK_FILE="$REPO_DIR/config/opencode/adv-lock.json"
-if [ "$ADV_LATEST" -eq 1 ]; then
-    step "ADV: --adv-latest flag set — pulling latest (ignoring adv-lock.json ref)"
-    _adv_exit=0
-    ADV_INSTALL_MODE=latest bash "$REPO_DIR/lib/setup_adv.sh" || _adv_exit=$?
-    if [ "$_adv_exit" -ne 0 ]; then
-        warn "ADV setup had errors (non-fatal, exit $_adv_exit) — lock file NOT updated"
-    else
-        # Update adv-lock.json ref to new HEAD SHA only after successful latest pull
-        ADV_CHECKOUT_DIR="${ADV_CHECKOUT_DIR:-$HOME/dev/oc-plugins/advance}"
-        if [ -d "$ADV_CHECKOUT_DIR/.git" ] && command -v node &>/dev/null && [ -f "$ADV_LOCK_FILE" ]; then
-            _new_sha=$(git -C "$ADV_CHECKOUT_DIR" rev-parse HEAD 2>/dev/null || echo "")
-            if echo "$_new_sha" | grep -qE '^[0-9a-f]{40}$'; then
-                node -e "
-const fs=require('fs');
-const lock=JSON.parse(fs.readFileSync('$ADV_LOCK_FILE','utf8'));
-lock.ref='$_new_sha';
-fs.writeFileSync('$ADV_LOCK_FILE',JSON.stringify(lock,null,2)+'\n');
-" 2>/dev/null && ok "adv-lock.json updated to $_new_sha" || warn "Could not update adv-lock.json"
-            fi
-        fi
-    fi
-else
-    step "ADV: using pinned ref from adv-lock.json"
-    ADV_INSTALL_MODE=pinned bash "$REPO_DIR/lib/setup_adv.sh" || warn "ADV setup had errors (non-fatal)"
-fi
+bash "$REPO_DIR/lib/setup_adv.sh" || warn "ADV setup had errors (non-fatal)"
 log "ADV setup done"
 
 # OpenCode agents, instructions, theme
