@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# open-chad: Boot animation (official primary agent palette)
-# Centered, color-cycling boot sequence
+# open-chad: Boot animation (stroke palette)
+# Centered, color-cycling boot sequence with outline-style logo
 #
 # Args: $1 = target directory
 
@@ -36,21 +36,22 @@ C_SCOUT="${OPEN_CHAD_ANSI_SCOUT:-$'\e[38;2;240;113;120m'}"    # #F07178
 C_REFINE="${OPEN_CHAD_ANSI_REFINE:-$'\e[38;2;170;217;76m'}"   # #AAD94C
 C_COMMENT=$'\e[38;2;98;109;122m'     # #626d7a gray
 C_FG=$'\e[38;2;191;189;182m'         # #BFBDB6 foreground
+C_DIM=$'\e[38;2;60;68;81m'           # #3C4451 dim gray
 C_RESET=$'\e[0m'
 
 colors=("$C_BUILD" "$C_PLAN" "$C_SCOUT" "$C_REFINE")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# OPEN CHAD LOGO (74 chars wide, 6 lines)
+# OPEN CHAD LOGO (74 chars wide, 6 lines — outline/stroke style)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 logo=(
-    "   ██████╗ ██████╗ ███████╗███╗   ██╗     ██████╗██╗  ██╗█████╗ ██████╗ "
-    "  ██╔═══██╗██╔══██╗██╔════╝████╗  ██║    ██╔════╝██║  ██║██╔══██╗██╔══██╗"
-    "  ██║   ██║██████╔╝█████╗  ██╔██╗ ██║    ██║     ███████║███████║██║  ██║"
-    "  ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║    ██║     ██╔══██║██╔══██║██║  ██║"
-    "  ╚██████╔╝██║     ███████╗██║ ╚████║    ╚██████╗██║  ██║██║  ██║██████╔╝"
-    "   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝     ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ "
+    "   ┌─────┐ ┌─────┐ ┌──────┐┌──┐  ┌──┐    ┌─────┐┌──┐ ┌──┐┌────┐ ┌─────┐"
+    "   │ ┌─┐ │ │ ┌─┐ │ │ ┌────┘│  └┐ │  │    │ ┌───┘│  │ │  ││ ┌┐ │ │ ┌─┐ │"
+    "   │ │ │ │ │ └─┘ │ │ └──┐  │ ┌┐└┐│  │    │ │    │ └─┘ ││ └┘ │ │ │ │ │ │"
+    "   │ │ │ │ │ ┌───┘ │ ┌──┘  │ │└┐└┘  │    │ │    │ ┌─┐ ││ ┌┐ │ │ │ │ │ │"
+    "   │ └─┘ │ │ │     │ └────┐│ │ └┐   │    │ └───┐│ │ │ ││ │└─┘ │ │ └─┘ │"
+    "   └─────┘ └─┘     └──────┘└─┘  └───┘    └─────┘└─┘ └─┘└─┘    └─┘     └─┘"
 )
 
 LOGO_WIDTH=74
@@ -67,6 +68,8 @@ LOGO_Y=$(( LOGO_Y < 1 ? 1 : LOGO_Y ))
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Draw logo with color offset for cycling effect
+# Each line gets one accent color from the palette as a stroke tint;
+# the rest of the animation stays in gray/foreground tones.
 draw_logo() {
     local offset="${1:-0}"
     for i in "${!logo[@]}"; do
@@ -96,57 +99,65 @@ typewriter() {
 tput civis
 clear
 
-# Phase 1: Color cycling animation (primary palette)
+# Phase 1: Color cycling animation (primary palette as stroke tint)
 for cycle in {0..3}; do
     draw_logo "$cycle"
     sleep 0.15
 done
 
-# Phase 2: Subtitle (centered)
-SUBTITLE="O P E N C H A D   1 . 0"
+# Settle on dim gray — the accent colors were just a flash
+for i in "${!logo[@]}"; do
+    tput cup $((LOGO_Y + i)) $LOGO_X
+    printf "%b%s%b" "$C_DIM" "${logo[$i]}" "$C_RESET"
+done
+
+sleep 0.08
+
+# Phase 2: Subtitle (centered, muted)
+SUBTITLE="O P E N C H A D   1 . 3"
 SUBTITLE_X=$(( (TERM_WIDTH - ${#SUBTITLE}) / 2 ))
 tput cup $((LOGO_Y + LOGO_HEIGHT + 2)) $SUBTITLE_X
-typewriter "$SUBTITLE" "$C_BUILD"
+typewriter "$SUBTITLE" "$C_COMMENT"
 
 sleep 0.1
 
-# Phase 3: Context info (centered)
+# Phase 3: Context info (centered, gray labels)
 INFO_Y=$((LOGO_Y + LOGO_HEIGHT + 5))
 INFO_X=$(( (TERM_WIDTH - 60) / 2 ))
 INFO_X=$(( INFO_X < 2 ? 2 : INFO_X ))
 
 tput cup $INFO_Y $INFO_X
-printf "%b[ %bSYSTEM%b ] %b%s%b" "$C_COMMENT" "$C_REFINE" "$C_COMMENT" "$C_FG" "Initializing shell context..." "$C_RESET"
+printf "%b· %bsystem%b  %b%s%b" "$C_DIM" "$C_COMMENT" "$C_DIM" "$C_FG" "initializing context" "$C_RESET"
 sleep 0.08
 
 tput cup $((INFO_Y + 1)) $INFO_X
-printf "%b[ %bTARGET%b ] %b%s%b" "$C_COMMENT" "$C_PLAN" "$C_COMMENT" "$C_FG" "Mounting workspace" "$C_RESET"
+printf "%b· %btarget%b  %b%s%b" "$C_DIM" "$C_COMMENT" "$C_DIM" "$C_FG" "mounting workspace" "$C_RESET"
 sleep 0.08
 
-# Phase 4: Project details
+# Phase 4: Project details (minimal, gray)
 DETAILS_Y=$((INFO_Y + 3))
 DETAILS_X=$(( (TERM_WIDTH - 50) / 2 ))
 
 tput cup $DETAILS_Y $DETAILS_X
-printf "%bDIR: %b%s%b" "$C_COMMENT" "$C_FG" "$TARGET_DIR" "$C_RESET"
+printf "%bdir  %b%s%b" "$C_DIM" "$C_FG" "$TARGET_DIR" "$C_RESET"
 
 tput cup $((DETAILS_Y + 1)) $DETAILS_X
-printf "%bPRJ: %b%s%b" "$C_COMMENT" "$C_PLAN" "$PROJECT_NAME" "$C_RESET"
+printf "%bprj  %b%s%b" "$C_DIM" "$C_FG" "$PROJECT_NAME" "$C_RESET"
 
 tput cup $((DETAILS_Y + 2)) $DETAILS_X
 if [ "$GIT_BRANCH" != "no-branch" ]; then
-    printf "%bGIT: %b%s%b" "$C_COMMENT" "$C_BUILD" "$GIT_BRANCH" "$C_RESET"
+    printf "%bgit  %b%s%b" "$C_DIM" "$C_COMMENT" "$GIT_BRANCH" "$C_RESET"
 else
-    printf "%bGIT: %b(untracked)%b" "$C_COMMENT" "$C_COMMENT" "$C_RESET"
+    printf "%bgit  %b(untracked)%b" "$C_DIM" "$C_DIM" "$C_RESET"
 fi
 
 sleep 0.2
 
-# Phase 5: Launch
-LAUNCH_TEXT="▸▸ LAUNCHING $PROJECT_NAME ◂◂"
+# Phase 5: Launch (single accent flash)
+LAUNCH_TEXT="▸ launching $PROJECT_NAME"
 LAUNCH_X=$(( (TERM_WIDTH - ${#LAUNCH_TEXT}) / 2 ))
 tput cup $((DETAILS_Y + 5)) $LAUNCH_X
-printf "%b%b%s%b%b" "$C_COMMENT" "$C_SCOUT" "$LAUNCH_TEXT" "$C_COMMENT" "$C_RESET"
+printf "%b%s%b" "$C_COMMENT" "$LAUNCH_TEXT" "$C_RESET"
 sleep 0.25
 
 # Cleanup

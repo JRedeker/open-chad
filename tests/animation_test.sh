@@ -65,7 +65,7 @@ section "Logo dimensions"
 
 test_logo_has_6_lines() {
     local count
-    count=$(grep -c '^\s*".*[█╗╔═╝║]' "$ANIMATION" || echo 0)
+    count=$(grep -c '^\s*".*[█╗╔═╝║┌┐└┘│─]' "$ANIMATION" || echo 0)
     assert_eq "$count" "6" "logo array has 6 lines"
 }
 
