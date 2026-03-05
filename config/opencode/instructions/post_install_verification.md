@@ -25,6 +25,8 @@ confirm each item works:
    Note: if you see "VOYAGE_API_KEY not set", wiring is still OK; only semantic
    search is blocked until you set the key in `~/.config/vision/servers.yaml`
    under `lgrep.env`.
+   Optional: run `lgrep init-ignore .` in a repo to scaffold a default
+   `.lgrepignore` template.
 
 4. MORPH PLUGIN — Run: morph_edit on a trivial test (or confirm the tool
    appears in your tool list).
