@@ -59,6 +59,8 @@ test_install_yes_exits_zero() {
         --skip-mcp \
         --skip-adv \
         --skip-morph \
+        --skip-omp \
+        --skip-zsh \
         --no-opencode-setup \
         > /dev/null 2>&1 || exit_code=$?
 
@@ -86,6 +88,8 @@ test_install_creates_symlink() {
         --skip-mcp \
         --skip-adv \
         --skip-morph \
+        --skip-omp \
+        --skip-zsh \
         --no-opencode-setup \
         > /dev/null 2>&1 || true
 

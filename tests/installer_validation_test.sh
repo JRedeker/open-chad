@@ -546,6 +546,8 @@ test_wizard_yes_flag_skips_prompts() {
         --skip-mcp \
         --skip-adv \
         --skip-morph \
+        --skip-omp \
+        --skip-zsh \
         2>&1) || exit_code=$?
 
     # Should not timeout (exit 124) or crash badly
