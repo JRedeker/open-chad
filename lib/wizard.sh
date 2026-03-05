@@ -15,6 +15,7 @@
 #   --skip-auth      Skip Claude OAuth step
 #   --skip-bundles   Skip dev bundle selection
 #   --skip-omp       Skip omp (model preferences) install
+#   --skip-vision    Skip Vision MCP daemon setup
 #   --bundles <list> Pre-select bundles (space-separated: "python go rust")
 #
 # Environment overrides:
@@ -56,6 +57,7 @@ SKIP_AUTH=0
 SKIP_BUNDLES=0
 SKIP_OMP=0
 SKIP_ZSH=0
+SKIP_VISION=0
 PRESELECT_BUNDLES=""
 
 # ─── Flag parsing ─────────────────────────────────────────────────────────────
@@ -71,6 +73,7 @@ while [[ $# -gt 0 ]]; do
         --skip-bundles)      SKIP_BUNDLES=1;               shift ;;
         --skip-omp)          SKIP_OMP=1;                   shift ;;
         --skip-zsh)          SKIP_ZSH=1;                   shift ;;
+        --skip-vision)       SKIP_VISION=1;                shift ;;
         --bundles)           PRESELECT_BUNDLES="$2";       shift 2 ;;
         --help|-h)
             echo "Usage: bash lib/wizard.sh [OPTIONS]"
@@ -85,6 +88,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-auth         Skip Claude OAuth step"
             echo "  --skip-bundles      Skip dev bundle selection"
             echo "  --skip-omp          Skip omp (model preferences) install"
+            echo "  --skip-vision       Skip Vision MCP daemon setup"
             echo "  --skip-zsh          Skip zsh + plugin setup"
             echo "  --bundles <list>    Pre-select bundles (e.g. 'python go')"
             exit 0
@@ -208,7 +212,7 @@ _multiselect() {
 clear 2>/dev/null || true
 echo ""
 echo -e "${C_STRING}  ╔═══════════════════════════════════════════════╗${C_RESET}"
-echo -e "${C_STRING}  ║${C_RESET}     ${C_ACCENT}open-chad v1.2 — Installation Wizard${C_RESET}     ${C_STRING}║${C_RESET}"
+echo -e "${C_STRING}  ║${C_RESET}     ${C_ACCENT}open-chad v1.3 — Installation Wizard${C_RESET}     ${C_STRING}║${C_RESET}"
 echo -e "${C_STRING}  ╚═══════════════════════════════════════════════╝${C_RESET}"
 echo ""
 echo -e "  ${C_FG}This wizard installs open-chad and configures OpenCode${C_RESET}"
@@ -224,6 +228,161 @@ _log "=== open-chad wizard start $(date -Iseconds) ==="
 _log "YES_MODE=$YES_MODE VERBOSE=$VERBOSE"
 _log "CONFIG=$OPEN_CHAD_CONFIG_FILE"
 _log_flush
+
+# ─── Component selection ──────────────────────────────────────────────────────
+# Maps component index → SKIP variable name and display info.
+# Core components (PATH, tmux theme, agents/instructions) are always installed.
+# CLI --skip-* flags override selections (already-skipped components are locked).
+
+_COMP_NAMES=(
+    "System dependencies"
+    "Claude OAuth"
+    "Dev language bundles"
+    "MCP servers"
+    "Vision MCP daemon"
+    "ADV plugin"
+    "morph-fast-apply"
+    "Model preferences (omp)"
+    "Zsh + plugins"
+)
+_COMP_DESCS=(
+    "git, curl, tmux, node, pnpm via apt"
+    "Authenticate with Claude API"
+    "Python, Go, Rust, Web toolchains"
+    "context7, grep-app, lgrep, firecrawl"
+    "Manages MCP server lifecycle"
+    "Spec-driven development workflow"
+    "Fast-apply edits for large files"
+    "TUI for per-agent model selection"
+    "powerlevel10k, autosuggestions, syntax highlighting"
+)
+# Parallel array: variable name that controls each component's skip state
+_COMP_VARS=(
+    SKIP_DEPS
+    SKIP_AUTH
+    SKIP_BUNDLES
+    SKIP_MCP
+    SKIP_VISION
+    SKIP_ADV
+    SKIP_MORPH
+    SKIP_OMP
+    SKIP_ZSH
+)
+
+_component_select() {
+    # In --yes mode, install everything not already skipped via CLI flags
+    if [ "$YES_MODE" -eq 1 ]; then
+        _log "COMPONENT SELECT: --yes mode, using CLI flag defaults"
+        return 0
+    fi
+
+    echo -e "${C_STRING}  ╔═══════════════════════════════════════════════╗${C_RESET}"
+    echo -e "${C_STRING}  ║${C_RESET}  ${C_ACCENT}Choose components to install${C_RESET}                    ${C_STRING}║${C_RESET}"
+    echo -e "${C_STRING}  ╚═══════════════════════════════════════════════╝${C_RESET}"
+    echo ""
+    echo -e "  ${C_FG}Core (always installed):${C_RESET}"
+    echo -e "    ${C_COMMENT}·${C_RESET} Shell profile PATH setup"
+    echo -e "    ${C_COMMENT}·${C_RESET} Tmux theme (ayu-dark)"
+    echo -e "    ${C_COMMENT}·${C_RESET} OpenCode config (agents, instructions, theme)"
+    echo ""
+    echo -e "  ${C_FG}Optional components:${C_RESET}"
+    echo ""
+
+    local i
+    for i in "${!_COMP_NAMES[@]}"; do
+        local num=$((i + 1))
+        local var="${_COMP_VARS[$i]}"
+        local skip_val="${!var}"
+        if [ "$skip_val" -eq 1 ]; then
+            # Locked out by CLI flag — show as disabled
+            printf "    ${C_COMMENT}[%d] %-28s %s (skipped via --skip flag)${C_RESET}\n" \
+                "$num" "${_COMP_NAMES[$i]}" "—"
+        else
+            printf "    ${C_TYPE}[%d]${C_RESET} %-28s ${C_COMMENT}%s${C_RESET}\n" \
+                "$num" "${_COMP_NAMES[$i]}" "${_COMP_DESCS[$i]}"
+        fi
+    done
+
+    echo ""
+    echo -e "  ${C_COMMENT}Enter = install all  ·  0 = none  ·  Type numbers to select (e.g. 1 3 5 6)${C_RESET}"
+    echo ""
+    echo -ne "  ${C_ACCENT}?${C_RESET} Components to install [default: all]: "
+
+    local answer
+    read -r answer
+    _log "COMPONENT SELECTION INPUT: $answer"
+
+    # Empty = all (default)
+    if [ -z "$answer" ]; then
+        _log "COMPONENT SELECT: all (default)"
+        return 0
+    fi
+
+    # 0 = none
+    if [ "$answer" = "0" ]; then
+        _log "COMPONENT SELECT: none"
+        for i in "${!_COMP_VARS[@]}"; do
+            local var="${_COMP_VARS[$i]}"
+            # Only set if not already locked by CLI flag
+            if [ "${!var}" -eq 0 ]; then
+                eval "$var=1"
+            fi
+        done
+        return 0
+    fi
+
+    # Specific numbers: skip everything not selected (unless locked by CLI)
+    # First, mark all unlocked components as skipped
+    for i in "${!_COMP_VARS[@]}"; do
+        local var="${_COMP_VARS[$i]}"
+        if [ "${!var}" -eq 0 ]; then
+            eval "$var=1"
+        fi
+    done
+
+    # Then un-skip the selected ones
+    for num in $answer; do
+        local idx=$((num - 1))
+        if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#_COMP_VARS[@]}" ]; then
+            local var="${_COMP_VARS[$idx]}"
+            eval "$var=0"
+            _log "COMPONENT SELECTED: ${_COMP_NAMES[$idx]}"
+        fi
+    done
+
+    # Show summary
+    echo ""
+    echo -e "  ${C_FG}Selected:${C_RESET}"
+    local any_selected=0
+    for i in "${!_COMP_NAMES[@]}"; do
+        local var="${_COMP_VARS[$i]}"
+        if [ "${!var}" -eq 0 ]; then
+            echo -e "    ${C_STRING}✓${C_RESET} ${_COMP_NAMES[$i]}"
+            any_selected=1
+        fi
+    done
+    if [ "$any_selected" -eq 0 ]; then
+        echo -e "    ${C_COMMENT}(none)${C_RESET}"
+    fi
+    echo ""
+}
+
+_component_select
+
+# Count active steps for progress display
+_count_active_steps() {
+    local count=3  # Core steps always run: shell profile, tmux theme, opencode config
+    [ "$SKIP_DEPS" -eq 0 ]     && count=$((count + 1))
+    [ "$SKIP_AUTH" -eq 0 ]     && count=$((count + 1))
+    [ "$SKIP_BUNDLES" -eq 0 ]  && count=$((count + 1))
+    [ "$SKIP_MCP" -eq 0 ]      && count=$((count + 1))
+    [ "$SKIP_VISION" -eq 0 ]   && count=$((count + 1))
+    [ "$SKIP_ADV" -eq 0 ]      && count=$((count + 1))
+    [ "$SKIP_MORPH" -eq 0 ]    && count=$((count + 1))
+    [ "$SKIP_OMP" -eq 0 ]      && count=$((count + 1))
+    [ "$SKIP_ZSH" -eq 0 ]      && count=$((count + 1))
+    echo "$count"
+}
 
 TOTAL_STEPS=10
 
@@ -357,14 +516,18 @@ _log_flush
 # ═══════════════════════════════════════════════════════════════════════════════
 _step_banner 5 "$TOTAL_STEPS" "Vision MCP Daemon"
 
-info "Verifying Vision daemon and registering MCP servers..."
-info "Vision manages context7, grep-app, lgrep, firecrawl endpoints."
-echo ""
-OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
-    bash "$REPO_DIR/lib/setup_vision.sh" || {
-    warn "Vision setup had errors (non-fatal). MCP servers may be unavailable."
-    warn "Ensure 'vision' binary is on PATH and retry: bash lib/setup_vision.sh"
-}
+if [ "$SKIP_VISION" -eq 1 ]; then
+    skip "Vision daemon (--skip-vision)"
+else
+    info "Verifying Vision daemon and registering MCP servers..."
+    info "Vision manages context7, grep-app, lgrep, firecrawl endpoints."
+    echo ""
+    OPEN_CHAD_INSTALL_LOG="$OPEN_CHAD_INSTALL_LOG" \
+        bash "$REPO_DIR/lib/setup_vision.sh" || {
+        warn "Vision setup had errors (non-fatal). MCP servers may be unavailable."
+        warn "Ensure 'vision' binary is on PATH and retry: bash lib/setup_vision.sh"
+    }
+fi
 _log "VISION SETUP DONE"
 _log_flush
 
