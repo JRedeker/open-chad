@@ -8,9 +8,18 @@
 
 set -euo pipefail
 
+# Guard against deleted cwd (e.g., worktree removed by /adv-archive).
+# tmux spawns #() commands in the pane's cwd; if that directory was deleted,
+# the shell emits "getcwd: cannot access parent directories" on startup.
+# cd to $HOME early to silence this — the script uses explicit -C paths anyway.
+cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
+
 pane_path="${1:-}"
 session_name="${2:-}"
 [ -z "$pane_path" ] && exit 0
+
+# Bail if the pane path no longer exists (worktree was deleted)
+[ -d "$pane_path" ] || exit 0
 
 db="${OPENCODE_DB:-$HOME/.local/share/opencode/opencode.db}"
 [ -f "$db" ] || exit 0

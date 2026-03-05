@@ -8,6 +8,11 @@
 
 set -euo pipefail
 
+# Guard against deleted cwd (e.g., worktree removed by /adv-archive).
+# tmux spawns #() commands in the pane's cwd; if that directory was deleted,
+# the shell emits "getcwd: cannot access parent directories" on startup.
+cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
+
 # Resolve cache dir consistently (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)
 # shellcheck source=opencode_env.sh
 source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"

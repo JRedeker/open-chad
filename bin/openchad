@@ -271,4 +271,10 @@ if [ -f "$LIB_DIR/discord/update.sh" ]; then
 fi
 
 # Attach to session (replaces current process)
+# Change to the safe session directory before exec so that when tmux exits,
+# the terminal's remembered cwd is a path that still exists — not a deleted
+# worktree. Without this, the post-exit shell inherits the (now-deleted)
+# worktree as its cwd and spams "shell-init: error retrieving current
+# directory: getcwd: cannot access parent directories" on every prompt.
+cd "$session_cwd"
 exec tmux attach-session -t "$session_name"
