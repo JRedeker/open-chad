@@ -184,3 +184,10 @@ rules:
     tags: [quality, bugs, thoroughness]
     hint: scan_related_issues
     priority: 8
+
+  P26:
+    name: question-tool-write-in
+    rule: Every use of the question/ask tool MUST include an explicit write-in option (e.g. "Other", "Different approach", "Custom value") so users can always add context, corrections, or instructions not covered by the predefined choices. The write-in option counts toward the 2-5 option cap; if adding it would exceed 5, remove the lowest-priority predefined option first.
+    tags: [ux, communication, question-tool]
+    hint: always_include_write_in
+    priority: 8
