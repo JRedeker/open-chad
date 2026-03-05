@@ -22,6 +22,9 @@ confirm each item works:
    lgrep_search_semantic(q="hello world", path=".")
    Expected: search results or "no results" (not a tool-not-found error).
    If the tool is missing, the lgrep MCP server is not wired.
+   Note: if you see "VOYAGE_API_KEY not set", wiring is still OK; only semantic
+   search is blocked until you set the key in `~/.config/vision/servers.yaml`
+   under `lgrep.env`.
 
 4. MORPH PLUGIN — Run: morph_edit on a trivial test (or confirm the tool
    appears in your tool list).
@@ -45,10 +48,11 @@ confirm each item works:
    If missing, the plugin won't load and tables may appear misaligned.
 
 8. SKILLS — Check that ~/.config/opencode/skills/ contains these directories:
-   - mcp-selection/SKILL.md (MCP tool selection guidance)
-   - worktree/SKILL.md (git worktree workflow)
-   - morph/SKILL.md (morph_edit usage guidance)
-   Expected: all 3 skill files present with valid YAML frontmatter.
+    - mcp-selection/SKILL.md (MCP tool selection guidance)
+    - worktree/SKILL.md (git worktree workflow)
+    - lgrep/SKILL.md (semantic + symbol search guidance)
+    - morph/SKILL.md (morph_edit usage guidance)
+   Expected: all 4 skill files present with valid YAML frontmatter.
    If missing, re-run: open-chad (setup_opencode.sh + setup_morph.sh sync skills).
 
 Please report the status of each item (OK / FAIL + error message).
@@ -63,6 +67,7 @@ Please report the status of each item (OK / FAIL + error message).
 | Auth fails | `open-chad` → re-run OAuth via `lib/setup_opencode_auth.sh` |
 | ADV missing | `bash lib/setup_adv.sh` |
 | lgrep missing | Check `~/.config/opencode/opencode.json` for lgrep MCP entry |
+| lgrep semantic says `VOYAGE_API_KEY not set` | Set `VOYAGE_API_KEY` in `~/.config/vision/servers.yaml` under `servers.lgrep.env`, then run `vision daemon reload` |
 | morph missing | `bash lib/setup_morph.sh` |
 | md-table-formatter missing | `bash lib/setup_opencode.sh` (wires default plugins) |
 | Theme wrong | `bash lib/setup_opencode.sh` |
