@@ -159,12 +159,15 @@ _register_server "grep-app" "6288" \
 _register_server "lgrep" "6285" \
 '  lgrep:  # open-chad
     port: 6285
-    command: npx
+    command: uvx
     args:
-      - "-y"
-      - "@lgrep/mcp@latest"
+      - "--from"
+      - "git+https://github.com/Sharper-Flow/lgrep.git"
+      - "lgrep"
+    env:
+      LGREP_AUTO_WATCH: "true"
     autostart: true
-    source: https://github.com/anomalyco/lgrep'
+    source: https://github.com/Sharper-Flow/lgrep'
 
 # firecrawl — Web scraping (enabled by default for Scout agent)
 _register_server "firecrawl" "6281" \
