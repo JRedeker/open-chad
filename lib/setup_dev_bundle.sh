@@ -143,7 +143,7 @@ _install_python_bundle() {
         step "Wiring pyrefly LSP into $OPENCODE_JSON"
         mkdir -p "$OPENCODE_CONFIG_DIR"
         [ -f "$OPENCODE_JSON" ] || echo '{}' > "$OPENCODE_JSON"
-        bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+        bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
             '{"lsp":{"pyrefly":{"command":["pyrefly","lsp"],"extensions":[".py",".pyi"]}}}' \
             >> "$INSTALL_LOG" 2>&1 || warn "Could not wire pyrefly LSP"
         ok "pyrefly LSP wired into opencode.json"
@@ -361,7 +361,7 @@ _install_web_bundle() {
         step "Wiring TypeScript LSP into $OPENCODE_JSON"
         mkdir -p "$OPENCODE_CONFIG_DIR"
         [ -f "$OPENCODE_JSON" ] || echo '{}' > "$OPENCODE_JSON"
-        bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+        bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
             '{"lsp":{"typescript-language-server":{"command":["typescript-language-server","--stdio"],"extensions":[".ts",".tsx",".js",".jsx",".mjs",".cjs"]}}}' \
             >> "$INSTALL_LOG" 2>&1 || warn "Could not wire TypeScript LSP"
         ok "TypeScript LSP wired into opencode.json"

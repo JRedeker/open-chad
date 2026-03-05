@@ -57,6 +57,10 @@ lib/
                             cache. PID-locked, parallel API calls, atomic writes.
   json_merge.sh             Idempotent additive JSON merge (Node.js). Arrays deduped,
                             scalars only added if not present, nested objects recursed.
+                            Flags: --backup (create .bak.<epoch> before merge, 0600 perms),
+                            --rotate <N> (keep only N most-recent backups). Writes atomically
+                            via fs.renameSync (temp file + rename). All setup scripts pass
+                            --backup --rotate 5 when merging opencode.json.
   openchad_version.sh       `openchad version` handler — git describe or hardcoded fallback
   openchad_doctor.sh        `openchad doctor` handler — validates PATH setup, tmux theme,
                             cache dir, legacy open-chad migration
@@ -599,6 +603,7 @@ source ~/.zshrc  # or ~/.bashrc
 - **Reliable** — git resolves canonical path automatically
 - **Transparent** — users can see `~/dev/open-chad/bin` in their PATH
 | ISSUE-016 | `lib/json_merge.sh` | 1MB size guard added before Node.js parse for both target file and merge payload. |
+| ISSUE-022 | `lib/json_merge.sh` | Atomic write via `fs.renameSync` (temp file + rename). `--backup` flag creates `.bak.<epoch>` with 0600 perms before merge. `--rotate <N>` keeps only N most-recent backups. All setup scripts pass `--backup --rotate 5`. |
 | ISSUE-017 | `lib/wizard.sh` | WSL detected via `/proc/version`; generates `~/open-chad-keybindings.ps1` instead of manual instructions. |
 | ISSUE-018 | `lib/setup_shell_profile.sh` | Exports PATH directly after writing block for immediate availability. Does NOT source the user's rc file (security: avoids executing arbitrary user shell code in installer context). |
 | ISSUE-019 | `lib/collect_metrics.sh` | `find` cleanup wrapped in `timeout 5` to prevent hangs on slow filesystems. |

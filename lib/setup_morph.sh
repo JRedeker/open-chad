@@ -100,7 +100,7 @@ mkdir -p "$OPENCODE_CONFIG_DIR"
 [ -f "$OPENCODE_JSON" ] || echo '{}' > "$OPENCODE_JSON"
 
 step "Wiring morph plugin into $OPENCODE_JSON"
-bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
     "{\"plugin\":[\"$MORPH_PLUGIN_DIR\"]}"
 ok "Plugin entry added/confirmed: $MORPH_PLUGIN_DIR"
 

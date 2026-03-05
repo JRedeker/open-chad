@@ -214,7 +214,7 @@ ok "ADV plugin built at $ADV_PLUGIN_DIR"
 
 # ─── Wire plugin into opencode.json ───────────────────────────────────────────
 step "Wiring ADV plugin into $OPENCODE_JSON"
-if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+if bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
     "{\"plugin\":[\"$ADV_PLUGIN_DIR\"]}"; then
     ok "Plugin entry added/confirmed: $ADV_PLUGIN_DIR"
 else
@@ -225,7 +225,7 @@ fi
 ADV_INSTRUCTIONS_FILE="$ADV_CHECKOUT_DIR/ADV_INSTRUCTIONS.md"
 if [ -f "$ADV_INSTRUCTIONS_FILE" ]; then
     step "Wiring ADV instructions into $OPENCODE_JSON"
-    if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+    if bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
         "{\"instructions\":[\"$ADV_INSTRUCTIONS_FILE\"]}"; then
         ok "Instructions entry added/confirmed: $ADV_INSTRUCTIONS_FILE"
     else
@@ -298,7 +298,7 @@ ADV_WORKER_STUBS='{
     }
   }
 }'
-if bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" "$ADV_WORKER_STUBS"; then
+if bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" "$ADV_WORKER_STUBS"; then
     ok "ADV worker agent stubs wired into $OPENCODE_JSON"
 else
     warn "Failed to wire ADV worker stubs into $OPENCODE_JSON — json_merge.sh exited non-zero"

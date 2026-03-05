@@ -170,7 +170,7 @@ EOF
     payload=$(printf '{"agentColors":{"build":"%s","plan":"%s","scout":"%s","refine":"%s"}}' \
         "$build_color" "$plan_color" "$scout_color" "$refine_color")
 
-    if bash "$REPO_DIR/lib/json_merge.sh" "$OPEN_CHAD_CONFIG_FILE" "$payload" >/dev/null 2>&1; then
+    if bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPEN_CHAD_CONFIG_FILE" "$payload" >/dev/null 2>&1; then
         ok "Persisted agent colors into $OPEN_CHAD_CONFIG_FILE"
     else
         warn "Failed to persist agent colors into $OPEN_CHAD_CONFIG_FILE"
@@ -427,7 +427,7 @@ INSTRUCTIONS_JSON="[$(
     done | sed 's/,$//'
 )]"
 
-bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" \
+bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" \
     "{\"instructions\":$INSTRUCTIONS_JSON,\"theme\":\"ayu-dark\",\"plugin\":[\"@franlol/opencode-md-table-formatter@latest\"]}"
 ok "Instructions, theme, and default plugins merged into $OPENCODE_JSON"
 

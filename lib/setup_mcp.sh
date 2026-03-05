@@ -91,7 +91,7 @@ _merge() {
     audit "Merging $label: $patch"
 
     local merge_exit=0
-    bash "$REPO_DIR/lib/json_merge.sh" "$OPENCODE_JSON" "$patch" 2>>"$INSTALL_LOG" || merge_exit=$?
+    bash "$REPO_DIR/lib/json_merge.sh" --backup --rotate 5 "$OPENCODE_JSON" "$patch" 2>>"$INSTALL_LOG" || merge_exit=$?
     if [ "$merge_exit" -ne 0 ]; then
         error "json_merge.sh failed for: $label (exit $merge_exit)"
         hint "Check $INSTALL_LOG for details."
