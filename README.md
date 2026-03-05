@@ -186,22 +186,34 @@ git clone https://github.com/JRedeker/open-chad.git && cd open-chad
 bash install.sh
 ```
 
-The interactive wizard walks you through 10 steps:
+The interactive wizard starts with a **component selector** — toggle what you want, skip what you don't:
 
-| Step | What happens |
-|------|-------------|
-| 1 | System dependencies (git, curl, tmux, Node 20, pnpm) |
-| 2 | OpenCode OAuth onboarding |
-| 3 | Dev language bundles — Python (uv), Go, Rust, Web (TS/JS) |
-| 4 | MCP servers wired into opencode.json |
-| 5 | Vision MCP daemon registered and started |
-| 6 | ADV + morph plugins installed |
-| 7 | Agents, instructions, theme, slash commands synced |
-| 8 | Model preferences TUI (`omp`) |
-| 9 | Zsh + plugins configured |
-| 10 | Windows Terminal keybindings (WSL only) |
+```
+  Choose components to install
 
-For CI or unattended installs: `bash install.sh --yes`
+  Core (always installed):
+    · Shell profile PATH setup
+    · Tmux theme (ayu-dark)
+    · OpenCode config (agents, instructions, theme)
+
+  Optional components:  (type a number to toggle)
+
+    [1]  ✓  System dependencies        git, curl, tmux, node, pnpm via apt
+    [2]  ✓  Claude OAuth               Authenticate with Claude API
+    [3]  ✓  Dev language bundles        Python, Go, Rust, Web toolchains
+    [4]  ✓  MCP servers                context7, grep-app, lgrep, firecrawl
+    [5]  ✓  Vision MCP daemon          Manages MCP server lifecycle
+    [6]  ✓  ADV plugin                 Spec-driven development workflow
+    [7]  ✓  morph-fast-apply           Fast-apply edits for large files
+    [8]  ✓  Model preferences (omp)    TUI for per-agent model selection
+    [9]  ✓  Zsh + plugins              powerlevel10k, autosuggestions, syntax highlighting
+
+  Type a number to toggle  ·  a = select all  ·  n = select none  ·  Enter = continue
+```
+
+All components start selected. Type a number to toggle it off (✓ → ·) or back on. Type multiple numbers at once (`1 3 5`). Press Enter when ready.
+
+For CI or unattended installs: `bash install.sh --yes` (installs everything)
 
 After install, reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and you're ready.
 

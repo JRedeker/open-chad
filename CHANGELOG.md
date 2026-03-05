@@ -6,6 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **Interactive component selector**: wizard now opens with a toggle-style component picker. All 9 optional components start selected (✓); type a number to flip on/off, `a`=all, `n`=none, Enter to proceed. CLI `--skip-*` flags lock components as grayed-out. `--yes` mode selects all (CI behavior unchanged).
+- **`--skip-vision` flag**: new flag to skip Vision MCP daemon setup in both `wizard.sh` and `install.sh`.
+- **Boot animation redesign**: outline/stroke-style logo using box-drawing characters. Agent palette colors flash briefly during cycling, then settle to dim gray. All labels muted to comment gray.
 - **Agent-driven installer** (`/open-chad-install`): new slash command for users who already have OpenCode and want to install open-chad from within an agent session. Runs all 10 setup steps and a full verification checklist.
 - **External Dependencies table** in README: formatted table of all 14 external repos, plugins, MCP servers, and packages with correct source links and install methods.
 - **Vision MCP daemon bundling** (v1.3): singleton daemon auto-started on every `openchad` launch, restarted on `openchad update`, health-checked by `openchad doctor`. Manages Context7, grep.app, lgrep, and Firecrawl MCP servers.

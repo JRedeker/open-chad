@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# open-chad: Installation script (v1.2)
+# open-chad: Installation script (v1.3)
 #
 # Usage:
 #   bash install.sh                    — interactive wizard (TTY detected)
@@ -82,6 +82,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-adv               Skip ADV (Advance) plugin install"
             echo "  --no-omp               Skip omp (opencode-model-preferences) install"
             echo "  --no-opencode-setup    Skip all OpenCode config changes"
+            echo "  --skip-vision          Skip Vision MCP daemon setup"
             echo "  --skip-zsh / --no-zsh  Skip zsh + plugin setup"
             echo "  --bundles <list>       Pre-select language bundles: 'python go rust web'"
             echo "  --verbose              Show verbose output"
@@ -101,7 +102,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${C_SAGE}open-chad v1.2 — installer starting...${C_RESET}"
+echo -e "${C_SAGE}open-chad v1.3 — installer starting...${C_RESET}"
 
 # ─── 0. Set up dedicated cache directory ──────────────────────────────────────
 # Creates $OPEN_CHAD_CACHE_DIR (XDG_RUNTIME_DIR/open-chad or /tmp/open-chad-$USER)

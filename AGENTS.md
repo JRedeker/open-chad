@@ -118,9 +118,12 @@ lib/
                             setup modules, repairs via manifest, removes stale
                             open-chad aliases/PATH from rc files. .git detection +
                             releases URL. Diverged branch recovery guide.
-  wizard.sh                 Interactive 10-step install wizard. YES_MODE for CI/--yes.
-                            Logs to ~/.config/opencode/open-chad-install.log. Flags:
-                            --yes, --skip-deps/auth/bundles/mcp/adv/morph/omp/zsh, --verbose.
+  wizard.sh                 Interactive install wizard with upfront component selector.
+                            Toggle-style UI: all optional components start selected,
+                            type a number to flip on/off, Enter to proceed. YES_MODE
+                            for CI/--yes. Logs to ~/.config/opencode/open-chad-install.log.
+                            Flags: --yes, --skip-deps/auth/bundles/mcp/adv/morph/omp/
+                            vision/zsh, --verbose.
                             Step 5 runs setup_vision.sh (Vision MCP daemon).
 
 completion/
@@ -691,7 +694,7 @@ The following migration fixes were applied in the v1.2 rename pass:
 # Skip specific wizard steps
 bash install.sh --yes --skip-deps --skip-auth --skip-bundles
 bash install.sh --yes --skip-mcp --skip-adv --skip-morph
-bash install.sh --yes --skip-omp --skip-zsh
+bash install.sh --yes --skip-omp --skip-vision --skip-zsh
 
 # Select bundles non-interactively (comma or space separated, both work)
 bash install.sh --yes --bundles python,go
