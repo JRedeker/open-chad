@@ -190,10 +190,13 @@ test_update_fails_outside_git_repo() {
 test_update_error_message_content() {
     local output exit_code=0
     local tmp_nongit="$TMP_ROOT/nongit-repo2"
-    mkdir -p "$tmp_nongit"
+    mkdir -p "$tmp_nongit/lib"
 
-    output=$(REPO_DIR="$tmp_nongit" \
-        timeout 10 bash "$REPO_DIR/lib/update.sh" 2>&1) || exit_code=$?
+    # Copy update.sh into the non-git dir so SCRIPT_DIR resolves there
+    # (update.sh computes REPO_DIR from SCRIPT_DIR, ignoring env overrides)
+    cp "$REPO_DIR/lib/update.sh" "$tmp_nongit/lib/update.sh"
+
+    output=$(timeout 10 bash "$tmp_nongit/lib/update.sh" 2>&1) || exit_code=$?
 
     # Should mention releases or GitHub in error output
     if echo "$output" | grep -qi "releases\|github\|git clone"; then

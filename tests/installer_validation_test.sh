@@ -1407,32 +1407,24 @@ test_adv_stale_checkout_non_git_dir_quarantined() {
 
 test_adv_stale_checkout_non_git_dir_quarantined
 
-section "ADV bundling — lock immutability (validation)"
+section "ADV bundling — always-latest (no lock file)"
 
-test_adv_lock_ref_not_a_branch_name() {
-    # The ref in adv-lock.json must not be a branch name like 'main' or 'trunk'
-    local ref
-    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
-    if echo "$ref" | grep -qE '^(main|trunk|master|HEAD|develop|dev)$'; then
-        fail "adv-lock.json ref is a branch name ('$ref') — must be a commit SHA"
+test_adv_lock_file_absent() {
+    if [ -f "$REPO_DIR/config/opencode/adv-lock.json" ]; then
+        fail "adv-lock.json still exists (should be removed — always-latest mode)"
     else
-        pass "adv-lock.json ref is not a branch name (got: '$ref')"
+        pass "adv-lock.json removed (always-latest mode)"
     fi
 }
 
-test_adv_lock_ref_not_a_tag_pattern() {
-    # The ref must not look like a semver tag (v1.2.3)
-    local ref
-    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
-    if echo "$ref" | grep -qE '^v?[0-9]+\.[0-9]+'; then
-        fail "adv-lock.json ref looks like a tag ('$ref') — must be a commit SHA"
-    else
-        pass "adv-lock.json ref is not a semver tag (got: '$ref')"
-    fi
+test_adv_setup_defaults_to_latest() {
+    grep -q 'ADV_INSTALL_MODE.*latest\|latest.*default' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh defaults to latest mode" \
+        || fail "setup_adv.sh does not default to latest mode"
 }
 
-test_adv_lock_ref_not_a_branch_name
-test_adv_lock_ref_not_a_tag_pattern
+test_adv_lock_file_absent
+test_adv_setup_defaults_to_latest
 
 section "ADV bundling — doctor + wizard UX"
 

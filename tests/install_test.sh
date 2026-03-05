@@ -1751,55 +1751,31 @@ test_symlink_manifest_not_created
 
 # ─── Section: ADV Bundling ────────────────────────────────────────────────────
 
-section "ADV Bundling — adv-lock.json"
+section "ADV Bundling — always-latest (no lock file)"
 
-test_adv_lock_file_exists() {
-    assert_file_exists "$REPO_DIR/config/opencode/adv-lock.json"
-}
-
-test_adv_lock_json_valid() {
-    if node -e "JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8'))" 2>/dev/null; then
-        pass "adv-lock.json is valid JSON"
+test_adv_lock_file_removed() {
+    if [ -f "$REPO_DIR/config/opencode/adv-lock.json" ]; then
+        fail "adv-lock.json still exists (should be removed — always-latest mode)"
     else
-        fail "adv-lock.json is not valid JSON"
+        pass "adv-lock.json removed (always-latest mode)"
     fi
 }
 
-test_adv_lock_ref_is_sha() {
-    local ref
-    ref=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).ref)" 2>/dev/null || echo "")
-    if echo "$ref" | grep -qE '^[0-9a-f]{40}$'; then
-        pass "adv-lock.json ref is a 40-char hex SHA: $ref"
-    else
-        fail "adv-lock.json ref is not a 40-char hex SHA (got: '$ref')"
-    fi
+test_adv_repo_url_correct() {
+    grep -q 'Sharper-Flow/Advance' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh references correct ADV repo (Sharper-Flow/Advance)" \
+        || fail "setup_adv.sh has wrong ADV repo URL"
 }
 
-test_adv_lock_has_repo_field() {
-    local repo
-    repo=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).repo)" 2>/dev/null || echo "")
-    if [ -n "$repo" ]; then
-        pass "adv-lock.json has repo field: $repo"
-    else
-        fail "adv-lock.json missing repo field"
-    fi
+test_adv_default_mode_is_latest() {
+    grep -q 'ADV_INSTALL_MODE.*latest\|latest.*default' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
+        && pass "setup_adv.sh defaults to latest mode" \
+        || fail "setup_adv.sh does not default to latest mode"
 }
 
-test_adv_lock_has_plugin_path_field() {
-    local pp
-    pp=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$REPO_DIR/config/opencode/adv-lock.json','utf8')).pluginPath)" 2>/dev/null || echo "")
-    if [ -n "$pp" ]; then
-        pass "adv-lock.json has pluginPath field: $pp"
-    else
-        fail "adv-lock.json missing pluginPath field"
-    fi
-}
-
-test_adv_lock_file_exists
-test_adv_lock_json_valid
-test_adv_lock_ref_is_sha
-test_adv_lock_has_repo_field
-test_adv_lock_has_plugin_path_field
+test_adv_lock_file_removed
+test_adv_repo_url_correct
+test_adv_default_mode_is_latest
 
 section "ADV Bundling — bundled command docs"
 
@@ -1834,12 +1810,6 @@ test_adv_bundled_commands_include_core
 
 section "ADV Bundling — setup_adv.sh structure"
 
-test_setup_adv_reads_lock_file() {
-    grep -q 'adv-lock.json\|ADV_LOCK\|adv_lock' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
-        && pass "setup_adv.sh references adv-lock.json" \
-        || fail "setup_adv.sh does not reference adv-lock.json"
-}
-
 test_setup_adv_supports_install_mode() {
     grep -q 'ADV_INSTALL_MODE\|install_mode\|INSTALL_MODE' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
         && pass "setup_adv.sh supports ADV_INSTALL_MODE" \
@@ -1852,37 +1822,41 @@ test_setup_adv_has_offline_fallback() {
         || fail "setup_adv.sh missing offline/bundled fallback path"
 }
 
-test_setup_adv_reads_lock_file
 test_setup_adv_supports_install_mode
 test_setup_adv_has_offline_fallback
 
-section "ADV Bundling — lock immutability"
+section "ADV Bundling — no lock file residue"
 
-test_adv_lock_not_mutated_by_normal_update() {
-    # update.sh should NOT overwrite adv-lock.json on normal runs
-    # It should only update the lock when --adv-latest is passed
-    grep -q 'adv-lock.json' "$REPO_DIR/lib/update.sh" 2>/dev/null \
-        && pass "update.sh references adv-lock.json" \
-        || fail "update.sh does not reference adv-lock.json"
+test_update_no_lock_references() {
+    # update.sh should not reference adv-lock.json (removed in always-latest)
+    if grep -q 'adv-lock.json' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+        fail "update.sh still references adv-lock.json (should be removed)"
+    else
+        pass "update.sh has no adv-lock.json references"
+    fi
 }
 
-test_adv_lock_update_requires_adv_latest_flag() {
-    # The lock ref should only be updated when --adv-latest is explicitly passed
-    grep -q '\-\-adv-latest\|adv_latest\|ADV_LATEST' "$REPO_DIR/lib/update.sh" 2>/dev/null \
-        && pass "update.sh has --adv-latest flag support" \
-        || fail "update.sh missing --adv-latest flag (lock bump requires explicit opt-in)"
+test_update_no_adv_latest_flag() {
+    # --adv-latest flag removed (always latest, no lock to bump)
+    if grep -q '\-\-adv-latest' "$REPO_DIR/lib/update.sh" 2>/dev/null; then
+        fail "update.sh still has --adv-latest flag (should be removed)"
+    else
+        pass "update.sh has no --adv-latest flag (always-latest mode)"
+    fi
 }
 
-test_adv_lock_sha_format_enforced() {
-    # setup_adv.sh must validate that the ref is a 40-char hex SHA
-    grep -qE '40|[0-9a-f]\{40\}|hex|SHA|sha' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null \
-        && pass "setup_adv.sh enforces SHA format on lock ref" \
-        || fail "setup_adv.sh does not enforce SHA format on lock ref"
+test_setup_adv_no_lock_references() {
+    # setup_adv.sh should not reference adv-lock.json
+    if grep -q 'adv-lock.json' "$REPO_DIR/lib/setup_adv.sh" 2>/dev/null; then
+        fail "setup_adv.sh still references adv-lock.json (should be removed)"
+    else
+        pass "setup_adv.sh has no adv-lock.json references"
+    fi
 }
 
-test_adv_lock_not_mutated_by_normal_update
-test_adv_lock_update_requires_adv_latest_flag
-test_adv_lock_sha_format_enforced
+test_update_no_lock_references
+test_update_no_adv_latest_flag
+test_setup_adv_no_lock_references
 
 section "ADV Bundling — parity (bundled vs pinned)"
 
