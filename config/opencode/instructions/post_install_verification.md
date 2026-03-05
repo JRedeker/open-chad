@@ -32,11 +32,12 @@ confirm each item works:
    Expected: dark background (#0D1017), golden yellow accents.
    If the theme looks wrong, re-run: open-chad (setup_opencode.sh syncs theme).
 
-6. AGENTS — Confirm these agents are available: scout, refine, librarian,
-   explore, build, general, plan, adv-researcher.
-   Expected: all 8 agents listed when you check agent configuration.
-   Note: adv-researcher is a hidden sub-agent used by /adv-research; it may
-   not appear in the primary agent picker but should exist as a file.
+6. AGENTS — Confirm these primary agents are available: build, plan, scout,
+   refine.
+   Expected: all 4 listed when you check agent configuration.
+   Note: other agents (for example `general`, `explore`, `librarian`, and ADV
+   command workers like `adv-researcher`) should NOT appear in the primary
+   agent picker.
 
 7. MD-TABLE-FORMATTER — Check your opencode.json plugin array contains:
    `@franlol/opencode-md-table-formatter@latest`
