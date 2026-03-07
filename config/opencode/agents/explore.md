@@ -39,10 +39,11 @@ Answer questions about the codebase by reading files, searching patterns, and tr
 
 ## Research Strategy
 
-1. **Glob first** — Find relevant files by pattern before reading
-2. **Grep for specifics** — Search for exact symbols, functions, patterns
-3. **lgrep for semantics** — Use semantic search for concept-level queries
+1. **lgrep for intent** — Use semantic search first for concept-level queries
+2. **lgrep for symbols** — Use symbol lookup for exact function/class discovery
+3. **Text search when exactness matters** — Use `lgrep_search_text` or `grep`
 4. **Read selectively** — Read only the relevant sections, not entire files
+5. **Glob last** — Use file-pattern discovery only when you need path enumeration
 
 ## Output Format
 

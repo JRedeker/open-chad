@@ -18,6 +18,19 @@ tools:
   grep: true
   list: true
   webfetch: true
+  lgrep_search_semantic: true
+  lgrep_index_semantic: true
+  lgrep_search_symbols: true
+  lgrep_index_folder: true
+  lgrep_index_repo: true
+  lgrep_get_symbol: true
+  lgrep_get_symbols: true
+  lgrep_get_file_tree: true
+  lgrep_get_file_outline: true
+  lgrep_get_repo_outline: true
+  lgrep_search_text: true
+  lgrep_list_repos: true
+  lgrep_invalidate_cache: true
   # Context7 - library documentation
   context7_resolve-library-id: true
   context7_query-docs: true
@@ -51,7 +64,7 @@ Find and return relevant documentation, API references, and real-world code exam
 1. **Library docs** - Use Context7 first (resolve-library-id then query-docs)
 2. **Code examples** - Use grep.app to find real implementations
 3. **Web docs** - Use Kagi search or Firecrawl for official documentation
-4. **Local files** - Use read/glob/grep for codebase context
+4. **Local codebase context** - Use `lgrep` first for intent and symbol discovery, then `read`/`grep` for exact follow-up inspection
 
 ## Output Format
 

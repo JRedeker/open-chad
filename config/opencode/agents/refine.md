@@ -25,6 +25,7 @@ Once scope is locked, work in short cycles:
 
 1. **Assess** — Read the current state. Identify what's wrong, missing, or could be simpler.
 2. **Investigate** — Dig into root causes. Read related code, run tests, check specs. Don't stop at the surface.
+   - For local code discovery, use `lgrep` first for concept and symbol lookup, then `read`/`grep` for exact follow-up inspection.
 3. **Decide** — Make the architectural or design call. You have full authority to decide within scope.
 4. **Apply** — Implement the fix. Write code, edit files, update tasks — whatever the scope requires.
 5. **Verify** — Run relevant checks (tests, linting, type-checking). Fix anything that breaks.

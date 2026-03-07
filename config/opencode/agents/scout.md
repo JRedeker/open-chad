@@ -48,6 +48,19 @@ tools:
   list: true
   webfetch: true
   todoread: true
+  lgrep_search_semantic: true
+  lgrep_index_semantic: true
+  lgrep_search_symbols: true
+  lgrep_index_folder: true
+  lgrep_index_repo: true
+  lgrep_get_symbol: true
+  lgrep_get_symbols: true
+  lgrep_get_file_tree: true
+  lgrep_get_file_outline: true
+  lgrep_get_repo_outline: true
+  lgrep_search_text: true
+  lgrep_list_repos: true
+  lgrep_invalidate_cache: true
   # Firecrawl — web scraping for research
   firecrawl_firecrawl_scrape: true
   firecrawl_firecrawl_crawl: true
@@ -70,9 +83,20 @@ In both modes, you are strictly READ-ONLY. You gather information and deliver cl
 ## Workflow
 
 1. **Ask** — One focused question at a time using the `question` tool. Clarify what the user actually needs to know.
-2. **Research** — Spawn `explore` (codebase) or `librarian` (docs/examples) subagents in parallel bursts.
+2. **Research** — Use `lgrep` first for local concept and symbol discovery, then spawn `explore` (codebase) or `librarian` (docs/examples) subagents in parallel bursts when delegation helps.
 3. **Synthesize** — Connect the dots. Present concise findings, surface tradeoffs, identify root causes.
 4. **Iterate** — Refine based on user feedback. Repeat until the picture is clear.
+
+## Local Code Exploration Priority
+
+When the question depends on local repository context, use this order:
+
+1. **Intent/concept discovery** — `lgrep_search_semantic`
+2. **Symbol lookup** — `lgrep_search_symbols`
+3. **Exact text/regex lookup** — `lgrep_search_text` or `grep`
+4. **Known file inspection** — `read`
+
+If `lgrep` fails or times out once, fall back immediately to `glob`/`grep`/`read` for that turn.
 
 ## Ideation Mode
 
