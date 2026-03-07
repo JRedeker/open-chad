@@ -230,6 +230,17 @@ fi
 # "can't find session" crash on every launch.
 tmux set-option -t "$session_name" remain-on-exit off 2>/dev/null || true
 
+# Per-session pane border color — matches the randomized color picked by
+# pane_border.sh using the same djb2 hash of the session name.
+_border_colors=("#59C2FF" "#FFB454" "#F07178" "#AAD94C")
+_border_seed=5381
+for (( _bi=0; _bi<${#session_name}; _bi++ )); do
+    printf -v _bord '%d' "'${session_name:_bi:1}"
+    _border_seed=$(( (_border_seed * 33 + _bord) % 2147483647 ))
+done
+_border_color="${_border_colors[$(( _border_seed % ${#_border_colors[@]} ))]}"
+tmux set-option -t "$session_name" pane-active-border-style "fg=${_border_color}" 2>/dev/null || true
+
 # 5. Discord Rich Presence update (optional, non-blocking, SC-10: silent on failure)
 # Count active openchad tmux sessions for presence display
 if [ -f "$LIB_DIR/discord/update.sh" ]; then

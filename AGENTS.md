@@ -39,6 +39,9 @@ lib/
   animation.sh              Boot animation — centered logo, 6-frame color cycling,
                             typewriter subtitle, project context. True-color ANSI.
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
+  pane_border.sh            Per-session randomized pane border — picks a color from the
+                            agent palette and a decorative glyph pattern using the session
+                            name hash (same djb2 technique as status_edges.sh)
   session_title.sh          Row 0 left — queries OpenCode SQLite DB for session title,
                             correlates by tmux launch timestamp (no cross-session bleed)
   status_resources.sh       Standalone resource renderer (Sessions, CPU%, RAM%, Load) — available
@@ -195,7 +198,7 @@ Primary agent color constants are canonicalized in `lib/agent_palette.sh`:
 
 | Name | Hex | Usage |
 |------|-----|-------|
-| `string` | `#AAD94C` | Green — accent edges, active pane border, healthy gauge |
+| `string` | `#AAD94C` | Green — accent edges, healthy gauge |
 | `accent` | `#E6B450` | Golden yellow — accent edges, project name, mid gauge |
 | `type` | `#59C2FF` | Blue — accent edges, subtitle, git branch |
 | `keyword` | `#FF8F40` | Orange — accent edges, low gauge |
