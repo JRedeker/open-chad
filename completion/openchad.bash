@@ -44,7 +44,7 @@ _openchad_completions() {
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     }
 
-    local subcommands="update version doctor uninstall metrics changelog discord"
+    local subcommands="update version doctor uninstall restart metrics changelog discord"
     local options="--no-anim --help -h"
 
     # Top-level subcommand/project completion

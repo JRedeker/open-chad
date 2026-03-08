@@ -646,6 +646,290 @@ test_openchad_session_cwd_fallback_chain
 test_openchad_new_session_cwd_is_valid_dir
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 7: lib/openchad_restart.sh — restart handler
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RESTART_SCRIPT="$REPO_DIR/lib/openchad_restart.sh"
+
+section "openchad_restart.sh — file properties"
+
+test_restart_file_exists() {
+    assert_file_exists "$RESTART_SCRIPT"
+}
+
+test_restart_file_executable() {
+    assert_executable "$RESTART_SCRIPT"
+}
+
+test_restart_file_exists
+test_restart_file_executable
+
+section "openchad_restart.sh — tmux guard (not in tmux)"
+
+test_restart_rejects_outside_tmux() {
+    setup_tmp_env
+    local output
+    output=$(TMUX="" TMUX_PANE="" bash "$RESTART_SCRIPT" 2>&1) || true
+    assert_contains "$output" "not inside a tmux session" \
+        "restart rejects when TMUX is unset"
+    teardown_tmp_env
+}
+
+test_restart_rejects_outside_tmux
+
+section "openchad_restart.sh — TMUX_PANE guard"
+
+test_restart_rejects_no_tmux_pane() {
+    setup_tmp_env
+    local output
+    output=$(TMUX="/tmp/tmux-1000/default,12345,0" TMUX_PANE="" \
+        bash "$RESTART_SCRIPT" 2>&1) || true
+    assert_contains "$output" "TMUX_PANE" \
+        "restart rejects when TMUX_PANE is empty"
+    teardown_tmp_env
+}
+
+test_restart_rejects_no_tmux_pane
+
+section "openchad_restart.sh — oc-* session name guard"
+
+test_restart_rejects_non_oc_session() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/bin"
+    mkdir -p "$fake_bin"
+    # Fake tmux that returns a non-oc session name
+    cat > "$fake_bin/tmux" <<'FAKE'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "display-message" ]]; then
+    # Return a non-oc session name for #{session_name}
+    echo "my-other-session"
+    exit 0
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/tmux"
+
+    local output
+    output=$(PATH="$fake_bin:$PATH" \
+        TMUX="/tmp/tmux-1000/default,12345,0" \
+        TMUX_PANE="%0" \
+        bash "$RESTART_SCRIPT" 2>&1) || true
+    assert_contains "$output" "oc-" \
+        "restart rejects when session name is not oc-*"
+    teardown_tmp_env
+}
+
+test_restart_accepts_oc_session() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    mkdir -p "$fake_bin"
+    local test_dir="$TMP_DIR/project"
+    mkdir -p "$test_dir"
+    # Fake tmux that returns an oc-* session name and logs respawn-pane
+    cat > "$fake_bin/tmux" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmux_log"
+if [[ "\${1:-}" == "display-message" ]]; then
+    # Check what format string is requested
+    case "\${*}" in
+        *session_name*) echo "oc-1234567890-42" ;;
+        *pane_current_path*) echo "$test_dir" ;;
+    esac
+    exit 0
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/tmux"
+
+    # Fake opencode binary (restart target)
+    cat > "$fake_bin/opencode" <<'FAKE'
+#!/usr/bin/env bash
+exit 0
+FAKE
+    chmod +x "$fake_bin/opencode"
+
+    local output
+    output=$(PATH="$fake_bin:$PATH" \
+        TMUX="/tmp/tmux-1000/default,12345,0" \
+        TMUX_PANE="%0" \
+        bash "$RESTART_SCRIPT" 2>&1) || true
+    # Should NOT contain the rejection message
+    assert_not_contains "$output" "not an openchad session" \
+        "restart accepts oc-* session name"
+    teardown_tmp_env
+}
+
+test_restart_rejects_non_oc_session
+test_restart_accepts_oc_session
+
+section "openchad_restart.sh — cwd preservation"
+
+test_restart_uses_pane_current_path() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    local test_dir="$TMP_DIR/myproject"
+    mkdir -p "$fake_bin" "$test_dir"
+
+    cat > "$fake_bin/tmux" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmux_log"
+if [[ "\${1:-}" == "display-message" ]]; then
+    case "\${*}" in
+        *session_name*) echo "oc-1234567890-42" ;;
+        *pane_current_path*) echo "$test_dir" ;;
+    esac
+    exit 0
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/tmux"
+
+    cat > "$fake_bin/opencode" <<'FAKE'
+#!/usr/bin/env bash
+exit 0
+FAKE
+    chmod +x "$fake_bin/opencode"
+
+    PATH="$fake_bin:$PATH" \
+        TMUX="/tmp/tmux-1000/default,12345,0" \
+        TMUX_PANE="%0" \
+        bash "$RESTART_SCRIPT" 2>&1 || true
+
+    # Check that respawn-pane was called with -c pointing to our test dir
+    if [ -f "$tmux_log" ] && grep -q "respawn-pane" "$tmux_log"; then
+        local respawn_line
+        respawn_line=$(grep "respawn-pane" "$tmux_log")
+        assert_contains "$respawn_line" "$test_dir" \
+            "respawn-pane uses pane_current_path as cwd"
+    else
+        fail "respawn-pane was not called (tmux log missing or empty)"
+    fi
+    teardown_tmp_env
+}
+
+test_restart_uses_pane_current_path
+
+section "openchad_restart.sh — safe-cwd fallback"
+
+test_restart_cwd_fallback_when_pane_path_missing() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    mkdir -p "$fake_bin"
+
+    cat > "$fake_bin/tmux" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmux_log"
+if [[ "\${1:-}" == "display-message" ]]; then
+    case "\${*}" in
+        *session_name*) echo "oc-1234567890-42" ;;
+        *pane_current_path*) echo "/nonexistent/deleted/path" ;;
+    esac
+    exit 0
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/tmux"
+
+    cat > "$fake_bin/opencode" <<'FAKE'
+#!/usr/bin/env bash
+exit 0
+FAKE
+    chmod +x "$fake_bin/opencode"
+
+    PATH="$fake_bin:$PATH" \
+        TMUX="/tmp/tmux-1000/default,12345,0" \
+        TMUX_PANE="%0" \
+        bash "$RESTART_SCRIPT" 2>&1 || true
+
+    # respawn-pane should still be called — with a fallback cwd
+    if [ -f "$tmux_log" ] && grep -q "respawn-pane" "$tmux_log"; then
+        local respawn_line
+        respawn_line=$(grep "respawn-pane" "$tmux_log")
+        # Should NOT contain the nonexistent path
+        assert_not_contains "$respawn_line" "/nonexistent/deleted/path" \
+            "respawn-pane does not use nonexistent pane path"
+        # Should contain a valid fallback (HOME or /)
+        if echo "$respawn_line" | grep -qE "($HOME|/)"; then
+            pass "respawn-pane falls back to valid directory"
+        else
+            fail "respawn-pane fallback cwd not recognized"
+        fi
+    else
+        fail "respawn-pane was not called despite fallback"
+    fi
+    teardown_tmp_env
+}
+
+test_restart_cwd_fallback_when_pane_path_missing
+
+section "openchad_restart.sh — respawn-pane invocation"
+
+test_restart_calls_respawn_pane_with_kill_flag() {
+    setup_tmp_env
+    local fake_bin="$TMP_DIR/bin"
+    local tmux_log="$TMP_DIR/tmux.log"
+    local test_dir="$TMP_DIR/project"
+    mkdir -p "$fake_bin" "$test_dir"
+
+    cat > "$fake_bin/tmux" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmux_log"
+if [[ "\${1:-}" == "display-message" ]]; then
+    case "\${*}" in
+        *session_name*) echo "oc-1234567890-42" ;;
+        *pane_current_path*) echo "$test_dir" ;;
+    esac
+    exit 0
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/tmux"
+
+    cat > "$fake_bin/opencode" <<'FAKE'
+#!/usr/bin/env bash
+exit 0
+FAKE
+    chmod +x "$fake_bin/opencode"
+
+    PATH="$fake_bin:$PATH" \
+        TMUX="/tmp/tmux-1000/default,12345,0" \
+        TMUX_PANE="%0" \
+        bash "$RESTART_SCRIPT" 2>&1 || true
+
+    if [ -f "$tmux_log" ]; then
+        local respawn_line
+        respawn_line=$(grep "respawn-pane" "$tmux_log" || true)
+        assert_contains "$respawn_line" "respawn-pane" \
+            "restart calls tmux respawn-pane"
+        # Use -F (fixed string) to avoid grep interpreting -k as a flag
+        echo "$respawn_line" | grep -qF -- "-k" \
+            && pass "respawn-pane uses -k flag to kill existing process" \
+            || fail "respawn-pane uses -k flag to kill existing process (not found in: $respawn_line)"
+        assert_contains "$respawn_line" "%0" \
+            "respawn-pane targets the current TMUX_PANE"
+        assert_contains "$respawn_line" "opencode" \
+            "respawn-pane launches opencode"
+        assert_not_contains "$respawn_line" "openchad" \
+            "respawn-pane does not recurse into openchad"
+        assert_not_contains "$respawn_line" "new-session" \
+            "respawn-pane does not create a new tmux session"
+    else
+        fail "tmux log not created — respawn-pane not called"
+        fail "tmux log not created — cannot check -k flag"
+        fail "tmux log not created — cannot check pane target"
+        fail "tmux log not created — cannot check opencode launch"
+        fail "tmux log not created — cannot check openchad recursion guard"
+        fail "tmux log not created — cannot check new-session guard"
+    fi
+    teardown_tmp_env
+}
+
+test_restart_calls_respawn_pane_with_kill_flag
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 

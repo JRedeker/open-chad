@@ -71,6 +71,10 @@ lib/
                             tmux theme block, shell profile blocks via manifest
   openchad_metrics.sh       `openchad metrics` handler — show/log/export system metrics
   openchad_changelog.sh     `openchad changelog` handler — git log since last tag
+  openchad_restart.sh       `openchad restart` handler — restarts OpenCode in the
+                            current tmux pane via `tmux respawn-pane -k`. Guards:
+                            must be in tmux, TMUX_PANE set, session name oc-*.
+                            Preserves cwd via #{pane_current_path} with safe fallback.
   setup_adv.sh              ADV plugin installer — always pulls latest HEAD.
                             Modes: latest (default), offline.
                             Two-tier fallback: network clone/build -> bundled command docs.
@@ -346,6 +350,17 @@ openchad doctor (Section 5 — Vision daemon)
   ├─ checks vision binary on PATH
   ├─ vision daemon status
   └─ curl --max-time 2 health checks on all 4 MCP ports
+```
+
+### Restart (In-Place Reload)
+
+```
+openchad restart (or /open-chad-restart slash command)
+  ├─ Guard 1: TMUX env var set (must be inside tmux)
+  ├─ Guard 2: TMUX_PANE env var set (identifies target pane)
+  ├─ Guard 3: session name matches oc-* (openchad session only)
+  ├─ Resolve cwd: #{pane_current_path} → $PWD → $HOME → /
+  └─ exec tmux respawn-pane -k -t "$TMUX_PANE" -c "$cwd" "opencode"
 ```
 
 ---

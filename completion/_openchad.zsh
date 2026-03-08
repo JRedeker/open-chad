@@ -57,6 +57,7 @@ _openchad() {
                 'metrics:Show or log system metrics'
                 'changelog:Show git log since last tag'
                 'discord:Manage Discord Rich Presence'
+                'restart:Restart OpenCode in current pane to reload config'
             )
             # Also offer project names from ~/dev with a description
             local project_names=()

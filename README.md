@@ -145,7 +145,7 @@ A terminal UI for managing OpenCode model preferences — switch models, set def
 - Popup runs from the active pane directory and launches `omp` through your shell login context for parity with terminal invocation.
 - Override the popup binary path with `OPEN_CHAD_OMP_BIN` if needed (e.g. `export OPEN_CHAD_OMP_BIN="$HOME/.local/bin/omp"`).
 - Requires tmux `>=3.2` for popup support. On older tmux versions, `prefix+m` shows a fallback hint.
-- Preference changes apply on the next OpenCode agent/command invocation — no restart needed.
+- Preference changes apply on the next OpenCode agent/command invocation. To reload immediately, run `openchad restart`.
 
 ![omp model preferences](ompscreenshot.png)
 
@@ -247,6 +247,18 @@ openchad update
 ```
 
 Pulls latest changes and re-runs all setup modules. Safe to run anytime.
+
+### Restart OpenCode
+
+After changing model preferences (`omp`), MCP servers, or instruction files, restart OpenCode in the current pane to reload everything:
+
+```bash
+openchad restart
+```
+
+Or use the slash command inside OpenCode: `/open-chad-restart`
+
+This restarts OpenCode in-place — same tmux session, same pane, same working directory. No new session is created. v1 scope: preserves pane/session/cwd only, not original launch arguments.
 
 ### Verify
 

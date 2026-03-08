@@ -1212,6 +1212,23 @@ test_openchad_help_mentions_all_subcommands() {
     echo "$output" | grep -q 'version' && pass "bin/openchad --help mentions 'version'" || fail "bin/openchad --help missing 'version'"
     echo "$output" | grep -q 'doctor' && pass "bin/openchad --help mentions 'doctor'" || fail "bin/openchad --help missing 'doctor'"
     echo "$output" | grep -q 'uninstall' && pass "bin/openchad --help mentions 'uninstall'" || fail "bin/openchad --help missing 'uninstall'"
+    echo "$output" | grep -q 'restart' && pass "bin/openchad --help mentions 'restart'" || fail "bin/openchad --help missing 'restart'"
+}
+
+test_openchad_routes_restart() {
+    if grep -qE '"restart"|= "restart"|^[[:space:]]*restart\)' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: 'restart' subcommand routing present"
+    else
+        fail "bin/openchad: 'restart' subcommand routing missing"
+    fi
+}
+
+test_openchad_restart_routes_to_handler() {
+    if grep -q 'openchad_restart\.sh' "$REPO_DIR/bin/openchad" 2>/dev/null; then
+        pass "bin/openchad: restart routes to openchad_restart.sh"
+    else
+        fail "bin/openchad: restart does not route to openchad_restart.sh"
+    fi
 }
 
 test_openchad_routes_update
@@ -1219,6 +1236,8 @@ test_openchad_routes_discord
 test_openchad_routes_version
 test_openchad_routes_doctor
 test_openchad_routes_uninstall
+test_openchad_routes_restart
+test_openchad_restart_routes_to_handler
 test_openchad_help_mentions_all_subcommands
 
 section "lib/update.sh — PATH setup (v1.1)"
@@ -1277,6 +1296,32 @@ test_doctor_handler_syntax_ok() {
 
 test_doctor_handler_exists
 test_doctor_handler_syntax_ok
+
+section "lib/openchad_restart.sh — restart subcommand handler"
+
+test_restart_handler_exists() {
+    if [ -f "$REPO_DIR/lib/openchad_restart.sh" ]; then
+        pass "lib/openchad_restart.sh exists"
+    else
+        fail "lib/openchad_restart.sh missing"
+    fi
+}
+
+test_restart_handler_syntax_ok() {
+    bash -n "$REPO_DIR/lib/openchad_restart.sh" 2>/dev/null && pass "lib/openchad_restart.sh syntax OK" || fail "lib/openchad_restart.sh syntax error"
+}
+
+test_restart_handler_uses_respawn_pane() {
+    if grep -q 'respawn-pane' "$REPO_DIR/lib/openchad_restart.sh" 2>/dev/null; then
+        pass "lib/openchad_restart.sh uses respawn-pane"
+    else
+        fail "lib/openchad_restart.sh missing respawn-pane"
+    fi
+}
+
+test_restart_handler_exists
+test_restart_handler_syntax_ok
+test_restart_handler_uses_respawn_pane
 
 section "lib/openchad_uninstall.sh — uninstall subcommand handler"
 

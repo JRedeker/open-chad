@@ -44,6 +44,10 @@ case "${1:-}" in
         shift
         exec bash "$LIB_DIR/openchad_changelog.sh" "${@:-}"
         ;;
+    restart)
+        shift
+        exec bash "$LIB_DIR/openchad_restart.sh" "${@:-}"
+        ;;
 esac
 
 usage() {
@@ -62,6 +66,7 @@ Commands:
   uninstall        Remove openchad symlinks, tmux theme block, shell profile block
   metrics log      Append timestamped metrics reading to history
   metrics export   Print current metrics as JSON
+  restart          Restart OpenCode in the current pane (reload config/model prefs)
   changelog        Show git log since last tag
   changelog latest Show last tag release notes
   discord enable   Enable Discord Rich Presence (first-run wizard)

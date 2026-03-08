@@ -276,10 +276,22 @@ test_setup_shell_profile_wires_bash_completion() {
     grep -q 'openchad.bash\|completion' "$HELPER" && pass "setup_shell_profile.sh wires completions" || fail "setup_shell_profile.sh does not wire completions"
 }
 
+test_bash_completion_includes_restart() {
+    local comp_file="$REPO_DIR/completion/openchad.bash"
+    grep -q 'restart' "$comp_file" 2>/dev/null && pass "bash completion includes restart subcommand" || fail "bash completion missing restart subcommand"
+}
+
+test_zsh_completion_includes_restart() {
+    local comp_file="$REPO_DIR/completion/_openchad.zsh"
+    grep -q 'restart' "$comp_file" 2>/dev/null && pass "zsh completion includes restart subcommand" || fail "zsh completion missing restart subcommand"
+}
+
 test_bash_completion_exists
 test_zsh_completion_exists
 test_bash_completion_covers_openchad_and_oc
 test_zsh_completion_covers_subcommands
+test_bash_completion_includes_restart
+test_zsh_completion_includes_restart
 test_setup_shell_profile_wires_bash_completion
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
