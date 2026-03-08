@@ -7,7 +7,7 @@ tools:
   # === BLOCKED: Destructive write tools ===
   write: false
   patch: false
-  morph_edit: false
+  morph_edit: true
   task: false
   # === ALLOWED: Read + build/test execution ===
   bash: true
@@ -53,6 +53,14 @@ When you need to inspect repository code before or after a failing command, use 
 2. **Symbol lookup** — `lgrep_search_symbols`
 3. **Exact text/regex lookup** — `lgrep_search_text` or `grep`
 4. **Known file inspection** — `read`
+
+## Editing Tool Priority
+
+When you need to patch an existing file to resolve a build or test failure:
+
+1. **Large, scattered, or whitespace-sensitive edits** — `morph_edit`
+2. **Small exact replacements** — `edit`
+3. **New files** — `write` only when truly necessary
 
 ## Output Format
 
