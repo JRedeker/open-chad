@@ -39,6 +39,7 @@ lib/
   animation.sh              Boot animation — centered logo, 6-frame color cycling,
                             typewriter subtitle, project context. True-color ANSI.
   theme.conf                Tmux theme — 2-row ayu-dark layout, sourced by ~/.tmux.conf
+  theme-light.conf          Tmux theme — 2-row ayu-light layout (opt-in secondary theme)
   pane_border.sh            Per-session randomized pane border — picks a color from the
                             agent palette and a decorative glyph pattern using the session
                             name hash (same djb2 technique as status_edges.sh)
@@ -152,7 +153,8 @@ config/
                             a "Navigating to the New Worktree Tab" section with tmux
                             keybinds (Ctrl+b n/l/w, oc switch) emitted by the agent
                             after every worktree_create.
-    themes/ayu-dark.json    OpenCode color theme
+    themes/ayu-dark.json    OpenCode color theme (default)
+    themes/ayu-light.json   OpenCode color theme (opt-in light variant)
 
 Makefile                    Project task runner — install, test, verify, update, clean, uninstall
 
@@ -161,7 +163,7 @@ tests/
   session_title_test.sh     31 tests — SQLite correlation, no-fallback, filtering, format
   llm_fuel_test.sh          80 tests — gauge rendering, API parsing, toggle, dynamic providers,
                             active_providers robustness, ordering
-  install_test.sh           183 tests — idempotency, flags, file creation, MCP regression,
+  install_test.sh           208 tests — idempotency, flags, file creation, MCP regression,
                             openchad/oc manifest, rename regression, sandbox infrastructure
   installer_validation_test.sh  148 tests — error paths, wizard flags, MCP schema/enabled/disabled,
                             dev bundle config, subcommand routing, handler files, agent colors
@@ -442,7 +444,7 @@ bash tests/worktree_hint_parity_test.sh
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `install_test.sh` | 183 | Idempotency, flags, file creation, MCP regression, openchad/oc manifest, sandbox infrastructure |
+| `install_test.sh` | 208 | Idempotency, flags, file creation, MCP regression, openchad/oc manifest, sandbox infrastructure |
 | `llm_fuel_test.sh` | 80 | Gauge rendering, API parsing, toggle, dynamic providers, active_providers robustness |
 | `animation_test.sh` | 39 | Centering math, palette, phases, regression guards |
 | `session_title_test.sh` | 31 | SQLite correlation, no-fallback, filtering, format |
@@ -459,7 +461,7 @@ bash tests/worktree_hint_parity_test.sh
 | `oc_launch_test.sh` | 36 | oc alias resolution, subcommand forwarding, edge cases |
 | `vision_test.sh` | 51 | Vision daemon setup, singleton startup, port health, doctor checks, wizard/update/uninstall wiring, security |
 | `worktree_hint_parity_test.sh` | 2 | Worktree navigation hint parity across docs |
-| **Total** | **833** | |
+| **Total** | **858** | |
 
 ### Testing conventions
 

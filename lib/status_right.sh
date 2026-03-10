@@ -22,6 +22,8 @@ cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
 source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 session_name="${1:-default}"
+muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
 
 # --- Color thresholds ---
 _color_for_pct() {
@@ -40,7 +42,7 @@ _render_provider() {
     local label="$1"
     local cache_file="$2"
     local val=""
-    local color="#626d7a"   # comment gray — default (no data)
+    local color="$muted_fg"   # comment gray — default (no data)
     local display="--"
 
     if [ -f "$cache_file" ]; then
@@ -100,7 +102,7 @@ _multi_gauge_enabled() {
 }
 
 # --- System resources (CPU / RAM / Load) ---
-sep='#[fg=#1B1F29] │ '
+sep="#[fg=${border_fg}] │ "
 
 _render_resources() {
     local cache="${OPEN_CHAD_CACHE_DIR}/metrics"
@@ -115,12 +117,12 @@ _render_resources() {
         local sessions
         sessions=$(cat "$sessions_cache" 2>/dev/null || true)
         if [[ "${sessions:-}" =~ ^[0-9]+$ ]]; then
-            sessions_segment="#[fg=#626d7a]Sess ${sessions}${sep}"
+            sessions_segment="#[fg=${muted_fg}]Sess ${sessions}${sep}"
         fi
     fi
 
-    printf '%s#[fg=#626d7a]CPU %s%%%s#[fg=#626d7a]RAM %s%%%s#[fg=#626d7a]Load %s' \
-        "$sessions_segment" "$cpu" "$sep" "$ram" "$sep" "$load"
+    printf '%s#[fg=%s]CPU %s%%%s#[fg=%s]RAM %s%%%s#[fg=%s]Load %s' \
+        "$sessions_segment" "$muted_fg" "$cpu" "$sep" "$muted_fg" "$ram" "$sep" "$muted_fg" "$load"
 }
 
 # --- Multi-provider gauge ---

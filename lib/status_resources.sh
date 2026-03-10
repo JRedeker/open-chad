@@ -18,6 +18,8 @@ cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
 source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 CACHE="${OPEN_CHAD_CACHE_DIR}/metrics"
+muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
 
 [ -f "$CACHE" ] || exit 0
 
@@ -32,7 +34,8 @@ if [ -f "$SESSIONS_CACHE" ]; then
 fi
 
 if [[ "${sessions:-}" =~ ^[0-9]+$ ]]; then
-    printf '#[fg=#626d7a]Sess %s #[fg=#1B1F29]│ ' "$sessions"
+    printf '#[fg=%s]Sess %s #[fg=%s]│ ' "$muted_fg" "$sessions" "$border_fg"
 fi
 
-printf '#[fg=#626d7a]CPU %s%% #[fg=#1B1F29]│ #[fg=#626d7a]RAM %s%% #[fg=#1B1F29]│ #[fg=#626d7a]Load %s' "$cpu" "$ram" "$load"
+printf '#[fg=%s]CPU %s%% #[fg=%s]│ #[fg=%s]RAM %s%% #[fg=%s]│ #[fg=%s]Load %s' \
+    "$muted_fg" "$cpu" "$border_fg" "$muted_fg" "$ram" "$border_fg" "$muted_fg" "$load"

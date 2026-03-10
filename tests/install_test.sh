@@ -595,10 +595,51 @@ test_setup_opencode_is_idempotent() {
     teardown_tmp_env
 }
 
+test_setup_opencode_syncs_themes() {
+    setup_tmp_env
+    run_setup_opencode_sandboxed --skip-commands
+
+    assert_file_exists "$TMP_HOME/.config/opencode/themes/ayu-dark.json"
+    assert_file_exists "$TMP_HOME/.config/opencode/themes/ayu-light.json"
+
+    # Verify ayu-light.json is valid JSON with expected light background
+    if node -e "
+const c=JSON.parse(require('fs').readFileSync('$TMP_HOME/.config/opencode/themes/ayu-light.json','utf8'));
+const bg=c.defs[c.theme.background.dark]||c.theme.background.dark;
+process.exit(bg==='#FCFCFC'?0:1);
+" 2>/dev/null; then
+        pass "setup_opencode.sh: ayu-light.json has light background (#FCFCFC) in dark variant"
+    else
+        fail "setup_opencode.sh: ayu-light.json missing or wrong background in dark variant"
+    fi
+    teardown_tmp_env
+}
+
+test_light_theme_wires_tmui_palette_env() {
+    assert_file_exists "$REPO_DIR/lib/theme-light.conf"
+    assert_contains "$REPO_DIR/lib/theme-light.conf" "OPEN_CHAD_THEME_BG '#FCFCFC'"
+    assert_contains "$REPO_DIR/lib/theme-light.conf" "OPEN_CHAD_THEME_TEXT_FG '#5C6166'"
+    assert_contains "$REPO_DIR/lib/theme-light.conf" "OPEN_CHAD_THEME_MUTED_FG '#ABB0B6'"
+    assert_contains "$REPO_DIR/lib/theme-light.conf" "OPEN_CHAD_THEME_BORDER_FG '#D8D8D8'"
+    assert_contains "$REPO_DIR/lib/theme-light.conf" "OPEN_CHAD_THEME_TITLE_FG '#5C6166'"
+}
+
+test_status_helpers_respect_theme_env() {
+    assert_contains "$REPO_DIR/lib/status_left.sh" 'OPEN_CHAD_THEME_BG'
+    assert_contains "$REPO_DIR/lib/status_left.sh" 'OPEN_CHAD_THEME_TEXT_FG'
+    assert_contains "$REPO_DIR/lib/status_right.sh" 'OPEN_CHAD_THEME_MUTED_FG'
+    assert_contains "$REPO_DIR/lib/status_right.sh" 'OPEN_CHAD_THEME_BORDER_FG'
+    assert_contains "$REPO_DIR/lib/session_title.sh" 'OPEN_CHAD_THEME_TITLE_FG'
+    assert_contains "$REPO_DIR/lib/pane_border.sh" 'OPEN_CHAD_THEME_BORDER_FG'
+}
+
 test_setup_opencode_syncs_adv_commands
 test_setup_opencode_syncs_agents
 test_setup_opencode_syncs_instructions
 test_setup_opencode_is_idempotent
+test_setup_opencode_syncs_themes
+test_light_theme_wires_tmui_palette_env
+test_status_helpers_respect_theme_env
 
 test_setup_opencode_wires_md_table_formatter() {
     setup_tmp_env

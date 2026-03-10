@@ -389,6 +389,36 @@ Valid IDs: `zai`, `copilot`, `claude`, `codex`.
 
 To disable the gauge entirely: `export OPEN_CHAD_MULTI_GAUGE=0`
 
+### Light Theme (ayu-light)
+
+An opt-in light theme is bundled for users who prefer light-colored chat/input areas and tmux status bars.
+
+**OpenCode chat/input area:**
+
+```bash
+# In OpenCode, run:
+/theme ayu-light
+
+# Or set permanently in ~/.config/opencode/opencode.json:
+# "theme": "ayu-light"
+```
+
+**Tmux status bars:**
+
+Replace the theme source line in `~/.tmux.conf`:
+
+```bash
+# Change this:
+source-file ~/dev/open-chad/lib/theme.conf
+
+# To this:
+source-file ~/dev/open-chad/lib/theme-light.conf
+```
+
+Then reload: `tmux source-file ~/.tmux.conf`
+
+To revert, switch back to `ayu-dark` in OpenCode and restore `theme.conf` in tmux.
+
 ### omp Popup Size
 
 The `Ctrl+b m` popup defaults to 80%×80% of your terminal. Override per-session or in your shell profile:

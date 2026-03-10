@@ -21,6 +21,7 @@ pane_path="${1:-}"
 session_name="${2:-default}"
 pane_active="${3:-0}"
 pane_width="${4:-120}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
 
 # Resolve repo name (shared by active and inactive paths)
 repo_name=""
@@ -30,7 +31,7 @@ fi
 
 # --- Inactive pane: dim, no decoration ---
 if [ "$pane_active" != "1" ]; then
-    printf '#[fg=#1B1F29]   %s   ' "$repo_name"
+    printf '#[fg=%s]   %s   ' "$border_fg" "$repo_name"
     exit 0
 fi
 

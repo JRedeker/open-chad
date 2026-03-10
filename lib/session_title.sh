@@ -63,4 +63,6 @@ if launch_epoch:
 
 [ -z "$title" ] && exit 0
 
-printf '#[bold,fg=#BFBDB6]%s' "$title"
+title_fg="${OPEN_CHAD_THEME_TITLE_FG:-#BFBDB6}"
+
+printf '#[bold,fg=%s]%s' "$title_fg" "$title"
