@@ -317,46 +317,24 @@ for src in "$BUNDLE_AGENTS_DIR"/*.md; do
     _copy_agent "$src" "$dest" "agent"
 done
 
-# ─── 2. Sync ADV command files ─────────────────────────────────────────────────
-# ADV has used two layouts across versions:
-#   legacy:  plugin/commands/
-#   current: .opencode/command/
-# Try current layout first, fall back to legacy.
-if [ "$SKIP_COMMANDS" -eq 0 ]; then
-    ADV_COMMANDS_DIR=""
-    if [ -d "$ADV_CHECKOUT_DIR/.opencode/command" ]; then
-        ADV_COMMANDS_DIR="$ADV_CHECKOUT_DIR/.opencode/command"
-    elif [ -d "$ADV_CHECKOUT_DIR/plugin/commands" ]; then
-        ADV_COMMANDS_DIR="$ADV_CHECKOUT_DIR/plugin/commands"
-    fi
-
-    if [ -n "$ADV_COMMANDS_DIR" ]; then
-        step "Syncing ADV commands from $ADV_COMMANDS_DIR -> $DEST_COMMANDS_DIR"
-        mkdir -p "$DEST_COMMANDS_DIR"
-        for src in "$ADV_COMMANDS_DIR"/*.md; do
-            dest="$DEST_COMMANDS_DIR/$(basename "$src")"
-            _copy_if_regular "$src" "$dest" "command"
-        done
+# ─── 2. Delegate ADV asset sync to advance's own updater ───────────────────────
+# ADV manages its own commands, agents, skills, and opencode.json entries
+# via scripts/sync-global.sh. We invoke it here instead of duplicating the logic.
+if [ "$SKIP_COMMANDS" -eq 0 ] && [ -d "$ADV_CHECKOUT_DIR" ]; then
+    ADV_SYNC_SCRIPT="$ADV_CHECKOUT_DIR/scripts/sync-global.sh"
+    if [ -x "$ADV_SYNC_SCRIPT" ] || [ -f "$ADV_SYNC_SCRIPT" ]; then
+        step "Delegating ADV asset sync to $ADV_SYNC_SCRIPT --fix"
+        bash "$ADV_SYNC_SCRIPT" --fix
+        ok "ADV sync complete (delegated to advance)"
     else
-        # Two-tier fallback: network checkout -> bundled config/opencode/command/
-        BUNDLED_CMD_DIR="$REPO_DIR/config/opencode/command"
-        if [ -d "$BUNDLED_CMD_DIR" ] && ls "$BUNDLED_CMD_DIR"/adv-*.md &>/dev/null 2>&1; then
-            warn "ADV checkout not found — using bundled command docs (offline fallback)"
-            step "Syncing bundled ADV commands from $BUNDLED_CMD_DIR -> $DEST_COMMANDS_DIR"
-            mkdir -p "$DEST_COMMANDS_DIR"
-            for src in "$BUNDLED_CMD_DIR"/adv-*.md; do
-                dest="$DEST_COMMANDS_DIR/$(basename "$src")"
-                _copy_if_regular "$src" "$dest" "command (bundled)"
-            done
-        else
-            warn "ADV commands directory not found in $ADV_CHECKOUT_DIR"
-            warn "Checked: .opencode/command and plugin/commands"
-            warn "Bundled fallback also unavailable: $BUNDLED_CMD_DIR"
-            warn "Run setup_adv.sh first, or use --skip-commands flag."
-        fi
+        warn "ADV sync script not found at $ADV_SYNC_SCRIPT"
+        warn "Run 'cd $ADV_CHECKOUT_DIR && ./scripts/sync-global.sh --fix' manually"
     fi
+elif [ "$SKIP_COMMANDS" -eq 0 ]; then
+    warn "ADV checkout not found at $ADV_CHECKOUT_DIR — skipping ADV sync"
+    warn "Set ADV_CHECKOUT_DIR or run advance's sync-global.sh manually"
 else
-    warn "Skipping ADV command sync (--skip-commands)"
+    warn "Skipping ADV sync (--skip-commands)"
 fi
 
 # ─── 2a-ii. Sync open-chad's own commands (non-ADV) ──────────────────────────
@@ -370,25 +348,13 @@ if [ -d "$_OC_CMD_DIR" ]; then
     done
 fi
 
-# ─── 2b. Sync ADV agent files (e.g. adv-researcher.md) ────────────────────────
-# ADV ships its own sub-agent definitions in .opencode/agents/.
-# When the checkout is present, prefer upstream versions over bundled fallbacks.
-ADV_AGENTS_DIR="$ADV_CHECKOUT_DIR/.opencode/agents"
-if [ -d "$ADV_AGENTS_DIR" ]; then
-    step "Syncing ADV agents from $ADV_AGENTS_DIR -> $DEST_AGENTS_DIR"
-    for src in "$ADV_AGENTS_DIR"/*.md; do
-        dest="$DEST_AGENTS_DIR/$(basename "$src")"
-        _copy_agent "$src" "$dest" "agent (adv)"
-    done
-fi
-
 # Persisted primary agent accent colors always win over bundled defaults.
 _apply_primary_agent_colors
 
 # ─── 3. Sync instruction files ────────────────────────────────────────────────
 step "Syncing instruction files -> $DEST_INSTRUCTIONS_DIR"
 mkdir -p "$DEST_INSTRUCTIONS_DIR"
-for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
+for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml criteria-prioritizer.md; do
     src="$BUNDLE_INSTRUCTIONS_DIR/$filename"
     dest="$DEST_INSTRUCTIONS_DIR/$filename"
     if [ -f "$src" ]; then
@@ -430,7 +396,7 @@ fi
 step "Wiring instructions and theme into $OPENCODE_JSON"
 
 INSTRUCTIONS_JSON="[$(
-    for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml post_install_verification.md; do
+    for filename in shell_strategy.md lbp.md temp_directory.md identity.md rules.yaml; do
         dest="$DEST_INSTRUCTIONS_DIR/$filename"
         # Use ~ expansion-safe path
         dest_display="${dest/#$HOME/\~}"
