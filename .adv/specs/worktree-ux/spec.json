@@ -3,64 +3,66 @@
   "name": "worktree-ux",
   "title": "Worktree Ux",
   "purpose": "Capability: Worktree Ux",
-  "version": "1.0.0",
-  "updated_at": "2026-02-26T17:22:54.516Z",
+  "version": "2.0.0",
+  "updated_at": "2026-03-17T00:00:00.000Z",
   "requirements": [
     {
       "id": "rq-wt-ux.1",
-      "title": "Agent emits tmux navigation hint immediately after worktree_create succeeds",
-      "body": "When the ADV agent creates a git worktree via worktree_create, it must immediately emit a navigation hint block telling the user how to reach the new tmux window. The hint must include: Ctrl+b n (next window), Ctrl+b l (last window), Ctrl+b w (interactive chooser), and oc switch (session switcher). The hint must appear before the agent continues inline implementation.",
+      "title": "Worktree creation defaults to inline mode",
+      "body": "When the worktree plugin creates a git worktree via worktree_create, it must default to inline mode: no new terminal or tmux window is opened. The agent continues in the same session, using the returned worktree path as workdir for all subsequent tool calls. Projects can opt out by setting \"inline\": false in .opencode/worktree.jsonc.",
       "priority": "must",
       "scenarios": [
         {
           "id": "sc-wt-ux.1.1",
-          "title": "Navigation hint emitted after successful worktree_create",
+          "title": "Inline worktree creation returns path for workdir usage",
           "given": [
             "An ADV change is active",
-            "The agent calls worktree_create and it succeeds",
-            "A new tmux window may have opened for the worktree"
+            "The worktree plugin has inline: true (default)",
+            "The agent calls worktree_create and it succeeds"
           ],
           "when": "The agent continues with implementation",
           "then": [
-            "The agent emits a navigation hint block before any further tool calls",
-            "The hint includes Ctrl+b n, Ctrl+b l, Ctrl+b w, and oc switch",
-            "The hint states the worktree path and branch name",
-            "The hint states that implementation continues inline via workdir"
+            "No new terminal window or tmux window is opened",
+            "The tool returns the worktree path",
+            "The agent uses the returned path as workdir for all subsequent tool calls",
+            "The agent does not emit tmux navigation hints"
           ]
         },
         {
           "id": "sc-wt-ux.1.2",
-          "title": "Navigation hint wording is consistent across all sources",
+          "title": "Inline mode documentation is consistent across all sources",
           "given": [
-            "adv-apply.md in the ADV repo contains the navigation hint block",
-            "ADV_INSTRUCTIONS.md in the ADV repo contains the navigation hint block",
-            "skills/worktree/SKILL.md in openchad contains the navigation hint section",
+            "adv-apply.md in the ADV repo contains the worktree creation protocol",
+            "ADV_INSTRUCTIONS.md in the ADV repo contains the inline worktree protocol",
+            "skills/worktree/SKILL.md in openchad contains the inline mode section",
             "README.md in openchad contains the Worktree Flow section"
           ],
-          "when": "The canonical keybinds are compared across all four sources",
+          "when": "The inline mode guidance is compared across all four sources",
           "then": [
-            "All sources list the same four keybinds: Ctrl+b n, Ctrl+b l, Ctrl+b w, oc switch",
-            "No source references the non-existent oc window command"
+            "All sources describe inline mode as the default behavior",
+            "All sources instruct the agent to use the returned path as workdir",
+            "No source references tmux navigation hints as part of the default flow"
           ]
         }
       ]
     },
     {
       "id": "rq-wt-ux.2",
-      "title": "Worktree navigation guidance is documented in openchad user-facing docs",
-      "body": "openchad must document worktree navigation keybinds in both the worktree skill (skills/worktree/SKILL.md) and the user-facing README. The AGENTS.md developer reference must also note the navigation hint section.",
+      "title": "Worktree inline mode is documented in openchad user-facing docs",
+      "body": "openchad must document worktree inline mode behavior in both the worktree skill (skills/worktree/SKILL.md) and the user-facing README.",
       "priority": "must",
       "scenarios": [
         {
           "id": "sc-wt-ux.2.1",
-          "title": "worktree skill contains Navigating to the New Worktree Tab section",
+          "title": "worktree skill contains Inline Mode section",
           "given": [
             "config/opencode/skills/worktree/SKILL.md exists in the openchad repo"
           ],
           "when": "The file is read",
           "then": [
-            "A section titled 'Navigating to the New Worktree Tab' is present",
-            "The section contains a keybind table with Ctrl+b n, Ctrl+b l, Ctrl+b w, and oc switch"
+            "A section titled 'Inline Mode (Default)' is present",
+            "The section describes that no new terminal is opened",
+            "The section instructs using the returned path as workdir"
           ]
         },
         {
@@ -72,7 +74,7 @@
           "when": "The file is read",
           "then": [
             "A section titled 'Worktree Flow' is present",
-            "The section contains the four navigation keybinds"
+            "The section describes inline mode as the default behavior"
           ]
         }
       ]

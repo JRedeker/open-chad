@@ -382,7 +382,7 @@ git log --oneline {default-branch}..change/{change-id}
 Only run if currently in a `change/{change-id}` worktree AND Step 5 verified empty:
 
 ```
-worktree_delete reason: "Change {change-id} merged to {default-branch}"
+worktree_delete branch: "change/{change-id}" reason: "Change {change-id} merged to {default-branch}"
 ```
 
 **If `worktree_delete` is unavailable**: Emit `[ADV:INFO] worktree_delete not available — delete manually with: git worktree remove <path>`.

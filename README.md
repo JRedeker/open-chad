@@ -360,16 +360,9 @@ git push origin v1.2.3
 
 ### Worktree Flow
 
-When the ADV plugin creates a git worktree for an isolated change, openchad may open a new tmux window for it. The agent continues working inline — but you can navigate to the new tab with:
+Worktrees default to **inline mode**: when the agent creates a worktree via `worktree_create`, no new terminal or tmux window is opened. The agent continues in the same session, using the worktree path as `workdir` for all subsequent tool calls.
 
-| Key | Action |
-|-----|--------|
-| `Ctrl+b n` | Next tmux window |
-| `Ctrl+b l` | Last (previously active) window |
-| `Ctrl+b w` | Interactive window chooser |
-| `oc switch` | Switch between openchad sessions |
-
-The agent emits this hint automatically after every `worktree_create` so you never have to remember the keybinds.
+To restore the old behavior (new tmux window with a separate OpenCode instance), set `"inline": false` in your project's `.opencode/worktree.jsonc`.
 
 ---
 

@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # tests/worktree_hint_parity_test.sh
-# Verifies that the worktree navigation hint block is identical across all sources.
+# Verifies that worktree inline mode documentation is consistent across all sources.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-# We need to check:
-# 1. openchad: config/opencode/skills/worktree/SKILL.md
-# 2. openchad: README.md
-# 3. ADV: .opencode/command/adv-apply.md (if available)
-# 4. ADV: ADV_INSTRUCTIONS.md (if available)
 
 _passes=0
 _fails=0
@@ -19,38 +13,43 @@ _fails=0
 pass() { echo -e "\e[32m  PASS:\e[0m $1"; _passes=$((_passes + 1)); }
 fail() { echo -e "\e[31m  FAIL:\e[0m $1"; _fails=$((_fails + 1)); }
 
-echo "── Worktree Navigation Hint Parity ──"
+echo "── Worktree Inline Mode Documentation Parity ──"
 
-# The canonical keybinds that must be present
-REQUIRED_BINDS=("Ctrl+b n" "Ctrl+b l" "Ctrl+b w" "oc switch")
+# The canonical phrases that must be present in inline mode docs
+REQUIRED_PHRASES=("inline" "workdir")
+
+# Phrases that should NOT appear in the default worktree flow
+DEPRECATED_PHRASES=("Ctrl+b n" "Ctrl+b l" "oc window")
 
 check_file() {
     local file="$1"
     local name="$2"
-    
+
     if [ ! -f "$file" ]; then
         echo "  SKIP: $name not found"
         return
     fi
-    
+
     local content
     content=$(cat "$file")
-    
+
     local missing=0
-    for bind in "${REQUIRED_BINDS[@]}"; do
-        if ! echo "$content" | grep -q "$bind"; then
-            fail "$name is missing keybind: $bind"
+    for phrase in "${REQUIRED_PHRASES[@]}"; do
+        if ! echo "$content" | grep -qi "$phrase"; then
+            fail "$name is missing required phrase: $phrase"
             missing=1
         fi
     done
-    
-    if echo "$content" | grep -q "oc window"; then
-        fail "$name contains deprecated 'oc window' command"
-        missing=1
-    fi
-    
+
+    for phrase in "${DEPRECATED_PHRASES[@]}"; do
+        if echo "$content" | grep -q "$phrase"; then
+            fail "$name contains deprecated phrase: $phrase"
+            missing=1
+        fi
+    done
+
     if [ "$missing" -eq 0 ]; then
-        pass "$name contains all canonical navigation keybinds"
+        pass "$name has correct inline mode documentation"
     fi
 }
 

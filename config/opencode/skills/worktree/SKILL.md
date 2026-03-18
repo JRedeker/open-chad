@@ -28,9 +28,8 @@ Use `worktree_create` when:
 ## Behavior
 
 - Default flow is inline: create worktree, then continue in the same agent session
-- After creation, use the returned worktree path as `workdir` for subsequent tool calls
-- Starting a separate tmux/OpenCode session is optional fallback for explicit multi-session workflows
-- On delete, all changes are auto-committed before cleanup
+- **CRITICAL: After creation, you MUST immediately switch ALL tool calls to use the returned worktree path as `workdir`.** Do not run any more commands against the original directory. This includes bash, read, edit, glob, grep — everything.
+- On delete, all changes are auto-committed before cleanup. Pass the `branch` arg to `worktree_delete`.
 - You can have multiple worktrees running simultaneously
 
 ## Post-Change Cleanup (Merge Before Delete)
@@ -78,7 +77,7 @@ git log --oneline trunk..change/{change-id}
 Only after merge is confirmed:
 
 ```bash
-worktree_delete reason: "Change {change-id} merged to default branch"
+worktree_delete branch: "change/{change-id}" reason: "Change {change-id} merged to default branch"
 ```
 
 ### Checklist
@@ -90,18 +89,18 @@ worktree_delete reason: "Change {change-id} merged to default branch"
 
 **If the merge is not yet complete, do NOT delete the worktree.** The worktree protects unmerged work from being lost.
 
-## Navigating to the New Worktree Tab
+## Inline Mode (Default)
 
-When a worktree is created, openchad may open a new tmux window for it. The agent continues working inline via `workdir` — but you can inspect the worktree directly using these keybinds:
+Worktrees default to **inline mode**: no new terminal or tmux window is opened.
+After `worktree_create` succeeds, use the returned path as `workdir` for all
+subsequent tool calls (bash, read, edit, glob, grep, etc.).
 
-| Key | Action |
-|-----|--------|
-| `Ctrl+b n` | Next tmux window |
-| `Ctrl+b l` | Last (previously active) window |
-| `Ctrl+b w` | Interactive window chooser |
-| `oc switch` | Switch between openchad sessions |
+When deleting an inline worktree, pass the `branch` argument to `worktree_delete`
+so the plugin knows which worktree to remove.
 
-The agent will emit this hint immediately after `worktree_create` succeeds so you always know how to reach the new tab.
+If a project sets `"inline": false` in `.opencode/worktree.jsonc`, the old
+behavior is restored (new tmux window / terminal tab with a separate OpenCode
+instance).
 
 ## Ask Only When Needed
 

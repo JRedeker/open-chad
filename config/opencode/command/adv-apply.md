@@ -135,37 +135,23 @@ If **declined**: skip to Phase 1.
 
 If **approved**, execute this exact sequence:
 
-1. **Emit navigation hint BEFORE creating the worktree** — `worktree_create` may open a new tmux window and shift focus, so the user must see navigation keys in the current window first:
-
-   ```
-   Creating worktree for change/{change-id}...
-
-   A new tmux tab may open. To navigate back here:
-     • Ctrl+b l          — last (previously active) window
-     • Ctrl+b n / p      — next / previous window
-     • Ctrl+b w          — interactive window chooser
-     • oc switch         — switch between openchad sessions
-
-   Implementation continues inline in this session via workdir.
-   ```
-
-2. **Create worktree**:
+1. **Create worktree**:
    ```
    worktree_create branch: "change/{change-id}"
    ```
 
-3. **Capture worktree path** from tool output and confirm:
+2. **Immediately switch workdir** — capture the returned worktree path and use it as `workdir` for ALL subsequent tool calls (bash, read, edit, glob, grep, etc.). Do not run any more commands against the original directory.
 
+3. **Confirm**:
    ```
    ✅ Worktree ready: {worktree-path}
    Branch: change/{change-id}
+   All subsequent commands will run in the worktree.
    ```
 
-4. **Switch to inline worktree execution** by setting `workdir` to the returned path for all subsequent tool calls.
+4. **Continue implementation in this same session**. Do not stop after worktree creation.
 
-5. **Continue implementation in this same session**. Do not stop after worktree creation.
-
-6. **Optional fallback**: If you are explicitly using multi-session workflow, you may use handoff and continue in a separate session.
+5. When deleting later, pass `branch: "change/{change-id}"` to `worktree_delete`.
 
 ---
 

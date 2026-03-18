@@ -4,6 +4,10 @@
   // Worktree plugin configuration
   // Documentation: https://github.com/kdcokenny/ocx
 
+  // Inline mode: agent works in the worktree via workdir instead of
+  // spawning a new terminal/tmux window with a separate OpenCode instance.
+  "inline": true,
+
   "sync": {
     // Files to copy from main worktree to new worktrees
     // Example: [".env", ".env.local", "dev.sqlite"]
