@@ -125,6 +125,26 @@ if [ "$NO_ANIM" -eq 0 ] && [ -t 1 ]; then
     "$LIB_DIR/animation.sh" "$target_dir" || true # Ignore interrupts
 fi
 
+# 1b. Reap stale oc-* tmux sessions (fire-and-forget, ~3ms)
+# Session names embed their creation epoch: oc-EPOCH-PID.
+# Kill unattached sessions older than 4 hours to reclaim memory from
+# orphaned opencode processes and their LSP children.
+_OC_STALE_AGE=${OC_STALE_AGE:-14400}  # 4 hours; override via env
+(
+    _now=$(date +%s)
+    tmux list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null \
+    | grep '^oc-' \
+    | while IFS=' ' read -r _sname _attached; do
+        [ "$_attached" != "0" ] && continue
+        _epoch=$(echo "$_sname" | cut -d- -f2)
+        if [ -n "$_epoch" ] && [ "$_epoch" -gt 0 ] 2>/dev/null; then
+            if [ $(( _now - _epoch )) -gt "$_OC_STALE_AGE" ]; then
+                tmux kill-session -t "$_sname" 2>/dev/null || true
+            fi
+        fi
+    done
+) &
+
 # 2. Ensure metrics collector is running (singleton)
 # Use atomic mkdir as a startup lock to prevent duplicate starts under concurrent
 # launches. Named metrics-start.lock (not metrics.lock) to avoid collision with
