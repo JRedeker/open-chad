@@ -181,6 +181,28 @@ test_cds_creates_today_dir
 test_cds_creates_explicit_date_dir
 test_cds_idempotent_dir_creation
 
+test_cds_initializes_git_repo() {
+    setup_tmp_env
+    local today
+    today=$(date +%Y-%m-%d)
+    _run_cds_with_fake_launcher || true
+    assert_dir_exists "$TMP_DIR/home/scratch/$today/.git"
+    teardown_tmp_env
+}
+
+test_cds_seeds_gitignore_and_agents() {
+    setup_tmp_env
+    local today
+    today=$(date +%Y-%m-%d)
+    _run_cds_with_fake_launcher || true
+    assert_file_exists "$TMP_DIR/home/scratch/$today/.gitignore"
+    assert_file_exists "$TMP_DIR/home/scratch/$today/AGENTS.md"
+    teardown_tmp_env
+}
+
+test_cds_initializes_git_repo
+test_cds_seeds_gitignore_and_agents
+
 # ─── Section 4: launch target resolution ─────────────────────────────────────
 
 section "bin/cds — launch target resolution"
@@ -198,15 +220,18 @@ test_cds_falls_back_to_path() {
 
 test_cds_errors_if_no_openchad() {
     setup_tmp_env
-    # Run cds with an empty PATH and no sibling (copy cds to a temp location without openchad sibling)
-    local isolated_bin="$TMP_DIR/isolated/cds"
-    mkdir -p "$(dirname "$isolated_bin")"
-    cp "$CDS_BIN" "$isolated_bin"
-    chmod +x "$isolated_bin"
+    # Stage an isolated copy of cds with the bundled templates/cds siblings so
+    # the repo_root/templates/cds lookup still resolves.
+    local isolated_root="$TMP_DIR/isolated"
+    mkdir -p "$isolated_root/bin" "$isolated_root/templates/cds"
+    cp "$CDS_BIN" "$isolated_root/bin/cds"
+    chmod +x "$isolated_root/bin/cds"
+    cp "$REPO_DIR/templates/cds/.gitignore" "$isolated_root/templates/cds/.gitignore"
+    cp "$REPO_DIR/templates/cds/AGENTS.md"  "$isolated_root/templates/cds/AGENTS.md"
 
     local output
     local rc=0
-    output=$(HOME="$TMP_DIR/home" PATH="/usr/bin:/bin" bash "$isolated_bin" 2>&1) || rc=$?
+    output=$(HOME="$TMP_DIR/home" PATH="/usr/bin:/bin" bash "$isolated_root/bin/cds" 2>&1) || rc=$?
     if [ "$rc" -ne 0 ]; then
         pass "cds exits non-zero when openchad not found"
     else
@@ -229,21 +254,23 @@ test_cds_passes_scratch_dir_to_launcher() {
     local today
     today=$(date +%Y-%m-%d)
 
-    # Copy cds to an isolated directory so its sibling lookup finds our fake openchad
-    local isolated_dir="$TMP_DIR/isolated_bin"
-    mkdir -p "$isolated_dir"
-    cp "$CDS_BIN" "$isolated_dir/cds"
-    chmod +x "$isolated_dir/cds"
+    # Stage an isolated copy with bundled templates so repo_root/templates/cds resolves.
+    local isolated_root="$TMP_DIR/isolated"
+    mkdir -p "$isolated_root/bin" "$isolated_root/templates/cds"
+    cp "$CDS_BIN" "$isolated_root/bin/cds"
+    chmod +x "$isolated_root/bin/cds"
+    cp "$REPO_DIR/templates/cds/.gitignore" "$isolated_root/templates/cds/.gitignore"
+    cp "$REPO_DIR/templates/cds/AGENTS.md"  "$isolated_root/templates/cds/AGENTS.md"
 
     # Fake openchad placed as sibling: records its arguments to a file
-    cat > "$isolated_dir/openchad" <<EOF
+    cat > "$isolated_root/bin/openchad" <<EOF
 #!/usr/bin/env bash
 echo "\$@" > "$TMP_DIR/openchad_args"
 exit 0
 EOF
-    chmod +x "$isolated_dir/openchad"
+    chmod +x "$isolated_root/bin/openchad"
 
-    HOME="$TMP_DIR/home" bash "$isolated_dir/cds" 2>/dev/null || true
+    HOME="$TMP_DIR/home" bash "$isolated_root/bin/cds" 2>/dev/null || true
 
     if [ -f "$TMP_DIR/openchad_args" ]; then
         local args

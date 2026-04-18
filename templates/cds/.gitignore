@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+
+# Rust
+target/
+
+# Artifacts
+*.log
+*.tmp

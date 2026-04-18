@@ -1,51 +1,155 @@
 #!/usr/bin/env bash
-# cds — Create Date-stamped Scratch directory and launch openchad
+# cds — Create a date-stamped scratch directory, initialize it as a git repo,
+# and launch openchad.
+#
+# Launch flow preserved from the original alias:
+#     mkdir -p ~/scratch/$(date +%Y-%m-%d) && cd ~/scratch/$(date +%Y-%m-%d) && openchad
+# This command now also initializes the dated folder as a git repo and seeds
+# .gitignore + AGENTS.md from templates/ the first time each daily repo is created.
+#
+# Canonical cds project: https://github.com/JRedeker/cds (open-chad ships its
+# own fork because it launches `openchad` instead of `opencode`).
 #
 # Usage:
-#   cds              Create ~/scratch/YYYY-MM-DD (today) and launch openchad
-#   cds 2026-01-15   Create ~/scratch/2026-01-15 and launch openchad
-#   cds --help       Show this help
+#   cds                          Create ~/scratch/YYYY-MM-DD (today) and launch
+#   cds 2026-01-15               Create ~/scratch/2026-01-15 and launch
+#   cds --no-launch              Create + cd without launching
+#   cds 2026-01-15 --no-launch   Explicit date, skip launcher
+#   cds --help | -h              Show this help
 #
 # Part of openchad. Installed to ~/.local/bin/cds by install.sh.
 
 set -euo pipefail
 
-# ─── Help ─────────────────────────────────────────────────────────────────────
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    cat <<EOF
-Usage: cds [date]
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEMPLATE_DIR="$REPO_ROOT/templates/cds"
 
-  cds              Create ~/scratch/YYYY-MM-DD (today) and launch openchad
-  cds 2026-01-15   Create ~/scratch/2026-01-15 and launch openchad
+print_usage() {
+    cat <<'EOF'
+Usage: cds [date] [--no-launch]
+       cds --help | -h
 
-Creates the scratch directory if it doesn't exist, changes into it,
-then launches openchad (the retro tmux launcher for OpenCode).
+  cds                     Create ~/scratch/YYYY-MM-DD (today), cd, launch openchad
+  cds 2026-01-15          Create ~/scratch/2026-01-15, cd, launch openchad
+  cds --no-launch         Create+enter today's scratch dir, skip launcher
+  cds DATE --no-launch    Create+enter specific date, skip launcher
+
+Flags and date arg may appear in any order. Date format: YYYY-MM-DD.
 EOF
-    exit 0
+}
+
+repo_exists() {
+    local dir="$1"
+
+    if [[ -e "$dir/.git" ]]; then
+        return 0
+    fi
+
+    command -v git >/dev/null 2>&1 || return 1
+    git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+seed_file_if_missing() {
+    local template="$1"
+    local dest="$2"
+
+    if [[ -e "$dest" ]]; then
+        return 0
+    fi
+
+    cp "$template" "$dest"
+}
+
+init_repo_if_needed() {
+    local dir="$1"
+
+    if repo_exists "$dir"; then
+        return 0
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        echo "ERROR: git not found on PATH" >&2
+        exit 1
+    fi
+
+    git -C "$dir" init -q
+}
+
+seed_daily_repo_files_if_needed() {
+    local dir="$1"
+
+    if [[ ! -f "$TEMPLATE_DIR/.gitignore" || ! -f "$TEMPLATE_DIR/AGENTS.md" ]]; then
+        echo "ERROR: cds templates missing in $TEMPLATE_DIR" >&2
+        exit 1
+    fi
+
+    seed_file_if_missing "$TEMPLATE_DIR/.gitignore" "$dir/.gitignore"
+    seed_file_if_missing "$TEMPLATE_DIR/AGENTS.md" "$dir/AGENTS.md"
+}
+
+# ─── Parse arguments ──────────────────────────────────────────────────────────
+
+NO_LAUNCH=
+DATE=
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            print_usage
+            exit 0
+            ;;
+        --no-launch)
+            NO_LAUNCH=1
+            shift
+            ;;
+        -*)
+            echo "ERROR: unknown flag: $1" >&2
+            echo "Run 'cds --help' for usage." >&2
+            exit 2
+            ;;
+        *)
+            if [[ -n "$DATE" ]]; then
+                echo "ERROR: multiple date arguments: '$DATE' and '$1'" >&2
+                exit 2
+            fi
+            DATE="$1"
+            shift
+            ;;
+    esac
+done
+
+# ─── Validate explicit date format ────────────────────────────────────────────
+
+if [[ -n "$DATE" && ! "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: invalid date format: $DATE (expected YYYY-MM-DD)" >&2
+    exit 2
 fi
 
-# ─── Date resolution ──────────────────────────────────────────────────────────
-DATE="${1:-$(date +%Y-%m-%d)}"
+# ─── Resolve target dir ───────────────────────────────────────────────────────
+
+DATE="${DATE:-$(date +%Y-%m-%d)}"
 SCRATCH_DIR="$HOME/scratch/$DATE"
 
-# ─── Create and enter scratch dir ─────────────────────────────────────────────
+# ─── Main flow ────────────────────────────────────────────────────────────────
+# mkdir -p -> init repo if needed -> seed .gitignore/AGENTS.md if missing -> cd -> exec openchad.
+# Under `set -e`, any step failure aborts before later steps run.
+
 mkdir -p "$SCRATCH_DIR"
+init_repo_if_needed "$SCRATCH_DIR"
+seed_daily_repo_files_if_needed "$SCRATCH_DIR"
 cd "$SCRATCH_DIR"
 
-echo "Launching openchad in $SCRATCH_DIR"
-
-# ─── Launch openchad ──────────────────────────────────────────────────────────
-# Prefer the sibling bin/openchad (works even if PATH isn't set up yet),
-# then fall back to PATH lookup.
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-OPENCHAD_BIN="$SCRIPT_DIR/openchad"
-
-if [[ -x "$OPENCHAD_BIN" ]]; then
-    exec "$OPENCHAD_BIN" "$SCRATCH_DIR"
-elif command -v openchad &>/dev/null; then
-    exec openchad "$SCRATCH_DIR"
-else
-    echo "ERROR: openchad not found. Is it installed?" >&2
-    echo "       Try: bash ~/dev/open-chad/install.sh" >&2
-    exit 1
+if [[ -z "$NO_LAUNCH" ]]; then
+    OPENCHAD_BIN="$SCRIPT_DIR/openchad"
+    if [[ -x "$OPENCHAD_BIN" ]]; then
+        exec "$OPENCHAD_BIN" "$SCRATCH_DIR"
+    elif command -v openchad &>/dev/null; then
+        exec openchad "$SCRATCH_DIR"
+    else
+        echo "ERROR: openchad not found. Is it installed?" >&2
+        echo "       Try: bash ~/dev/open-chad/install.sh" >&2
+        exit 1
+    fi
 fi
