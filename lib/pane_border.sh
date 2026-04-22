@@ -21,7 +21,7 @@ pane_path="${1:-}"
 session_name="${2:-default}"
 pane_active="${3:-0}"
 pane_width="${4:-120}"
-border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#3A3A3A}"
 
 # Resolve repo name (shared by active and inactive paths)
 repo_name=""

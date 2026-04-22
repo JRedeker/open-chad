@@ -38,7 +38,7 @@ fi
 
 if [ ${#parts[@]} -eq 2 ]; then
     # "EMOJI Word" — single label, no repo/change split
-    printf '#[fg=#AAD94C]▎ #[fg=#626d7a]%s %s #[fg=#AAD94C]▎ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "${parts[1]}"
+    printf '#[fg=#AAD94C]▎ #[fg=#BFBDB6]%s %s #[fg=#AAD94C]▎ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "${parts[1]}"
     exit 0
 fi
 
@@ -57,13 +57,13 @@ fi
 if [[ "$repo" =~ ^[A-Z] ]] || [ ${#parts[@]} -gt 3 ]; then
     # Multi-word label: "EMOJI Multi Word Label" → ▎ 📡 AGT ▎ Multi Provider Gauge
     label="${parts[*]:1}"
-    printf '#[fg=#AAD94C]▎ #[fg=#626d7a]%s %s #[fg=#AAD94C]▎ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "$label"
+    printf '#[fg=#AAD94C]▎ #[fg=#BFBDB6]%s %s #[fg=#AAD94C]▎ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "$label"
     exit 0
 fi
 
 # Standard: "EMOJI repo changeId" → ▎ 🚀 ADV ▎ repo / changeId
-printf '#[fg=#AAD94C]▎ #[fg=#626d7a]%s %s #[fg=#AAD94C]▎ #[fg=#626d7a]%s #[fg=#1B1F29]/ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "$repo" "$change"
+printf '#[fg=#AAD94C]▎ #[fg=#BFBDB6]%s %s #[fg=#AAD94C]▎ #[fg=#BFBDB6]%s #[fg=#3A3A3A]/ #[bold,fg=#BFBDB6]%s' "$emoji" "$state" "$repo" "$change"
 
 if [ -n "$extra" ]; then
-    printf ' #[nobold,fg=#626d7a]%s' "$extra"
+    printf ' #[nobold,fg=#BFBDB6]%s' "$extra"
 fi

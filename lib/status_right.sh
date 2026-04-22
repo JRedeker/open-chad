@@ -22,8 +22,8 @@ cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
 source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 session_name="${1:-default}"
-muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
-border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#2A2A2A}"
+muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#BFBDB6}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#3A3A3A}"
 
 # --- Color thresholds ---
 _color_for_pct() {
