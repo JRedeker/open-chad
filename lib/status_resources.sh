@@ -19,7 +19,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 CACHE="${OPEN_CHAD_CACHE_DIR}/metrics"
 muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
-border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#2A2A2A}"
 
 [ -f "$CACHE" ] || exit 0
 

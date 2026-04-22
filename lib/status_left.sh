@@ -24,9 +24,9 @@ branch=$(git -C "$path" branch --show-current 2>/dev/null) || true
 [ -z "$branch" ] && branch=$(git -C "$path" rev-parse --short HEAD 2>/dev/null) || true
 [ -z "$branch" ] && exit 0
 
-theme_bg="${OPEN_CHAD_THEME_BG:-#0D1017}"
+theme_bg="${OPEN_CHAD_THEME_BG:-#121212}"
 muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
-border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#2A2A2A}"
 text_fg="${OPEN_CHAD_THEME_TEXT_FG:-#BFBDB6}"
 
 printf '#[bg=%s,fg=%s]%s #[fg=%s]/ #[bold,fg=%s]%s' \

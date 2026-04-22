@@ -23,7 +23,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/opencode_env.sh"
 
 session_name="${1:-default}"
 muted_fg="${OPEN_CHAD_THEME_MUTED_FG:-#626d7a}"
-border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#1B1F29}"
+border_fg="${OPEN_CHAD_THEME_BORDER_FG:-#2A2A2A}"
 
 # --- Color thresholds ---
 _color_for_pct() {

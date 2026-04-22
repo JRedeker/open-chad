@@ -1,10 +1,10 @@
 {
   "$schema": "https://opencode.ai/theme.json",
   "defs": {
-    "ayuBg": "#0D1017",
-    "ayuEditorBg": "#10141C",
-    "ayuPanelBg": "#141821",
-    "ayuLine": "#161A24",
+    "ayuBg": "#121212",
+    "ayuEditorBg": "#171717",
+    "ayuPanelBg": "#1b1b1b",
+    "ayuLine": "#222222",
     "ayuFg": "#BFBDB6",
     "ayuUiFg": "#555E73",
     "ayuGutter": "#6C7380",
@@ -26,7 +26,7 @@
     "ayuModified": "#73B8FF",
     "ayuRemoved": "#F26D78",
     "ayuSelection": "#3388FF40",
-    "ayuBorder": "#1B1F29"
+    "ayuBorder": "#2a2a2a"
   },
   "theme": {
     "primary": {
